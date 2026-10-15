@@ -8,7 +8,6 @@ import {
   Landmark,
   MessageSquare,
   MessagesSquare,
-  Palette,
   PartyPopper,
   Sparkles,
   Sun,
@@ -25,13 +24,12 @@ import { HexagonoMarca, MarcaDagua } from "@/components/marca-hexagono";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useEstilo, useSalvarEstilo, type Estilo } from "@/lib/aparencia";
-import { useEu, usePermissao } from "@/lib/colaborador";
+import { useEstilo, type Estilo } from "@/lib/aparencia";
+import { useEu } from "@/lib/colaborador";
 import { corModulo, type CorModulo } from "@/lib/cores-modulo";
 import { msgErro } from "@/lib/erro";
 import { useModulos, type ModuloChave } from "@/lib/modulos";
 import { useDashboard, type Dashboard } from "@/lib/queries/dashboard";
-import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 /** Atraso da entrada escalonada: passos de 50ms. */
@@ -180,11 +178,9 @@ export function InicioPage() {
   usePageTitle("Início");
   const estilo = useEstilo();
   const dados = useInicio();
-  const podeTrocar = usePermissao("configuracoes.gerenciar");
   return (
-    <div className={cn("relative min-h-full", podeTrocar && "pb-16")}>
+    <div className={"relative min-h-full"}>
       {estilo === "A" ? <InicioMarinho {...dados} /> : <InicioColorido {...dados} />}
-      {podeTrocar && <TrocaEstilo atual={estilo} />}
     </div>
   );
 }
@@ -634,40 +630,3 @@ function Resumos({ p, variante }: { p: Inicio; variante: Estilo }) {
 // Troca de estilo (só configuracoes.gerenciar; vale para todos)
 // ---------------------------------------------------------------------------
 
-function TrocaEstilo({ atual }: { atual: Estilo }) {
-  const { salvar, pendente } = useSalvarEstilo();
-  async function escolher(e: Estilo) {
-    if (e === atual || pendente) return;
-    try {
-      await salvar(e);
-      toast.success(e === "A" ? "Estilo Marinho aplicado para todos" : "Estilo Claro e colorido aplicado para todos");
-    } catch (err) {
-      toast.error(`Não foi possível trocar o estilo: ${msgErro(err)}`);
-    }
-  }
-  return (
-    <div className="fixed bottom-4 right-4 z-40 mb-safe-b flex items-center gap-1 rounded-full border bg-card/95 backdrop-blur p-1 pl-3 shadow-flutuante text-xs">
-      <Palette className="size-4 text-muted-foreground" aria-hidden />
-      <span className="font-semibold mr-1">Estilo</span>
-      {(
-        [
-          { v: "A", r: "Marinho" },
-          { v: "B", r: "Colorido" },
-        ] as const
-      ).map((o) => (
-        <button
-          key={o.v}
-          type="button"
-          onClick={() => void escolher(o.v)}
-          aria-pressed={atual === o.v}
-          className={cn(
-            "rounded-full h-8 px-3 font-semibold transition-[background-color,color,transform] duration-150 active:scale-[.97]",
-            atual === o.v ? "bg-brand text-brand-foreground dark:bg-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
-        >
-          {o.v} · {o.r}
-        </button>
-      ))}
-    </div>
-  );
-}
