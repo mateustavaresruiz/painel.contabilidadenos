@@ -622,7 +622,7 @@ serve(async (req) => {
           ? "Integração com o Serpro pronta (via gateway Integra Contador)."
           : s.pausado
           ? "As chamadas ao Serpro estão pausadas no gateway."
-          : `Integração com o Serpro não configurada no gateway. Falta: ${faltando.join(", ")}.`,
+          : `Integração com o Serpro não configurada no gateway. Falta: ${faltando.map((f) => f.replace(/\.+$/, "")).join("; ")}.`,
       });
     }
 
