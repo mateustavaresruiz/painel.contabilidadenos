@@ -9,7 +9,7 @@
  *  CRON_SECRET       header x-cron-secret que o pg_cron envia (o valor no
  *                    banco mora no Vault, nunca em migration).
  *  WAHA_*            ver `_shared/waha.ts`.
- *  SERPRO_*          ver `_shared/serpro.ts`.
+ *  GATEWAY_*         gateway Integra Contador (Serpro), ver `_shared/serpro.ts`.
  */
 export const PUBLIC_BASE_URL = (
   Deno.env.get("PUBLIC_BASE_URL") ?? "https://painel-supabase.at63vf.easypanel.host"
