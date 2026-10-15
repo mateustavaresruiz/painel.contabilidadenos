@@ -1,0 +1,191 @@
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { ClienteSelect } from "@/components/features/clientes/cliente-select";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { msgErro } from "@/lib/erro";
+import { maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import {
+  TIPOS_CERTIFICADO,
+  useSalvarCertificado,
+  type Certificado,
+  type TipoCertificado,
+} from "@/lib/queries/certificados";
+import { toast } from "@/lib/toast";
+
+/** Criar/editar certificado digital. */
+export function CertificadoDialog({
+  open,
+  onOpenChange,
+  certificado,
+  clienteIdFixo,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  certificado?: Certificado | null;
+  /** Abre já com o cliente (detalhe do cliente / link do painel da conversa). */
+  clienteIdFixo?: string | null;
+}) {
+  const salvar = useSalvarCertificado();
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [tipo, setTipo] = useState<TipoCertificado>("e-CNPJ A1");
+  const [titular, setTitular] = useState("");
+  const [documento, setDocumento] = useState("");
+  const [emissora, setEmissora] = useState("");
+  const [emitidoEm, setEmitidoEm] = useState("");
+  const [validoAte, setValidoAte] = useState("");
+  const [telefoneAviso, setTelefoneAviso] = useState("");
+  const [avisar, setAvisar] = useState(true);
+  const [obs, setObs] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const c = certificado;
+    setClienteId(c?.clienteId ?? clienteIdFixo ?? null);
+    setTipo(c?.tipo ?? "e-CNPJ A1");
+    setTitular(c?.titular ?? "");
+    setDocumento(c?.documento ? maskCpfCnpj(c.documento) : "");
+    setEmissora(c?.emissora ?? "");
+    setEmitidoEm(c?.emitidoEm ?? "");
+    setValidoAte(c?.validoAte ?? "");
+    setTelefoneAviso(c?.telefoneAviso ? maskTelefone(c.telefoneAviso) : "");
+    setAvisar(c?.avisarWhatsapp ?? true);
+    setObs(c?.observacoes ?? "");
+  }, [open, certificado, clienteIdFixo]);
+
+  async function enviar() {
+    if (!clienteId) return toast.error("Escolha o cliente.");
+    if (!validoAte) return toast.error("Informe a validade.");
+    if (emitidoEm && emitidoEm > validoAte) return toast.error("A emissão é depois da validade.");
+    try {
+      await salvar.mutateAsync({
+        id: certificado?.id,
+        input: {
+          clienteId,
+          tipo,
+          titular,
+          documento,
+          emissora,
+          emitidoEm: emitidoEm || null,
+          validoAte,
+          telefoneAviso,
+          avisarWhatsapp: avisar,
+          observacoes: obs,
+        },
+      });
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(msgErro(err));
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{certificado ? "Editar certificado" : "Novo certificado digital"}</DialogTitle>
+          <DialogDescription>
+            O aviso automático pelo WhatsApp usa os marcos e o modelo configurados na tela de
+            Certificados.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 sm:grid-cols-2 max-h-[65vh] overflow-y-auto px-0.5">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Cliente *</Label>
+            <ClienteSelect value={clienteId} onChange={setClienteId} disabled={!!clienteIdFixo && !certificado} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cd-tipo">Tipo</Label>
+            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoCertificado)}>
+              <SelectTrigger id="cd-tipo">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_CERTIFICADO.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cd-emissora">Emissora (AC)</Label>
+            <Input id="cd-emissora" value={emissora} onChange={(e) => setEmissora(e.target.value)} placeholder="Serasa, Certisign, Valid…" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cd-titular">Titular</Label>
+            <Input id="cd-titular" value={titular} onChange={(e) => setTitular(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cd-doc">CPF/CNPJ do titular</Label>
+            <Input
+              id="cd-doc"
+              inputMode="numeric"
+              value={documento}
+              onChange={(e) => setDocumento(maskCpfCnpj(e.target.value))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cd-emitido">Emitido em</Label>
+            <Input id="cd-emitido" type="date" value={emitidoEm} onChange={(e) => setEmitidoEm(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cd-valido">Válido até *</Label>
+            <Input id="cd-valido" type="date" value={validoAte} onChange={(e) => setValidoAte(e.target.value)} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="cd-tel">Telefone para o aviso</Label>
+            <Input
+              id="cd-tel"
+              inputMode="tel"
+              value={telefoneAviso}
+              onChange={(e) => setTelefoneAviso(maskTelefone(e.target.value))}
+              placeholder="Vazio = telefone do cliente"
+            />
+          </div>
+          <label className="sm:col-span-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={avisar}
+              onChange={(e) => setAvisar(e.target.checked)}
+              className="size-4 accent-[var(--primary)]"
+            />
+            Avisar o cliente pelo WhatsApp antes de vencer
+          </label>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="cd-obs">Observações</Label>
+            <Textarea id="cd-obs" rows={2} value={obs} onChange={(e) => setObs(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={salvar.isPending}>
+            Cancelar
+          </Button>
+          <Button onClick={enviar} disabled={salvar.isPending}>
+            {salvar.isPending ? <Loader2 className="animate-spin" /> : null}
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

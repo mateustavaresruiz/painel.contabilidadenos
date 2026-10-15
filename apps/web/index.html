@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover: pinta até a borda no iPhone e faz env(safe-area-*) valer. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="theme-color" content="#f5f5f7" />
+    <!-- Painel interno: fora dos buscadores. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Painel NÓS" />
+
+    <!-- Sem piscar o tema errado: aplica o tema salvo antes do bundle.
+         Espelha lib/theme.ts (chave e padrão claro). -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("denos:theme");
+          if (t !== "light" && t !== "dark") t = "light";
+          var r = document.documentElement;
+          r.classList.toggle("dark", t === "dark");
+          r.style.colorScheme = t;
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute("content", t === "dark" ? "#1d1d1f" : "#f5f5f7");
+        } catch (e) {}
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Inter só como reserva da pilha do sistema (SF Pro na Apple). Carregada
+         sem bloquear a primeira pintura. -->
+    <link
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'; this.onload=null;"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+      />
+    </noscript>
+
+    <title>Painel NÓS · Contabilidade Denos</title>
+  </head>
+  <body class="min-h-full bg-background text-foreground antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

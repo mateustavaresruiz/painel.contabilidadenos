@@ -1,0 +1,307 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { nullificarVazios, orIlike } from "@/lib/queries/helpers";
+import { supabase } from "@/lib/supabase";
+import type { ClienteInput, RegimeTributario } from "@/lib/validations/cliente";
+
+const TABLE = "Cliente";
+
+export type Cliente = {
+  id: string;
+  tipo: "PF" | "PJ";
+  nome: string;
+  nomeFantasia: string | null;
+  cpfCnpj: string | null;
+  email: string | null;
+  telefone: string | null;
+  telefoneNormalizado: string | null;
+  dataNascimento: string | null;
+  dataAbertura: string | null;
+  regimeTributario: RegimeTributario | null;
+  inscricaoEstadual: string | null;
+  inscricaoMunicipal: string | null;
+  cep: string | null;
+  rua: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+  observacoes: string | null;
+  ativo: boolean;
+  criadoEm: string;
+  atualizadoEm: string;
+};
+
+export type ClienteResumo = Pick<
+  Cliente,
+  | "id"
+  | "tipo"
+  | "nome"
+  | "nomeFantasia"
+  | "cpfCnpj"
+  | "email"
+  | "telefone"
+  | "regimeTributario"
+  | "cidade"
+  | "estado"
+  | "ativo"
+  | "criadoEm"
+>;
+
+export type ClientesFilters = {
+  q?: string;
+  tipo?: "PF" | "PJ" | "";
+  regime?: RegimeTributario | "";
+  /** "ativos" (padrão), "inativos" ou "todos". */
+  situacao?: "ativos" | "inativos" | "todos";
+};
+
+export function useClientes(filters: ClientesFilters) {
+  return useQuery({
+    queryKey: ["clientes", "lista", filters],
+    queryFn: async () => {
+      let query = supabase
+        .from(TABLE)
+        .select(
+          "id, tipo, nome, nomeFantasia, cpfCnpj, email, telefone, regimeTributario, cidade, estado, ativo, criadoEm",
+        )
+        .order("nome", { ascending: true })
+        .limit(500);
+      if (filters.tipo === "PF" || filters.tipo === "PJ") query = query.eq("tipo", filters.tipo);
+      if (filters.regime) query = query.eq("regimeTributario", filters.regime);
+      const situacao = filters.situacao ?? "ativos";
+      if (situacao === "ativos") query = query.eq("ativo", true);
+      if (situacao === "inativos") query = query.eq("ativo", false);
+      const q = filters.q?.trim();
+      if (q) {
+        const digitos = q.replace(/\D/g, "");
+        const cols = ["nome", "nomeFantasia", "email", "telefone"];
+        // Busca por CPF/CNPJ/telefone com ou sem máscara: o banco guarda só
+        // dígitos em cpfCnpj e telefoneNormalizado.
+        let filtro = orIlike(cols, q);
+        if (digitos.length >= 3) {
+          filtro += "," + orIlike(["cpfCnpj", "telefoneNormalizado"], digitos);
+        }
+        query = query.or(filtro);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as ClienteResumo[];
+    },
+  });
+}
+
+/** Procura um cliente existente pelo CPF/CNPJ. */
+export function useClientePorDoc(doc: string | undefined, ignorarId?: string) {
+  return useQuery({
+    queryKey: ["cliente-por-doc", doc, ignorarId],
+    enabled: !!doc && doc.replace(/\D/g, "").length >= 11,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const sanit = doc!.replace(/\D/g, "");
+      let q = supabase.from(TABLE).select("id, nome, tipo, cpfCnpj").eq("cpfCnpj", sanit).limit(1);
+      if (ignorarId) q = q.neq("id", ignorarId);
+      const { data, error } = await q.maybeSingle();
+      if (error) throw error;
+      return data as { id: string; nome: string; tipo: "PF" | "PJ"; cpfCnpj: string | null } | null;
+    },
+  });
+}
+
+/** Procura um cliente existente pelo e-mail (sem diferenciar maiúsculas). */
+export function useClientePorEmail(email: string | undefined, ignorarId?: string) {
+  const normalizado = email?.trim().toLowerCase();
+  return useQuery({
+    queryKey: ["cliente-por-email", normalizado, ignorarId],
+    enabled: !!normalizado && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizado),
+    staleTime: 30_000,
+    queryFn: async () => {
+      let q = supabase.from(TABLE).select("id, nome, email").ilike("email", normalizado!).limit(1);
+      if (ignorarId) q = q.neq("id", ignorarId);
+      const { data, error } = await q.maybeSingle();
+      if (error) throw error;
+      return data as { id: string; nome: string; email: string | null } | null;
+    },
+  });
+}
+
+/**
+ * Clientes com este telefone, pela RPC `cliente_por_telefone` (normaliza no
+ * banco e tolera o 9º dígito — o adv3 não tolerava, defeito 46).
+ */
+export async function buscarClientesPorTelefone(
+  telefone: string | null | undefined,
+): Promise<Pick<Cliente, "id" | "nome" | "tipo" | "nomeFantasia" | "telefone">[]> {
+  const d = (telefone ?? "").replace(/\D/g, "");
+  if (d.length < 10) return [];
+  const { data, error } = await supabase.rpc("cliente_por_telefone", { p_telefone: d });
+  if (error) throw error;
+  return ((data ?? []) as Cliente[]).map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    tipo: c.tipo,
+    nomeFantasia: c.nomeFantasia,
+    telefone: c.telefone,
+  }));
+}
+
+/** Hook reativo: clientes com o mesmo telefone (alerta no form / sugestão no chat). */
+export function useClientesPorTelefone(telefone: string | undefined, ignorarId?: string) {
+  const d = (telefone ?? "").replace(/\D/g, "");
+  return useQuery({
+    queryKey: ["cliente-por-telefone", d, ignorarId],
+    enabled: d.length >= 10,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const lista = await buscarClientesPorTelefone(d);
+      return ignorarId ? lista.filter((c) => c.id !== ignorarId) : lista;
+    },
+  });
+}
+
+export function useCliente(id: string | undefined | null) {
+  return useQuery({
+    queryKey: ["cliente", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from(TABLE).select("*").eq("id", id!).maybeSingle();
+      if (error) throw error;
+      return data as Cliente | null;
+    },
+  });
+}
+
+export function useCreateCliente() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ClienteInput) => {
+      // tenantId tem default 'denos' no banco — não enviamos.
+      const { data, error } = await supabase.from(TABLE).insert(input).select("id").single();
+      if (error) throw error;
+      return data as { id: string };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      qc.invalidateQueries({ queryKey: ["aniversarios"] });
+    },
+  });
+}
+
+export function useUpdateCliente(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Partial<ClienteInput>) => {
+      // nullificarVazios: campo limpo na edição precisa virar null pra zerar
+      // no banco — senão o supabase-js descarta a chave.
+      const { error } = await supabase.from(TABLE).update(nullificarVazios(input)).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      qc.invalidateQueries({ queryKey: ["cliente", id] });
+      qc.invalidateQueries({ queryKey: ["aniversarios"] });
+    },
+  });
+}
+
+export function useDeleteCliente() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from(TABLE).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      qc.invalidateQueries({ queryKey: ["aniversarios"] });
+      qc.invalidateQueries({ queryKey: ["certificados"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sócios
+// ---------------------------------------------------------------------------
+
+export type Socio = {
+  id: string;
+  clienteId: string;
+  nome: string;
+  cpf: string | null;
+  dataNascimento: string | null;
+  telefone: string | null;
+  email: string | null;
+  participacao: number | null;
+  administrador: boolean;
+  criadoEm: string;
+};
+
+export type SocioInput = {
+  nome: string;
+  cpf?: string | null;
+  dataNascimento?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  participacao?: number | null;
+  administrador?: boolean;
+};
+
+export function useSocios(clienteId: string | undefined | null) {
+  return useQuery({
+    queryKey: ["socios", clienteId],
+    enabled: !!clienteId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("Socio")
+        .select("*")
+        .eq("clienteId", clienteId!)
+        .order("nome");
+      if (error) throw error;
+      return (data ?? []) as Socio[];
+    },
+  });
+}
+
+export function useSalvarSocio(clienteId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { id?: string; input: SocioInput }) => {
+      const payload = {
+        ...args.input,
+        cpf: args.input.cpf ? args.input.cpf.replace(/\D/g, "") : null,
+      };
+      if (args.id) {
+        const { error } = await supabase.from("Socio").update(payload).eq("id", args.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("Socio").insert({ ...payload, clienteId });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["socios", clienteId] });
+      qc.invalidateQueries({ queryKey: ["aniversarios"] });
+    },
+  });
+}
+
+export function useExcluirSocio(clienteId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("Socio").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["socios", clienteId] });
+      qc.invalidateQueries({ queryKey: ["aniversarios"] });
+    },
+  });
+}
+
+/** Rótulo de exibição: nome fantasia (PJ) com a razão social de apoio. */
+export function nomeExibicao(c: Pick<Cliente, "nome" | "nomeFantasia"> | null | undefined): string {
+  if (!c) return "";
+  return c.nomeFantasia?.trim() || c.nome;
+}

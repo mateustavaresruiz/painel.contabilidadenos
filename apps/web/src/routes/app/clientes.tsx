@@ -1,0 +1,276 @@
+import { Building2, MapPin, Plus, Search, SearchX, User, Users } from "lucide-react";
+import { useMemo } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+
+import { ABAS_CLIENTES, ModuloAbas } from "@/components/modulo-abas";
+import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { ItemCard, ItemCardSkeleton, ListaResponsiva } from "@/components/ui/lista-responsiva";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { SkeletonTableRow } from "@/components/ui/skeleton";
+import {
+  SortableTableHead,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useDebounced } from "@/hooks/use-debounced";
+import { usePageTitle } from "@/hooks/use-page-title";
+import { useSort } from "@/hooks/use-sort";
+import { formatDoc, formatTelefone } from "@/lib/format";
+import { nomeExibicao, useClientes, type ClienteResumo } from "@/lib/queries/clientes";
+import { REGIMES, type RegimeTributario } from "@/lib/validations/cliente";
+import { useEffect, useState } from "react";
+
+const TODOS = "__todos__";
+
+export function ClientesPage() {
+  usePageTitle("Clientes");
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const tipoParam = params.get("tipo") ?? "";
+  const tipo = tipoParam === "PF" || tipoParam === "PJ" ? tipoParam : "";
+  const regime = (params.get("regime") ?? "") as RegimeTributario | "";
+  const situacaoParam = params.get("situacao");
+  const situacao =
+    situacaoParam === "inativos" || situacaoParam === "todos" ? situacaoParam : "ativos";
+
+  // Busca com debounce, mas refletida na URL (link compartilhável).
+  const [busca, setBusca] = useState(params.get("q") ?? "");
+  const q = useDebounced(busca, 300);
+  useEffect(() => {
+    setParam("q", q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
+  function setParam(chave: string, valor: string) {
+    setParams(
+      (curr) => {
+        const next = new URLSearchParams(curr);
+        if (valor) next.set(chave, valor);
+        else next.delete(chave);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  const { data: clientes = [], isLoading } = useClientes({ q, tipo, regime, situacao });
+  const filtrando = !!q || !!tipo || !!regime || situacao !== "ativos";
+
+  const acessores = useMemo(
+    () => ({
+      nome: (c: ClienteResumo) => nomeExibicao(c),
+      tipo: (c: ClienteResumo) => c.tipo,
+      regime: (c: ClienteResumo) => c.regimeTributario,
+      cidade: (c: ClienteResumo) => c.cidade,
+    }),
+    [],
+  );
+  const { rows, sort, toggle } = useSort(clientes, acessores);
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+      <PageHeader
+        icon={Users}
+        title="Clientes"
+        description="Empresas e pessoas atendidas pelo escritório."
+        actions={
+          <Button asChild>
+            <Link to="/clientes/novo">
+              <Plus />
+              Novo cliente
+            </Link>
+          </Button>
+        }
+      />
+
+      <ModuloAbas abas={ABAS_CLIENTES} />
+
+      <div className="flex flex-col gap-2 rounded-xl border bg-card p-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome, fantasia, CPF/CNPJ, e-mail ou telefone…"
+            className="pl-8 text-base md:text-sm"
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:flex">
+          <Select value={tipo || TODOS} onValueChange={(v) => setParam("tipo", v === TODOS ? "" : v)}>
+            <SelectTrigger className="sm:w-[130px]" aria-label="Tipo">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>PF e PJ</SelectItem>
+              <SelectItem value="PJ">Empresas (PJ)</SelectItem>
+              <SelectItem value="PF">Pessoas (PF)</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={regime || TODOS} onValueChange={(v) => setParam("regime", v === TODOS ? "" : v)}>
+            <SelectTrigger className="sm:w-[170px]" aria-label="Regime">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todo regime</SelectItem>
+              {REGIMES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={situacao} onValueChange={(v) => setParam("situacao", v === "ativos" ? "" : v)}>
+            <SelectTrigger className="sm:w-[120px]" aria-label="Situação">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ativos">Ativos</SelectItem>
+              <SelectItem value="inativos">Inativos</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <ListaResponsiva
+          corte="lg"
+          tabela={
+            <Table>
+              <TableBody>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <SkeletonTableRow key={i} cols={5} />
+                ))}
+              </TableBody>
+            </Table>
+          }
+        >
+          {Array.from({ length: 5 }).map((_, i) => (
+            <ItemCardSkeleton key={i} />
+          ))}
+        </ListaResponsiva>
+      ) : clientes.length === 0 ? (
+        filtrando ? (
+          <EmptyState icon={SearchX} title="Nenhum cliente encontrado" description="Ajuste a busca ou os filtros." />
+        ) : (
+          <EmptyState
+            icon={Users}
+            title="Nenhum cliente cadastrado"
+            description="Cadastre as empresas e pessoas que o escritório atende. O telefone liga o cliente às conversas do WhatsApp."
+            action={
+              <Button asChild>
+                <Link to="/clientes/novo">
+                  <Plus />
+                  Cadastrar cliente
+                </Link>
+              </Button>
+            }
+          />
+        )
+      ) : (
+        <ListaResponsiva
+          corte="lg"
+          tabela={
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <SortableTableHead active={sort?.key === "nome"} dir={sort?.dir} onSort={() => toggle("nome")}>
+                    Nome
+                  </SortableTableHead>
+                  <SortableTableHead active={sort?.key === "tipo"} dir={sort?.dir} onSort={() => toggle("tipo")}>
+                    Tipo
+                  </SortableTableHead>
+                  <SortableTableHead active={sort?.key === "regime"} dir={sort?.dir} onSort={() => toggle("regime")}>
+                    Regime
+                  </SortableTableHead>
+                  <TableHead>CPF / CNPJ</TableHead>
+                  <TableHead>Contato</TableHead>
+                  <SortableTableHead active={sort?.key === "cidade"} dir={sort?.dir} onSort={() => toggle("cidade")}>
+                    Cidade
+                  </SortableTableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((c) => (
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer hover:bg-muted/40"
+                    onClick={() => navigate(`/clientes/${c.id}`)}
+                  >
+                    <TableCell className="font-medium">
+                      <span className="block">{nomeExibicao(c)}</span>
+                      {c.nomeFantasia && c.nomeFantasia !== c.nome && (
+                        <span className="block text-2xs text-muted-foreground font-normal">{c.nome}</span>
+                      )}
+                      {!c.ativo && <Badge variant="secondary" className="mt-1">Inativo</Badge>}
+                    </TableCell>
+                    <TableCell>
+                      <TipoBadge tipo={c.tipo} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{c.regimeTributario ?? "-"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground tabular-nums">{formatDoc(c.cpfCnpj)}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="flex flex-col leading-tight min-w-0">
+                        {c.telefone ? <span className="tabular-nums">{formatTelefone(c.telefone)}</span> : null}
+                        {c.email ? <span className="truncate text-xs text-muted-foreground">{c.email}</span> : null}
+                        {!c.telefone && !c.email ? <span className="text-muted-foreground">-</span> : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {[c.cidade, c.estado].filter(Boolean).join(" / ") || "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          }
+        >
+          {rows.map((c) => (
+            <ItemCard
+              key={c.id}
+              to={`/clientes/${c.id}`}
+              titulo={nomeExibicao(c)}
+              subtitulo={c.telefone ? formatTelefone(c.telefone) : c.email ?? undefined}
+              selo={<TipoBadge tipo={c.tipo} />}
+              meta={[
+                c.cpfCnpj ? { texto: formatDoc(c.cpfCnpj) } : null,
+                c.regimeTributario ? { texto: c.regimeTributario } : null,
+                c.cidade ? { icone: MapPin, texto: [c.cidade, c.estado].filter(Boolean).join(" / ") } : null,
+              ]}
+            />
+          ))}
+        </ListaResponsiva>
+      )}
+
+      {clientes.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {clientes.length} {clientes.length === 1 ? "cliente" : "clientes"}
+          {clientes.length >= 500 ? " (mostrando os 500 primeiros, refine a busca)" : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function TipoBadge({ tipo }: { tipo: "PF" | "PJ" }) {
+  return (
+    <Badge variant={tipo === "PJ" ? "secondary" : "outline"} className="text-xs gap-1">
+      {tipo === "PJ" ? <Building2 className="size-3" /> : <User className="size-3" />}
+      {tipo}
+    </Badge>
+  );
+}

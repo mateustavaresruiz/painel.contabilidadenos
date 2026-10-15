@@ -1,0 +1,248 @@
+/* Sem @import de fonte: a pilha é a do sistema (SF Pro no Mac/iPhone) e a
+   Inter vem por <link> em index.html só como reserva. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Painel Denos: tokens (docs/DESIGN.md manda aqui)
+   ============================================================
+   Todo componente pinta por token semântico (bg-card, text-foreground,
+   border-border…). O redesenho é troca de valor AQUI, não em tela.
+
+   Linguagem da Apple adaptada para painel:
+   - um acento só (--primary), azul #0066cc no claro e #2997ff no escuro;
+   - superfícies: --parchment (fundo, menu, cabeçalho de tabela) e
+     --canvas (cartões, conversa); separação por borda 1px, sem sombra;
+   - estados (sucesso/atenção/erro) só em badge, nunca em botão.
+
+   Mapa para os nomes do shadcn (que os componentes usam):
+     background = parchment · card/popover = canvas · secondary = pearl
+     muted = parchment · border = hairline · bronze = o próprio acento
+     (no adv3 era um segundo acento; aqui "um acento só").
+   Os valores são hex/rgba completos: o helper alpha() do tailwind.config
+   aplica opacidade com color-mix.
+*/
+
+:root {
+  color-scheme: light;
+  /* Paleta do DESIGN.md */
+  --ink: #1d1d1f;
+  --ink-80: #333333;
+  --ink-48: #7a7a7a;
+  --canvas: #ffffff;
+  --parchment: #f5f5f7;
+  --pearl: #fafafc;
+  --hairline: #e0e0e0;
+  --divider-soft: #f0f0f0;
+  --chip: rgba(210, 210, 215, 0.64);
+  --primary-focus: #0071e3;
+
+  /* Nomes semânticos */
+  --background: var(--parchment);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --card-foreground: var(--ink);
+  --popover: var(--canvas);
+  --popover-foreground: var(--ink);
+  --primary: #0066cc;
+  --primary-foreground: #ffffff;
+  --secondary: var(--pearl);
+  --secondary-foreground: var(--ink-80);
+  --muted: var(--parchment);
+  --muted-foreground: var(--ink-48);
+  --accent: #ededf0;
+  --accent-foreground: var(--ink);
+  --success: #1f8a3b;
+  --success-foreground: #ffffff;
+  --warning: #b25000;
+  --warning-foreground: #ffffff;
+  --danger: #d70015;
+  --danger-foreground: #ffffff;
+  --destructive: #d70015;
+  --destructive-foreground: #ffffff;
+  --border: var(--hairline);
+  --divider: var(--divider-soft);
+  --input: var(--hairline);
+  --ring: var(--primary-focus);
+  --bronze: var(--primary);
+  --bronze-foreground: var(--primary-foreground);
+  /* ✓✓ lida = o acento (sem segunda cor). */
+  --lida: var(--primary);
+  --lida-propria: var(--primary);
+  /* Barras fixas: parchment a 80% + blur. */
+  --barra: rgba(245, 245, 247, 0.8);
+  /* Única sombra permitida: o que flutua (popover, menu, diálogo). */
+  --sombra-flutuante: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+  /* Raios: só 8 / 11 / 18 / pílula. */
+  --radius: 8px;
+  --radius-pearl: 11px;
+  --radius-card: 18px;
+
+  --ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+}
+
+.dark {
+  color-scheme: dark;
+  --ink: #f5f5f7;
+  --ink-80: #e3e3e8;
+  --ink-48: #a1a1a6;
+  --canvas: #272729;
+  --parchment: #1d1d1f;
+  --pearl: #2a2a2c;
+  --hairline: rgba(255, 255, 255, 0.12);
+  --divider-soft: rgba(255, 255, 255, 0.07);
+  --chip: rgba(255, 255, 255, 0.12);
+  --primary-focus: #2997ff;
+
+  --primary: #2997ff;
+  --primary-foreground: #ffffff;
+  --accent: #333336;
+  --success: #34c759;
+  --success-foreground: #1d1d1f;
+  --warning: #ff9f0a;
+  --warning-foreground: #1d1d1f;
+  --danger: #ff453a;
+  --danger-foreground: #1d1d1f;
+  --destructive: #ff453a;
+  --destructive-foreground: #1d1d1f;
+  --barra: rgba(29, 29, 31, 0.8);
+  --sombra-flutuante: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  html {
+    @apply font-sans antialiased;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 15px;
+    line-height: 1.47;
+    letter-spacing: -0.24px;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 600;
+  }
+  /* Uma família de ícones (lucide, vinda do adv3) com traço 1.5. CSS vence o
+     atributo stroke-width="2" que o componente escreve. */
+  svg.lucide {
+    stroke-width: 1.5;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+    color: var(--foreground);
+  }
+  /* Foco: outline 2px no azul de foco (no lugar do anel com glow). */
+  :focus-visible {
+    outline: 2px solid var(--primary-focus);
+    outline-offset: 2px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 30%, transparent) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--muted-foreground) 28%, transparent);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+}
+
+@layer utilities {
+  /* Legado do adv3: "shadow-soft" agora é só a borda (sem sombra). */
+  .shadow-soft {
+    box-shadow: 0 0 0 1px var(--border);
+  }
+  .shadow-inset-btn {
+    box-shadow: none;
+  }
+  .shadow-focus-soft {
+    box-shadow: none;
+  }
+  .shadow-flutuante {
+    box-shadow: var(--sombra-flutuante);
+  }
+  /* Barra fixa translúcida (cabeçalho, topo da conversa, composer). */
+  .barra-fixa {
+    background-color: var(--barra);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+  .nums {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Rótulo de seção: 13px/600, tinta secundária. */
+  .eyebrow {
+    font-size: 13px;
+    line-height: 1.38;
+    letter-spacing: -0.08px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.4s var(--ease-brand) both;
+}
+@keyframes route-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-route-fade {
+  animation: route-fade 0.15s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .animate-pulse {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
