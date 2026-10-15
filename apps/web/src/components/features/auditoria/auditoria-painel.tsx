@@ -90,11 +90,11 @@ export function AuditoriaPainel() {
             aria-label="Buscar na auditoria"
           />
         </div>
-        <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
           <DatePicker value={de} onChange={setDe} limpavel placeholder="De" aria-label="A partir de" />
           <DatePicker value={ate} onChange={setAte} limpavel placeholder="Até" aria-label="Até" />
           <Select value={atorId || TODOS} onValueChange={(v) => setAtorId(v === TODOS ? "" : v)}>
-            <SelectTrigger aria-label="Pessoa">
+            <SelectTrigger aria-label="Pessoa" className="col-span-2 sm:col-span-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -109,7 +109,7 @@ export function AuditoriaPainel() {
             </SelectContent>
           </Select>
           <Select value={modulo || TODOS} onValueChange={(v) => setModulo(v === TODOS ? "" : v)}>
-            <SelectTrigger aria-label="Módulo">
+            <SelectTrigger aria-label="Módulo" className="col-span-2 sm:col-span-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -122,7 +122,7 @@ export function AuditoriaPainel() {
             </SelectContent>
           </Select>
           <Select value={acao || TODOS} onValueChange={(v) => setAcao(v === TODOS ? "" : v)}>
-            <SelectTrigger aria-label="Ação">
+            <SelectTrigger aria-label="Ação" className="col-span-2 sm:col-span-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-80">

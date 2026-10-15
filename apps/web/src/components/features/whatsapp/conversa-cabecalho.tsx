@@ -154,7 +154,7 @@ export function ConversaCabecalho(p: Props) {
         </div>
 
         {/* Desktop: tudo na mesma linha. Celular: o chip e a ação descem. */}
-        <div className="hidden shrink-0 items-center gap-2 md:ml-auto md:flex">
+        <div className="hidden min-w-0 max-w-full flex-wrap items-center justify-end gap-2 md:ml-auto md:flex">
           {chip}
           {botaoPrimario}
           {chamado}

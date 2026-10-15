@@ -416,3 +416,11 @@ html[data-vt] .animate-page-enter {
     animation: none !important;
   }
 }
+
+/* Chips de filtro da lista do WhatsApp: em coluna estreita só o texto (cabem em 2 linhas);
+   a partir de 420px de largura da coluna voltam os ícones. */
+.chips-conversa { container-type: inline-size; }
+.chips-conversa .chip-ico { display: none; }
+@container (min-width: 420px) {
+  .chips-conversa .chip-ico { display: inline-block; }
+}

@@ -114,7 +114,7 @@ export function ChatFilterChips({ ativo, onChange }: Props) {
       className={cn(
         // Quebra em duas linhas quando a coluna é estreita: antes os chips
         // saíam cortados ("Sem respon…") e só apareciam arrastando.
-        "flex flex-wrap items-center gap-1.5 px-3 py-2.5 select-none",
+        "chips-conversa flex flex-wrap items-center gap-1.5 px-3 py-2.5 select-none",
       )}
     >
       {CHIPS.map((chip) => {
@@ -137,7 +137,7 @@ export function ChatFilterChips({ ativo, onChange }: Props) {
             )}
             aria-pressed={isAtivo}
           >
-            <Icon className="size-3.5" />
+            <Icon className="chip-ico size-3.5" />
             <span>{chip.label}</span>
           </button>
         );

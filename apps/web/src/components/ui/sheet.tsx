@@ -140,11 +140,16 @@ export const SheetContent = forwardRef<
             // blur de 40px não muda o que se vê. Aqui saía mais caro que lá,
             // porque este painel é ARRASTÁVEL: cada quadro do arraste obrigava
             // o compositor a refazer o passe de blur, no aparelho mais fraco.
-            "fixed z-50 flex flex-col overflow-hidden border-border/60 bg-background/95 shadow-2xl [&>*]:min-w-0 data-[state=open]:animate-in data-[state=closed]:animate-out duration-300 ease-brand",
+            "fixed z-50 flex flex-col overflow-hidden outline-none border-border/60 bg-background/95 shadow-2xl [&>*]:min-w-0 data-[state=open]:animate-in data-[state=closed]:animate-out duration-300 ease-brand",
             SIDE_CLASSES[side],
             arrastando && "transition-none duration-0",
             className,
           )}
+          // O foco entra no próprio painel, não no primeiro botão (que ficava com anel de foco ao abrir).
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            painelRef.current?.focus();
+          }}
           {...props}
         >
           {arrastavel && (
