@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CORES_COLABORADOR, type Colaborador } from "@/lib/colaborador";
+import { useEhAdmin } from "@/lib/modulos";
 import { msgErro } from "@/lib/erro";
 import { maskTelefone } from "@/lib/masks";
 import { useSalvarColaborador } from "@/lib/queries/denos";
@@ -28,12 +29,15 @@ export function ColaboradorForm({
   compacto?: boolean;
 }) {
   const salvar = useSalvarColaborador();
+  // Só admin troca papel (portão de tela; sem login, ver lib/modulos.ts).
+  const ehAdmin = useEhAdmin();
   const [nome, setNome] = useState(inicial?.nome ?? "");
   const [email, setEmail] = useState(inicial?.email ?? "");
   const [telefone, setTelefone] = useState(inicial?.telefone ? maskTelefone(inicial.telefone) : "");
   const [cargo, setCargo] = useState(inicial?.cargo ?? "");
   const [cor, setCor] = useState(inicial?.cor ?? CORES_COLABORADOR[0]!);
   const [ativo, setAtivo] = useState(inicial?.ativo ?? true);
+  const [papel, setPapel] = useState<"admin" | "atendente">(inicial?.papel ?? "atendente");
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +52,7 @@ export function ColaboradorForm({
     try {
       const r = await salvar.mutateAsync({
         id: inicial?.id,
-        input: { nome, email, telefone, cargo, cor, ativo },
+        input: { nome, email, telefone, cargo, cor, ativo, papel: compacto || !ehAdmin ? undefined : papel },
       });
       onSalvo?.({ id: r.id });
     } catch (err) {
@@ -128,6 +132,36 @@ export function ColaboradorForm({
           ))}
         </div>
       </div>
+      {!compacto && ehAdmin && (
+        <div className="space-y-1.5">
+          <Label>Papel</Label>
+          <div className="inline-flex rounded-full border p-1" role="radiogroup" aria-label="Papel">
+            {(
+              [
+                ["atendente", "Atendente"],
+                ["admin", "Administrador"],
+              ] as const
+            ).map(([v, rotulo]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={papel === v}
+                onClick={() => setPapel(v)}
+                className={cn(
+                  "rounded-full px-3.5 py-1 text-xs transition-colors",
+                  papel === v ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          <p className="text-2xs text-muted-foreground">
+            Administrador vê Configurações (módulos, integrações e sistema).
+          </p>
+        </div>
+      )}
       {!compacto && inicial && (
         <label className="flex items-center gap-2 text-sm">
           <input

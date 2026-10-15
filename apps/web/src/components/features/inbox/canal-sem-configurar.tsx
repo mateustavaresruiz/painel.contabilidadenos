@@ -29,7 +29,7 @@ export function CanalSemConfigurar({
           description="Cadastre o número do escritório em Conexões e escaneie o QR Code com o celular. Depois disso as conversas chegam aqui em tempo real."
           action={
             <Button asChild>
-              <Link to="/whatsapp/conexoes">
+              <Link to="/configuracoes?tab=conexoes">
                 <Plug />
                 Ir para Conexões
               </Link>
@@ -43,7 +43,7 @@ export function CanalSemConfigurar({
           description="O número está cadastrado, mas não está conectado agora. Em Conexões dá pra ver o status, reconectar ou ler o QR Code de novo."
           action={
             <Button asChild>
-              <Link to="/whatsapp/conexoes">
+              <Link to="/configuracoes?tab=conexoes">
                 <Plug />
                 Ver conexões
               </Link>

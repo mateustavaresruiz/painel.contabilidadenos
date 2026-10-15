@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
-  ArrowLeft,
   CheckCircle2,
   Eraser,
   Loader2,
@@ -14,7 +13,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
@@ -56,36 +54,11 @@ import {
 
 type StatusUi = ConexaoStatus;
 
-/**
- * Conexões — instâncias de WhatsApp do escritório (portado da tela Canais do
- * adv3). Sem login nem "só o dono": qualquer colaborador conecta, reconecta e
- * desconecta.
+/*
+ * Conexões: instâncias de WhatsApp do escritório (portado da tela Canais do
+ * adv3). A tela mora em Configurações > Conexões WhatsApp (só admin, como o
+ * "ehDono" do adv3); /whatsapp/conexoes redireciona para lá.
  */
-export function InboxCanaisPage() {
-  const ehDono = true;
-
-  return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
-      <div className="space-y-2">
-        <Link
-          to="/whatsapp"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Conversas
-        </Link>
-        <h1 className="text-title-lg font-semibold">Conexões WhatsApp</h1>
-        <p className="text-sm text-muted-foreground">
-          {ehDono
-            ? "Conecte as instâncias de WhatsApp. Você pode desconectar e reconectar a qualquer momento."
-            : "Quem conecta os canais é a conta principal do escritório. Aqui você consegue ver o status atual de cada conexão."}
-        </p>
-      </div>
-
-      <WhatsappInstanciasSection ehDono={ehDono} />
-    </div>
-  );
-}
 
 // ===========================================================================
 // WhatsApp — N instâncias por escritório

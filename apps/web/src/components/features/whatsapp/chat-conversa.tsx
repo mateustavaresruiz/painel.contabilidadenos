@@ -43,7 +43,7 @@ import {
 import { PainelConversa } from "@/components/features/atendimento/painel-conversa";
 import {
   NovaSolicitacaoDialog,
-  SolicitacaoBotao,
+  SolicitacaoBotaoSeAtivo,
   type OrigemSolicitacao,
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { useColaboradoresMap } from "@/lib/colaborador";
@@ -838,7 +838,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
           </div>
           {chat && !grupo ? <AtendimentoAcoes chat={chat} /> : null}
           {chat ? (
-            <SolicitacaoBotao origem={{ chatRowId: chat.id, clienteId: chat.clienteId }} />
+            <SolicitacaoBotaoSeAtivo origem={{ chatRowId: chat.id, clienteId: chat.clienteId }} />
           ) : null}
           {chat ? (
             <span className="hidden sm:contents">

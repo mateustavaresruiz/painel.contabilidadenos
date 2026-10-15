@@ -68,6 +68,7 @@ export function EquipePage() {
                 <p className="text-sm font-semibold truncate">
                   {c.nome}
                   {c.id === euId && <Badge variant="secondary" className="ml-2">você</Badge>}
+                  {c.papel === "admin" && <Badge className="ml-2">admin</Badge>}
                   {!c.ativo && <Badge variant="outline" className="ml-2">inativo</Badge>}
                 </p>
                 {c.cargo && <p className="text-xs text-muted-foreground">{c.cargo}</p>}

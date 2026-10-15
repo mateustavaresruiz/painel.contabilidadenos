@@ -28,6 +28,8 @@ export type Colaborador = {
   cor: string;
   cargo: string | null;
   ativo: boolean;
+  /** 'admin' vê Configurações (portão de tela, sem login: ver lib/modulos.ts). */
+  papel: "admin" | "atendente";
   criadoEm: string;
   atualizadoEm: string;
 };

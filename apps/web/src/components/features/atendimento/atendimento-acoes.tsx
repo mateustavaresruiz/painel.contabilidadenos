@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useColaboradoresMap, useEu, type Colaborador } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
+import { useModulos } from "@/lib/modulos";
 import {
   useMudarStatusAtendimento,
   useTransferirAtendimento,
@@ -37,6 +38,7 @@ export function AtendimentoAcoes({ chat }: { chat: WhatsappChat }) {
   const transferir = useTransferirAtendimento();
   const mudarStatus = useMudarStatusAtendimento();
   const [transferirAberto, setTransferirAberto] = useState(false);
+  const podeTransferir = useModulos().ativo("transferenciaAtendimento");
 
   const souEu = !!eu && chat.responsavelId === eu.id;
   const finalizado = chat.atendimentoStatus === "finalizado";
@@ -121,6 +123,7 @@ export function AtendimentoAcoes({ chat }: { chat: WhatsappChat }) {
         </Button>
       )}
 
+      {podeTransferir && (
       <Tooltip label="Transferir atendimento" side="bottom">
         <button
           type="button"
@@ -131,6 +134,7 @@ export function AtendimentoAcoes({ chat }: { chat: WhatsappChat }) {
           <ArrowRightLeft className="size-4" />
         </button>
       </Tooltip>
+      )}
 
       <TransferirDialog
         open={transferirAberto}

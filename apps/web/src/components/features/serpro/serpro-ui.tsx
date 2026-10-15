@@ -4,6 +4,7 @@ import {
   ChevronDown,
   CircleDashed,
   FileDown,
+  KeyRound,
   Loader2,
   RefreshCw,
   Search,
@@ -13,11 +14,24 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { confirmar } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { api, ErroDaApi } from "@/lib/api";
 import { msgErro } from "@/lib/erro";
-import { formatDataHora, formatDoc } from "@/lib/format";
+import { formatBRL, formatDataHora, formatDoc } from "@/lib/format";
 import {
   STATUS_CONSULTA_LABEL,
+  useCancelarConsulta,
+  useConfirmarConsulta,
   useConsultarSerpro,
   useConsultasFiscais,
   useRetomarConsulta,
@@ -208,15 +222,50 @@ const TOM: Record<ConsultaFiscal["status"], string> = {
   erro: "bg-destructive/10 text-destructive border-destructive/25",
 };
 
+type ConfirmacaoPin = { id: string; resumo?: string; custoEstimado?: number | null; expiraEm?: string | null };
+
+/** Consulta segurada pelo gateway pedindo PIN (`resultado.confirmacao`). */
+function confirmacaoPendente(c: ConsultaFiscal): ConfirmacaoPin | null {
+  if (c.status !== "pendente") return null;
+  const conf = (c.resultado as { confirmacao?: ConfirmacaoPin } | null)?.confirmacao;
+  return conf?.id ? conf : null;
+}
+
 /** SITFIS é assíncrono: "Retomar" busca o relatório pronto; PDF quando houver. */
 function AcoesConsulta({ consulta }: { consulta: ConsultaFiscal }) {
   const retomar = useRetomarConsulta();
+  const cancelar = useCancelarConsulta();
   const [abrindo, setAbrindo] = useState(false);
+  const [pinAberto, setPinAberto] = useState(false);
   const temPdf = !!(consulta.resultado as { pdfPath?: string } | null)?.pdfPath;
+  const conf = confirmacaoPendente(consulta);
   if (consulta.status !== "pendente" && !temPdf) return null;
+  async function cancelarConfirmacao() {
+    const ok = await confirmar({
+      titulo: "Cancelar esta consulta?",
+      descricao: "A confirmação pendente no gateway é descartada e nada é cobrado.",
+      confirmLabel: "Cancelar consulta",
+      destructive: true,
+    });
+    if (!ok) return;
+    cancelar.mutate(consulta.id, { onError: (e) => toast.error("Não foi possível cancelar: " + msgErro(e)) });
+  }
   return (
     <div className="flex flex-wrap gap-2">
-      {consulta.status === "pendente" && (
+      {conf && (
+        <>
+          <Button size="sm" onClick={() => setPinAberto(true)}>
+            <KeyRound />
+            Confirmar com PIN
+          </Button>
+          <Button size="sm" variant="ghost" disabled={cancelar.isPending} onClick={() => void cancelarConfirmacao()}>
+            {cancelar.isPending ? <Loader2 className="animate-spin" /> : <XCircle />}
+            Cancelar
+          </Button>
+          <ConfirmarPinDialog consultaId={consulta.id} conf={conf} open={pinAberto} onOpenChange={setPinAberto} />
+        </>
+      )}
+      {consulta.status === "pendente" && !conf && (
         <Button
           size="sm"
           variant="outline"
@@ -251,6 +300,87 @@ function AcoesConsulta({ consulta }: { consulta: ConsultaFiscal }) {
         </Button>
       )}
     </div>
+  );
+}
+
+function ConfirmarPinDialog({
+  consultaId,
+  conf,
+  open,
+  onOpenChange,
+}: {
+  consultaId: string;
+  conf: ConfirmacaoPin;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const confirmarPin = useConfirmarConsulta();
+  const [pin, setPin] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pin.trim()) return;
+    setErro(null);
+    try {
+      await confirmarPin.mutateAsync({ id: consultaId, pin: pin.trim() });
+      toast.success("Consulta confirmada.");
+      setPin("");
+      onOpenChange(false);
+    } catch (err) {
+      // 400 = PIN errado: o diálogo fica aberto para tentar de novo.
+      if (err instanceof ErroDaApi && err.status === 400) {
+        setErro(msgErro(err) || "PIN inválido.");
+        return;
+      }
+      toast.error("Confirmação não realizada: " + msgErro(err));
+      onOpenChange(false);
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Confirmar com PIN</DialogTitle>
+          <DialogDescription>
+            {conf.resumo ?? "O gateway pede confirmação antes de executar este serviço."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={enviar} className="space-y-4">
+          <dl className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <dt className="text-muted-foreground">Custo estimado</dt>
+              <dd>{conf.custoEstimado != null ? formatBRL(conf.custoEstimado) : "não informado"}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Expira em</dt>
+              <dd>{conf.expiraEm ? formatDataHora(conf.expiraEm) : "não informado"}</dd>
+            </div>
+          </dl>
+          <div className="space-y-1.5">
+            <Label htmlFor="pin-serpro">PIN</Label>
+            <Input
+              id="pin-serpro"
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+            />
+            {erro && <p className="text-xs text-destructive">{erro}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Voltar
+            </Button>
+            <Button type="submit" disabled={!pin.trim() || confirmarPin.isPending}>
+              {confirmarPin.isPending ? <Loader2 className="animate-spin" /> : <KeyRound />}
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

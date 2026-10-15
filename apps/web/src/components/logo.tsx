@@ -1,3 +1,4 @@
+import { useMarca } from "@/lib/modulos";
 import { cn } from "@/lib/utils";
 
 /**
@@ -7,6 +8,15 @@ import { cn } from "@/lib/utils";
  * serve de marca compacta na sidebar recolhida.
  */
 export function Logo({ className }: { className?: string }) {
+  // Logo enviada em Configurações > Geral (bucket público "marca") vence a NÓS.
+  const { data: marca } = useMarca();
+  if (marca?.logoUrl) {
+    return (
+      <span className={cn("inline-flex items-center", className)}>
+        <img src={marca.logoUrl} alt={marca.nome} className="h-full w-auto max-w-[200px] object-contain" />
+      </span>
+    );
+  }
   return (
     <span className={cn("inline-flex items-center", className)}>
       <img

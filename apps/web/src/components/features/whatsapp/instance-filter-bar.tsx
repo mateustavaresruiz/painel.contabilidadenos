@@ -183,7 +183,7 @@ export function InstanceFilterBar({
             <>
               <div className="my-1 border-t" />
               <Link
-                to="/whatsapp/conexoes"
+                to="/configuracoes?tab=conexoes"
                 onClick={() => setOpen(false)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >

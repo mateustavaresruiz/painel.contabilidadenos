@@ -20,6 +20,7 @@ import { msgErro } from "@/lib/erro";
 import { formatTelefone, linkWaMe } from "@/lib/format";
 import { useAniversarios, type AniversarioCalculado } from "@/lib/queries/denos";
 import { abrirConversaPorTelefone, useWhatsappSessoes } from "@/lib/queries/whatsapp";
+import { useModulos } from "@/lib/modulos";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -198,7 +199,7 @@ function AniversarioCard({ a }: { a: AniversarioCalculado }) {
             </div>
           </div>
         </div>
-        <ParabenizarBotao a={a} />
+        <ParabenizarSeAtivo a={a} />
       </CardContent>
     </Card>
   );
@@ -210,6 +211,13 @@ function mensagemParabens(a: AniversarioCalculado): string {
   }
   const primeiro = a.nome.split(" ")[0] ?? a.nome;
   return `Feliz aniversário, ${primeiro}! 🎂 Desejamos um novo ano cheio de saúde, conquistas e alegrias. Um abraço da equipe NÓS Contabilidade.`;
+}
+
+/** Configurações > Módulos pode desligar o botão de parabéns. */
+function ParabenizarSeAtivo({ a }: { a: AniversarioCalculado }) {
+  const { ativo } = useModulos();
+  if (!ativo("aniversarioParabens") || !ativo("whatsapp")) return null;
+  return <ParabenizarBotao a={a} />;
 }
 
 /**

@@ -9,8 +9,11 @@ WORKDIR /app
 
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
+# Opcional: commit mostrado em Configurações > Sistema (senão "desconhecido").
+ARG VITE_COMMIT
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
-    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_COMMIT=$VITE_COMMIT
 
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund

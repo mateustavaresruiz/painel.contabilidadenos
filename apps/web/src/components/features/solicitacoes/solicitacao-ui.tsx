@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
+import { useModulos } from "@/lib/modulos";
 import {
   STATUS_SOLICITACAO,
   STATUS_SOLICITACAO_LABEL,
@@ -104,6 +105,13 @@ export function StatusSolicitacaoSelect({
  * Botão "Abrir chamado" do topo da conversa: abre a lista de tipos ativos;
  * escolher um abre o diálogo curto (descrição, responsável, prazo).
  */
+/** O botão some quando Configurações desliga Chamados ou "abrir chamado na conversa". */
+export function SolicitacaoBotaoSeAtivo({ origem }: { origem: OrigemSolicitacao }) {
+  const { ativo } = useModulos();
+  if (!ativo("chamadoNaConversa")) return null;
+  return <SolicitacaoBotao origem={origem} />;
+}
+
 export function SolicitacaoBotao({ origem }: { origem: OrigemSolicitacao }) {
   const { data: tipos = [], isLoading } = useSolicitacaoTipos({ somenteAtivos: true });
   const [menu, setMenu] = useState(false);

@@ -75,6 +75,7 @@ export type ColaboradorInput = {
   cor: string;
   cargo?: string | null;
   ativo: boolean;
+  papel?: "admin" | "atendente";
 };
 
 export function useSalvarColaborador() {
@@ -88,6 +89,9 @@ export function useSalvarColaborador() {
         cor: args.input.cor,
         cargo: args.input.cargo?.trim() || null,
         ativo: args.input.ativo,
+        // Sem papel no input (cadastro rápido), o banco decide: o primeiro
+        // colaborador vira admin pelo gatilho da migration 004.
+        ...(args.input.papel ? { papel: args.input.papel } : {}),
       };
       if (args.id) {
         const { error } = await supabase.from("Colaborador").update(payload).eq("id", args.id);
@@ -131,6 +135,16 @@ export type SerproStatus = {
   ambiente?: string | null;
   /** Itens que faltam (texto livre do servidor ou chaves conhecidas). */
   faltando?: string[];
+  /** Campos do gateway Integra Contador (função serpro, commit 8d19df7). */
+  gatewayAlcancavel?: boolean;
+  pausado?: boolean;
+  avisos?: string[];
+  contratante?: string | null;
+  certificado?:
+    | { ok: true; titular: string | null; cnpj: string | null; validade: string | null; diasParaVencer: number | null }
+    | { ok: false; erro: string };
+  pinConfirmacao?: boolean;
+  mensagem?: string;
   [k: string]: unknown;
 };
 
@@ -191,6 +205,42 @@ export function useRetomarConsulta() {
     mutationFn: (id: string) =>
       api<unknown>(`/serpro/consultas/${encodeURIComponent(id)}/retomar`, { method: "POST", body: {} }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["consultas-fiscais"] }),
+  });
+}
+
+/** Consulta que o gateway segurou pedindo PIN: confirma com o PIN de quem autoriza. */
+export function useConfirmarConsulta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: string; pin: string }) =>
+      api<{ consulta: ConsultaFiscal }>(`/serpro/consultas/${encodeURIComponent(args.id)}/confirmar`, {
+        method: "POST",
+        body: { pin: args.pin },
+      }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["consultas-fiscais"] }),
+  });
+}
+
+export function useCancelarConsulta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<{ consulta: ConsultaFiscal }>(`/serpro/consultas/${encodeURIComponent(id)}/cancelar`, {
+        method: "POST",
+        body: {},
+      }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["consultas-fiscais"] }),
+  });
+}
+
+/** POST /serpro/testar-autenticacao: o gateway faz o login no Serpro. */
+export function useTestarLoginSerpro() {
+  return useMutation({
+    mutationFn: () =>
+      api<{ ok: boolean; mensagem?: string; error?: string }>("/serpro/testar-autenticacao", {
+        method: "POST",
+        body: {},
+      }),
   });
 }
 

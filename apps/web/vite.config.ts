@@ -1,9 +1,26 @@
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 
+// Commit publicado (Configurações > Sistema). No Docker do Easypanel não há
+// .git: vem do build arg VITE_COMMIT; localmente, do git.
+function commitDoBuild(): string {
+  const env = process.env.VITE_COMMIT?.trim();
+  if (env) return env.slice(0, 12);
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "desconhecido";
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_COMMIT__: JSON.stringify(commitDoBuild()),
+    __APP_BUILD_EM__: JSON.stringify(new Date().toISOString()),
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -7,8 +7,9 @@ import { Logo, LogoMark } from "@/components/logo";
 import { QuemSouEuDialog } from "@/components/quem-sou-eu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { NAV_APP, type NavItem } from "@/layouts/app-nav";
+import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
 import { useEu } from "@/lib/colaborador";
+import { useEhAdmin, useMarca, useModulos } from "@/lib/modulos";
 import { cn } from "@/lib/utils";
 
 /**
@@ -76,20 +77,28 @@ export function AppLayout() {
 }
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const { ativo } = useModulos();
+  const ehAdmin = useEhAdmin();
+  const { data: marca } = useMarca();
+  // Módulo desligado em Configurações some do menu; sub-item só de admin também.
+  const itens = NAV_APP.filter((i) => !i.modulo || ativo(i.modulo)).map((i) =>
+    i.filhos ? { ...i, filhos: i.filhos.filter((f) => !f.soAdmin || ehAdmin) } : i,
+  );
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-5 py-4 border-b shrink-0">
         <NavLink to="/" end onClick={onNavigate} className="flex items-center gap-2">
           <Logo className="h-11" />
         </NavLink>
-        <p className="mt-1 text-2xs text-muted-foreground">Painel interno</p>
+        <p className="mt-1 text-2xs text-muted-foreground truncate">{marca?.nome ?? "Painel interno"}</p>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 space-y-0.5">
-        {NAV_APP.map((item) => (
+        {itens.map((item) => (
           <ItemNav key={item.to} item={item} onNavigate={onNavigate} />
         ))}
       </nav>
       <div className="p-3 border-t space-y-1 shrink-0">
+        {ehAdmin && <ItemNav item={NAV_CONFIGURACOES} onNavigate={onNavigate} />}
         <EuBotao />
         <ThemeToggle variant="full" />
       </div>
@@ -100,7 +109,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 function ItemNav({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const Icon = item.icon;
   const { pathname } = useLocation();
-  const aberto = !!item.filhos && (pathname === item.to || pathname.startsWith(item.to + "/"));
+  const aberto =
+    !!item.filhos && item.filhos.length > 1 && (pathname === item.to || pathname.startsWith(item.to + "/"));
   return (
     <>
     <NavLink

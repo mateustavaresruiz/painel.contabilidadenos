@@ -77,7 +77,11 @@ export function CertificadosPage() {
   const { data = [], isLoading } = useCertificados();
   const excluir = useExcluirCertificado();
   const [busca, setBusca] = useState("");
-  const [status, setStatus] = useState<string>(TODOS);
+  // ?status=vencido|vencendo|ok (links da Visão geral) já abre filtrado.
+  const [status, setStatus] = useState<string>(() => {
+    const s = params.get("status");
+    return s === "vencido" || s === "vencendo" || s === "ok" ? s : TODOS;
+  });
   const [tipo, setTipo] = useState<string>(TODOS);
   const [editando, setEditando] = useState<Certificado | "novo" | null>(null);
   const [historico, setHistorico] = useState<string | null>(null);

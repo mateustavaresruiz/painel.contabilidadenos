@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/ui/confirm-dialog";
 import { useColaboradoresMap } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
+import { useModulos } from "@/lib/modulos";
 import { formatData, formatDataHora, formatDoc, formatTelefone } from "@/lib/format";
 import {
   ATENDIMENTO_LABEL,
@@ -68,6 +69,7 @@ export function PainelConversa({
   const vincular = useVincularChatCliente();
   const [vincularAberto, setVincularAberto] = useState(false);
   const [novaSolicitacao, setNovaSolicitacao] = useState(false);
+  const chamadoNaConversa = useModulos().ativo("chamadoNaConversa");
 
   async function vincularA(clienteId: string | null) {
     try {
@@ -200,7 +202,9 @@ export function PainelConversa({
         {cliente?.tipo === "PJ" && <SociosSecao clienteId={cliente.id} />}
         {cliente && <CertificadosSecao clienteId={cliente.id} />}
 
-        <SolicitacoesSecao chatRowId={chat.id} onNova={() => setNovaSolicitacao(true)} />
+        {chamadoNaConversa && (
+          <SolicitacoesSecao chatRowId={chat.id} onNova={() => setNovaSolicitacao(true)} />
+        )}
 
         <AtendimentoSecao chat={chat} />
       </div>

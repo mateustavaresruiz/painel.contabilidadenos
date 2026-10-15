@@ -207,6 +207,16 @@ serve(async (req) => {
 
   // ---------------- certificados-avisos ----------------
   if (action === "certificados-avisos") {
+    // Configurações > Módulos (Config 'modulos', migration 004): avisos ou o
+    // módulo de certificados desligados = não envia nada. A prévia (dryRun)
+    // continua funcionando para a tela.
+    if (!dryRun) {
+      const { data: cfg } = await supabaseAdmin.from("Config").select("valor").eq("chave", "modulos").maybeSingle();
+      const m = (cfg?.valor ?? {}) as { certificados?: boolean; certificadosAvisos?: boolean };
+      if (m.certificadosAvisos === false || m.certificados === false) {
+        return json({ ok: true, pulado: "desativado" });
+      }
+    }
     return json(await certificadosAvisos(dryRun));
   }
 
