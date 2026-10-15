@@ -222,7 +222,7 @@ function Sidebar({
   const { data: contChamados } = useContadorChamados(itens.some((i) => i.to === "/chamados"));
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className={cn("shrink-0 flex items-center h-[92px] mb-1", recolhida ? "justify-center px-0" : "pl-5 pr-3 gap-2")}>
+      <div className={cn("shrink-0 flex items-center mb-1", recolhida ? "flex-col justify-center gap-3 px-3 pt-5 pb-3" : "h-[92px] pl-5 pr-3 gap-2")}>
         <NavLink
           to="/"
           end
@@ -238,13 +238,16 @@ function Sidebar({
             </span>
           )}
         </NavLink>
-        {alternar && !recolhida && (
-          <Tooltip label="Recolher menu (Ctrl+B)" side="right">
+        {alternar && (
+          <Tooltip label={recolhida ? "Expandir menu (Ctrl+B)" : "Recolher menu (Ctrl+B)"} side="right">
             <button
               type="button"
               onClick={alternar}
-              className="grid size-8 shrink-0 place-items-center rounded-md text-sidebar-muted transition-[color,background-color,transform] duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground active:scale-[.97]"
-              aria-label="Recolher menu"
+              className={cn(
+                "grid shrink-0 place-items-center rounded-lg text-sidebar-muted transition-[color,background-color,transform] duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground active:scale-[.97]",
+                recolhida ? "size-10 border border-sidebar-border bg-card text-primary shadow-card hover:text-primary" : "size-8",
+              )}
+              aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
             >
               <AlternarIcone className="size-4" />
             </button>
@@ -265,18 +268,6 @@ function Sidebar({
       <div className="px-3 pb-3 pt-2 border-t border-sidebar-border space-y-0.5 shrink-0">
         {pode(NAV_CONFIGURACOES.permissao) && (tem("configuracoes.gerenciar") || ativo("whatsapp")) && (
           <ItemNav item={configuracoes} onNavigate={onNavigate} recolhida={recolhida} />
-        )}
-        {alternar && recolhida && (
-          <Tooltip label="Expandir menu (Ctrl+B)" side="right">
-            <button
-              type="button"
-              onClick={alternar}
-              className="flex h-9 w-full items-center justify-center rounded-md text-sidebar-muted transition-[color,background-color,transform] duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground active:scale-[.97]"
-              aria-label="Expandir menu"
-            >
-              <AlternarIcone className="size-4" />
-            </button>
-          </Tooltip>
         )}
       </div>
     </div>
