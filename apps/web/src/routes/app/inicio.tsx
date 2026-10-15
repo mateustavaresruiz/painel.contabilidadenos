@@ -394,7 +394,7 @@ function InicioColorido(p: Inicio) {
 function Ilustracao({
   principal: Principal,
   cor,
-  satelites,
+  satelites: _satelites,
   pequena,
 }: {
   principal: LucideIcon;
@@ -402,7 +402,6 @@ function Ilustracao({
   satelites: { icon: LucideIcon; cor: CorModulo }[];
   pequena?: boolean;
 }) {
-  const pos = ["-left-3 top-2", "-right-2 -top-1", "right-0 -bottom-2"];
   return (
     <div className={cn("relative shrink-0", pequena ? "size-24" : "size-36")} aria-hidden>
       <span
@@ -415,15 +414,6 @@ function Ilustracao({
       >
         <Principal className={pequena ? "size-7" : "size-10"} />
       </span>
-      {satelites.slice(0, 3).map((s, i) => (
-        <span
-          key={i}
-          className={cn("absolute grid place-items-center rounded-full bg-card shadow-card texto-mod animate-rise", pequena ? "size-7" : "size-10", pos[i])}
-          style={{ ...corModulo(s.cor), ...passo(3 + i * 2) }}
-        >
-          <s.icon className={pequena ? "size-3.5" : "size-5"} />
-        </span>
-      ))}
     </div>
   );
 }

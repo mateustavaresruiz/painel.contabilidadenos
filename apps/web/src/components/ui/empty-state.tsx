@@ -1,4 +1,4 @@
-import { Sparkles, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import { corDoCaminho } from "@/components/page-header";
@@ -25,9 +25,8 @@ type Props = {
   className?: string;
 };
 
-export function EmptyState({ icon: Icon, satelites, title, description, action, variant = "card", cor, className }: Props) {
+export function EmptyState({ icon: Icon, satelites: _satelites, title, description, action, variant = "card", cor, className }: Props) {
   const { pathname } = useLocation();
-  const [S1, S2] = satelites?.length ? [satelites[0], satelites[1] ?? satelites[0]] : [Sparkles, Sparkles];
   return (
     <div
       className={cn(
@@ -37,7 +36,7 @@ export function EmptyState({ icon: Icon, satelites, title, description, action, 
       )}
       style={corModulo(cor ?? corDoCaminho(pathname))}
     >
-      {Icon ? <IlustracaoVazia icon={Icon} s1={S1} s2={S2} /> : null}
+      {Icon ? <IlustracaoVazia icon={Icon} /> : null}
       <div className="relative mt-5 space-y-1.5">
         <h3 className="text-title-md font-semibold">{title}</h3>
         {description ? (
@@ -52,8 +51,6 @@ export function EmptyState({ icon: Icon, satelites, title, description, action, 
 /** A ilustração sozinha (para estados vazios que não usam o cartão). */
 export function IlustracaoVazia({
   icon: Icon,
-  s1: S1 = Sparkles,
-  s2: S2 = Sparkles,
   className,
 }: {
   icon: LucideIcon;
@@ -66,12 +63,6 @@ export function IlustracaoVazia({
       <span className="absolute inset-0 rounded-full bg-[color-mix(in_srgb,var(--mc)_7%,transparent)]" />
       <span className="absolute inset-3 grid place-items-center rounded-full bg-[color-mix(in_srgb,var(--mc)_14%,transparent)] text-[var(--mc)]">
         <Icon className="size-9" strokeWidth={1.75} />
-      </span>
-      <span className="absolute -right-1 top-2 grid size-8 place-items-center rounded-full border border-border bg-card text-[var(--mc)] shadow-card">
-        <S1 className="size-4" />
-      </span>
-      <span className="absolute -left-2 bottom-3 grid size-7 place-items-center rounded-full border border-border bg-card text-[var(--mc)] shadow-card">
-        <S2 className="size-3.5" />
       </span>
     </div>
   );
