@@ -92,5 +92,19 @@ serve(async (req) => {
   if (error || !data?.properties?.hashed_token) {
     throw new Error(`Não foi possível entrar: ${error?.message ?? "sem token"}`);
   }
+  // Auditoria: "entrou no painel". Falha aqui não pode impedir a entrada.
+  try {
+    await supabaseAdmin.rpc("auditoria_evento", {
+      p_modulo: "acesso",
+      p_entidade: "colaborador",
+      p_entidade_id: c.id,
+      p_acao: "login",
+      p_resumo: "entrou no painel",
+      p_detalhes: { info: [{ rotulo: "Como", valor: "Só com o e-mail (sem verificação)" }, { rotulo: "IP", valor: ip }] },
+      p_ator: c.id,
+    });
+  } catch (err) {
+    console.error("entrar: auditoria falhou", err);
+  }
   return json({ token_hash: data.properties.hashed_token });
 });

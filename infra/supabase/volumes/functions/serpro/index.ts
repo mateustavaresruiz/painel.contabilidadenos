@@ -276,6 +276,20 @@ serve(async (req) => {
         desfecho = desfechoDeErroGateway(g, "Confirmação");
       }
       const linha = await gravarDesfecho(c.consulta.id, desfecho, c.consulta.servico);
+      // Auditoria: quem confirmou com PIN (o PIN em si nunca é gravado).
+      try {
+        await supabaseAdmin.rpc("auditoria_evento", {
+          p_modulo: "pendencias",
+          p_entidade: "consulta",
+          p_entidade_id: c.consulta.id,
+          p_acao: "pin_confirmado",
+          p_resumo: `confirmou com PIN a consulta ${c.consulta.servico}`,
+          p_cliente: c.consulta.clienteId,
+          p_ator: colaborador.id,
+        });
+      } catch (err) {
+        console.error("serpro: auditoria falhou", err);
+      }
       return json({ consulta: linha }, { status: desfecho.status === "erro" ? 424 : 200 });
     }
 

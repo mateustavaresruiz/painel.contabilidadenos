@@ -9,7 +9,9 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
-type Ctx = { req: Request };
+/** `ator`: Colaborador que fez o pedido (preenchido por `exigirColaborador`); vira o header
+ *  `x-painel-ator` nas chamadas ao banco, e é assim que a auditoria sabe quem agiu. */
+type Ctx = { req: Request; ator?: string };
 
 const storage = new AsyncLocalStorage<Ctx>();
 
@@ -25,7 +27,7 @@ export function withRequestContext<T>(
   req: Request,
   fn: () => Promise<T> | T,
 ): Promise<T> {
-  return Promise.resolve(storage.run({ req }, fn));
+  return Promise.resolve(storage.run({ req } as Ctx, fn));
 }
 
 /**
@@ -34,4 +36,15 @@ export function withRequestContext<T>(
  */
 export function currentRequest(): Request | null {
   return storage.getStore()?.req ?? null;
+}
+
+/** Marca quem está agindo neste request (para a auditoria do banco). */
+export function definirAtor(colaboradorId: string): void {
+  const ctx = storage.getStore();
+  if (ctx) ctx.ator = colaboradorId;
+}
+
+/** Quem está agindo neste request, se for um colaborador logado. */
+export function atorAtual(): string | null {
+  return storage.getStore()?.ator ?? null;
 }

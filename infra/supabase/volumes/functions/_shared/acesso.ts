@@ -19,6 +19,7 @@
 // O webhook do WAHA e o cron NÃO passam por aqui: cada um tem o seu segredo
 // (`WAHA_WEBHOOK_SECRET`, `CRON_SECRET`), comparado em tempo constante.
 
+import { definirAtor } from "./request-context.ts";
 import { forbidden, unauthorized } from "./response.ts";
 import { supabaseAdmin, TENANT_ID } from "./supabase.ts";
 
@@ -131,6 +132,9 @@ export async function exigirColaborador(
     if (cache.size >= CACHE_MAX) cache.clear();
     cache.set(chave, { em: Date.now(), colaborador });
   }
+
+  // A auditoria do banco atribui o que esta function gravar a quem pediu.
+  definirAtor(colaborador.id);
 
   if (opts.permissao) {
     const lista = Array.isArray(opts.permissao) ? opts.permissao : [opts.permissao];
