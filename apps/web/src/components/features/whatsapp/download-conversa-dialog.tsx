@@ -47,7 +47,7 @@ export function DownloadConversaDialog({
     try {
       const mensagens = await carregarTodasMensagens(sessaoId, chatId);
       if (mensagens.length === 0) {
-        toast.error("Esta conversa não tem mensagens para exportar.");
+        toast.error("Esta conversa não tem mensagens pra salvar.");
         return;
       }
       // jsPDF só carrega quando alguém realmente exporta.
@@ -61,6 +61,7 @@ export function DownloadConversaDialog({
       const stamp = new Date().toISOString().slice(0, 10);
       const safeNome = chatNome.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 60);
       doc.save(`conversa-${safeNome}-${stamp}.pdf`);
+      toast.success("Conversa baixada.");
       onOpenChange(false);
     } catch (err) {
       toast.error(msgErro(err));
@@ -71,23 +72,34 @@ export function DownloadConversaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Exportar conversa</DialogTitle>
+          <DialogTitle>Baixar conversa</DialogTitle>
           <DialogDescription>
-            Gera um PDF com todas as mensagens de <strong>{chatNome}</strong>. Mídias
-            aparecem como marcação ([imagem], [áudio]…) com o nome do arquivo.
+            Gera um PDF com todas as mensagens desta conversa.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            <p className="font-medium truncate">{chatNome}</p>
+            {numero && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {numero}
+              </p>
+            )}
+          </div>
+        </div>
+
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={carregando}>
             Cancelar
           </Button>
           <Button type="button" onClick={baixar} disabled={carregando}>
             {carregando ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-4 animate-spin mr-2" />
             ) : (
-              <Download className="size-4" />
+              <Download className="size-4 mr-2" />
             )}
             Baixar PDF
           </Button>

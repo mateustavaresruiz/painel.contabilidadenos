@@ -328,14 +328,13 @@ export const MessageBubble = memo(function MessageBubble({
             ? // Mídia sem legenda: balão transparente, foto sem moldura.
               "bg-transparent p-0 shadow-none"
             : cn(
-                "px-3.5 py-2",
+                "px-3.5 py-2 shadow-sm",
                 // Mensagem própria: acento (LUZ no tema escuro) — balão claro.
                 // Recebida: superfície ELEVADA (secondary) + borda de luz, pra
                 // destacar do fundo preto (bg-card sumia). Canto inferior reto.
                 direita
-                  ? // DESIGN.md: meu = acento a 10% sobre o canvas; do contato = parchment.
-                    "bg-primary/10 text-foreground rounded-br-sm"
-                  : "bg-muted text-foreground rounded-bl-sm",
+                  ? "bg-primary text-primary-foreground rounded-br-sm shadow-primary/20"
+                  : "bg-secondary border border-border rounded-bl-sm",
               ),
           apagada && "italic opacity-70",
         )}
@@ -367,7 +366,7 @@ export const MessageBubble = memo(function MessageBubble({
                 ? "cursor-pointer transition hover:brightness-95"
                 : "cursor-default",
               direita
-                ? "bg-foreground/15 border-foreground/60 text-foreground/85"
+                ? "bg-primary-foreground/15 border-primary-foreground/60 text-primary-foreground/85"
                 : "bg-foreground/[0.05] border-primary/60 text-muted-foreground",
             )}
           >
@@ -415,7 +414,7 @@ export const MessageBubble = memo(function MessageBubble({
                     className={cn(
                       "ml-1 align-baseline text-xs font-medium underline underline-offset-2",
                       direita
-                        ? "text-foreground/80 hover:text-foreground"
+                        ? "text-primary-foreground/80 hover:text-primary-foreground"
                         : "text-primary hover:text-primary/80",
                     )}
                   >
@@ -433,7 +432,7 @@ export const MessageBubble = memo(function MessageBubble({
             direita ? "justify-end" : "justify-start",
             molduraLivre || !direita
               ? "text-muted-foreground"
-              : "text-foreground/70",
+              : "text-primary-foreground/70",
           )}
         >
           {/* Em grupos, o nome do remetente vai pra cima da bubble
@@ -500,7 +499,7 @@ export const MessageBubble = memo(function MessageBubble({
             <PopoverContent
               side="top"
               align={direita ? "end" : "start"}
-              className="w-60 p-1"
+              className="w-52 p-1"
             >
               {podeReagir && (
                 <div className="flex items-center justify-between px-1 pb-1 mb-1 border-b border-border/60">
@@ -671,7 +670,7 @@ function EnviadoPorBadge({
   return (
     <span
       title={"Enviado por " + usuario.nome}
-      className="inline-flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2 leading-none bg-foreground/10 max-w-[120px]"
+      className="inline-flex items-center gap-1 rounded-full py-0.5 pl-0.5 pr-2 leading-none bg-primary-foreground/10 max-w-[120px]"
     >
       <ColaboradorAvatar
         nome={usuario.nome}
@@ -817,7 +816,7 @@ function AckIcon({
         aria-label="Lida"
         className={cn(
           "size-3.5",
-          ownBubble ? "text-lida-propria" : "text-lida",
+          ownBubble ? "text-primary-foreground/70" : "text-foreground",
         )}
       />
     );
@@ -963,18 +962,18 @@ function PollBubble({ msg }: { msg: WhatsappMensagem }) {
   // Cores adaptam ao balão: dentro da bubble própria (primary sólido) usamos
   // tons de `primary-foreground`; na recebida (card claro), tons neutros.
   const dark = msg.fromMe;
-  const sub = dark ? "text-foreground/70" : "text-muted-foreground";
+  const sub = dark ? "text-primary-foreground/70" : "text-muted-foreground";
   const optBox = dark
-    ? "border-foreground/20 bg-foreground/[0.08]"
+    ? "border-primary-foreground/20 bg-primary-foreground/[0.08]"
     : "border-border bg-foreground/[0.03]";
   const optHover = podeVotar
     ? dark
-      ? "hover:bg-foreground/20 hover:border-foreground/40"
+      ? "hover:bg-primary-foreground/20 hover:border-primary-foreground/40"
       : "hover:bg-accent/50 hover:border-foreground/40"
     : "";
-  const track = dark ? "bg-foreground/20" : "bg-muted";
-  const fill = dark ? "bg-foreground" : "bg-foreground";
-  const ring = dark ? "border-foreground/50" : "border-muted-foreground/40";
+  const track = dark ? "bg-primary-foreground/20" : "bg-muted";
+  const fill = dark ? "bg-primary-foreground" : "bg-foreground";
+  const ring = dark ? "border-primary-foreground/50" : "border-muted-foreground/40";
 
   return (
     <div className="mb-1 min-w-[230px] max-w-[320px] space-y-2.5">
@@ -1349,7 +1348,7 @@ function VideoPreview({ msg }: { msg: WhatsappMensagem }) {
       <button
         type="button"
         onClick={() => openMediaViewer([msgMediaItem(msg, url)])}
-        className="absolute top-1.5 right-1.5 grid place-items-center size-7 rounded-full bg-black/45 hover:bg-black/65 text-white opacity-0 group-hover/video:opacity-100 focus:opacity-100 transition-opacity"
+        className="absolute top-1.5 right-1.5 grid place-items-center size-7 rounded-full bg-black/45 hover:bg-black/65 text-primary-foreground opacity-0 group-hover/video:opacity-100 focus:opacity-100 transition-opacity"
         aria-label="Abrir em tela cheia"
         title="Tela cheia"
       >
@@ -1407,20 +1406,20 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
         <div
           className={cn(
             "size-9 rounded-full grid place-items-center",
-            "bg-primary/15",
+            direita ? "bg-primary-foreground/20" : "bg-primary/15",
           )}
         >
           <Mic
             className={cn(
               "size-4 animate-pulse",
-              "text-primary",
+              direita ? "text-primary-foreground" : "text-primary",
             )}
           />
         </div>
         <div
           className={cn(
             "flex-1 h-1 rounded animate-pulse",
-            direita ? "bg-foreground/25" : "bg-foreground/10",
+            direita ? "bg-primary-foreground/25" : "bg-foreground/10",
           )}
         />
       </div>
@@ -1459,7 +1458,7 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
         className={cn(
           "size-9 shrink-0 rounded-full grid place-items-center transition-colors shadow-sm",
           direita
-            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+            ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90"
             : "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
         aria-label={playing ? "Pausar" : "Reproduzir"}
@@ -1496,10 +1495,10 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
                   "flex-1 rounded-full transition-colors duration-150",
                   tocada
                     ? direita
-                      ? "bg-primary"
+                      ? "bg-primary-foreground"
                       : "bg-primary"
                     : direita
-                      ? "bg-foreground/15"
+                      ? "bg-primary-foreground/30"
                       : "bg-foreground/15",
                   atual && "animate-pulse",
                 )}
@@ -1511,7 +1510,7 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
         <div
           className={cn(
             "flex items-center justify-between text-2xs tabular-nums leading-none",
-            direita ? "text-foreground/70" : "text-muted-foreground",
+            direita ? "text-primary-foreground/70" : "text-muted-foreground",
           )}
         >
           <span>{formatDuracao(posicao)}</span>
@@ -1525,7 +1524,7 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
         className={cn(
           "shrink-0 text-2xs font-bold tabular-nums px-1.5 py-0.5 rounded transition-colors",
           direita
-            ? "bg-foreground/15 hover:bg-foreground/25 text-foreground/90"
+            ? "bg-primary-foreground/15 hover:bg-primary-foreground/25 text-primary-foreground/90"
             : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground",
         )}
         title="Mudar velocidade de reprodução"

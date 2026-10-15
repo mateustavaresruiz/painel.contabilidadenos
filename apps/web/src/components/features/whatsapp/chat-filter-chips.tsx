@@ -1,60 +1,28 @@
-import {
-  Archive,
-  CheckCircle2,
-  CircleDot,
-  Headset,
-  Inbox,
-  UserCheck,
-  UserRound,
-  UserX,
-  Users as UsersIcon,
-} from "lucide-react";
+import { Archive, Inbox, Users as UsersIcon, UserCheck, UserRound, UserX } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export type FiltroChip =
-  | "todas"
-  | "abertas"
-  | "em_atendimento"
-  | "finalizadas"
-  | "clientes"
-  | "grupos"
-  | "arquivadas";
+// "minhas" / "sem" (responsável) são do painel Denos: vários colaboradores.
+export type FiltroChip = "todas" | "minhas" | "sem" | "clientes" | "grupos" | "arquivadas";
 
-/** Filtro de responsável (novo no painel Denos: vários colaboradores). */
-export type FiltroResponsavel = "minhas" | "sem" | "todas";
-
-type Chip<T extends string> = {
-  id: T;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
+type Props = {
+  ativo: FiltroChip;
+  onChange: (filtro: FiltroChip) => void;
 };
 
-export const CHIPS_FILTRO: Chip<FiltroChip>[] = [
+const CHIPS: Array<{
+  id: FiltroChip;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
   { id: "todas", label: "Todas", icon: Inbox },
-  { id: "abertas", label: "Abertas", icon: CircleDot },
-  { id: "em_atendimento", label: "Em atendimento", icon: Headset },
-  { id: "finalizadas", label: "Finalizadas", icon: CheckCircle2 },
+  { id: "minhas", label: "Minhas", icon: UserRound },
+  { id: "sem", label: "Sem responsável", icon: UserX },
   { id: "clientes", label: "Clientes", icon: UserCheck },
   { id: "grupos", label: "Grupos", icon: UsersIcon },
   { id: "arquivadas", label: "Arquivadas", icon: Archive },
 ];
-
-export const CHIPS_RESPONSAVEL: Chip<FiltroResponsavel>[] = [
-  { id: "minhas", label: "Minhas", icon: UserRound },
-  { id: "sem", label: "Sem responsável", icon: UserX },
-  { id: "todas", label: "Todas", icon: Inbox },
-];
-
-type Props<T extends string> = {
-  chips: Chip<T>[];
-  ativo: T;
-  onChange: (filtro: T) => void;
-  /** Contagem opcional por chip (ex.: quantas sem responsável). */
-  contagens?: Partial<Record<T, number>>;
-  className?: string;
-};
 
 /**
  * Linha horizontal de chips pra filtrar a lista de conversas.
@@ -66,13 +34,7 @@ type Props<T extends string> = {
  *   - Drag (mouse): clica e arrasta o container pra rolar — útil
  *     em desktop quando os chips extrapolam a largura.
  */
-export function ChatFilterChips<T extends string>({
-  chips,
-  ativo,
-  onChange,
-  contagens,
-  className,
-}: Props<T>) {
+export function ChatFilterChips({ ativo, onChange }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -150,13 +112,12 @@ export function ChatFilterChips<T extends string>({
     <div
       ref={ref}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 overflow-x-auto cursor-grab select-none",
-        className,
+        "flex items-center gap-2 px-3 py-2.5 overflow-x-auto cursor-grab select-none",
         // Esconde scrollbar visualmente — UX melhor em mobile (chips rolam)
         "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
       )}
     >
-      {chips.map((chip) => {
+      {CHIPS.map((chip) => {
         const Icon = chip.icon;
         const isAtivo = ativo === chip.id;
         return (
@@ -171,23 +132,13 @@ export function ChatFilterChips<T extends string>({
               "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium",
               "transition-all border",
               isAtivo
-                ? "bg-card border-2 border-ring text-foreground px-[11px] py-[5px]"
-                : "bg-card border-border text-muted-foreground hover:text-foreground",
+                ? "bg-foreground text-background border-foreground shadow-sm"
+                : "bg-card border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40",
             )}
             aria-pressed={isAtivo}
           >
             <Icon className="size-3.5" />
             <span>{chip.label}</span>
-            {contagens?.[chip.id] ? (
-              <span
-                className={cn(
-                  "min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-4 font-semibold tabular-nums",
-                  isAtivo ? "bg-background/20" : "bg-primary/10 text-primary",
-                )}
-              >
-                {contagens[chip.id]}
-              </span>
-            ) : null}
           </button>
         );
       })}

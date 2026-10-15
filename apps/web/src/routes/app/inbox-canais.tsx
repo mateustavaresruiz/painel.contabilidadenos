@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDebounced } from "@/hooks/use-debounced";
+import { usePermissao } from "@/lib/colaborador";
 import { formatInstanceNumber } from "@/components/features/whatsapp/instance-filter-bar";
 import {
   useChecarNumeroSessao,
@@ -75,7 +76,7 @@ export function WhatsappInstanciasSection({ ehDono }: { ehDono: boolean }) {
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-          Instâncias de WhatsApp
+          WhatsApp · instâncias
         </h2>
         {ehDono ? (
           <Button
@@ -369,7 +370,7 @@ function WhatsappCard({
   const transicao =
     sessao.status === "STARTING" || start.isPending || restart.isPending;
 
-  const planoDeixaApagar = true;
+  const planoDeixaApagar = usePermissao("whatsapp.apagar_mensagens");
 
   async function handle(
     name: string,

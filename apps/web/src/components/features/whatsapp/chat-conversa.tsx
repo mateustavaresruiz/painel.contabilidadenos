@@ -1,8 +1,7 @@
-import { format, isSameDay, isToday, isYesterday } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertCircle,
-  ArrowLeft,
   Download,
   Eraser,
   Loader2,
@@ -35,13 +34,12 @@ import {
 } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { openMediaViewer } from "@/components/ui/media-viewer";
-import { MensagensSkeleton } from "@/components/ui/skeleton";
 import { ConversaTagsBotao } from "@/components/features/whatsapp/conversa-tags";
 import {
   AtendimentoAcoes,
   DivisorTransferencia,
 } from "@/components/features/atendimento/atendimento-acoes";
-import { PainelConversa } from "@/components/features/atendimento/painel-conversa";
+import { ClientContextPanel } from "@/components/features/inbox/client-context-panel";
 import {
   NovaSolicitacaoDialog,
   SolicitacaoBotaoSeAtivo,
@@ -67,6 +65,7 @@ import {
   useRefreshGrupoPermissao,
   useSairDoGrupo,
   useSubscribePresence,
+  useVincularChatCliente,
   useWhatsappContatos,
   type WhatsappChat,
   type WhatsappMensagem,
@@ -83,8 +82,6 @@ type Props = {
   chatId: string | undefined;
   /** Todas as sessões (pra mostrar "via X" no header). */
   sessoes: WhatsappSessao[];
-  /** Mobile: volta para a lista (e limpa ?chat). */
-  onVoltar?: () => void;
   /** Texto pré-preenchido no campo (ex.: "Parabenizar no WhatsApp"). */
   textoInicial?: string;
 };
@@ -96,7 +93,7 @@ type Props = {
 // enxurrada de requests (o "alagamento" + travada ao transitar).
 const SYNC_DIFERIDO_MS = 600;
 
-export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial }: Props) {
+export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props) {
   const sessao = sessoes.find((s) => s.id === sessaoId);
   // A conversa aberta vem por id, não da lista (defeito 6 do adv3).
   const { data: chatAberto } = useWhatsappChatAberto(sessaoId, chatId);
@@ -119,6 +116,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
   const marcarLido = useMarcarChatLido(sessaoId);
   const limpar = useLimparChat(sessaoId);
   const apagar = useApagarChat(sessaoId);
+  const vincular = useVincularChatCliente();
   const { tem } = useEu();
   const sairGrupo = useSairDoGrupo(sessaoId);
   const refresh = useRefreshContact(sessaoId);
@@ -777,20 +775,10 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
             visual sem cair em "WhatsApp-clone". */}
         <div
           className={cn(
-            "shrink-0 border-b flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2.5",
-            "barra-fixa relative z-10",
+            "shrink-0 border-b flex items-center gap-3 px-4 py-2.5",
+            "bg-gradient-to-r from-foreground/[0.04] via-card/40 to-card/30",
           )}
         >
-          {onVoltar && (
-            <button
-              type="button"
-              onClick={onVoltar}
-              className="md:hidden grid place-items-center size-8 -ml-1 rounded-md text-muted-foreground hover:bg-accent"
-              aria-label="Voltar para a lista"
-            >
-              <ArrowLeft className="size-4" />
-            </button>
-          )}
           <ConversaAvatar
             semente={chat?.chatId ?? nome}
             grupo={grupo}
@@ -803,6 +791,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
               </p>
               {chat?.clienteId ? (
                 <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-muted text-foreground rounded-full px-1.5 py-0.5 leading-none shrink-0">
+                  <span className="size-1 rounded-full bg-foreground" aria-hidden />
                   Cliente
                 </span>
               ) : null}
@@ -812,7 +801,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                 por qual número essa conversa está rodando. Importante
                 principalmente em escritórios com 2+ instâncias. */}
             {sessao && (
-              <div className="hidden sm:flex items-center gap-1.5 mt-1 text-2xs text-muted-foreground/80">
+              <div className="flex items-center gap-1.5 mt-1 text-2xs text-muted-foreground/80">
                 <span
                   className={cn(
                     "size-1.5 rounded-full shrink-0",
@@ -842,14 +831,10 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
           {chat ? (
             <SolicitacaoBotaoSeAtivo origem={{ chatRowId: chat.id, clienteId: chat.clienteId }} />
           ) : null}
-          {chat ? (
-            <span className="hidden sm:contents">
-              <ConversaTagsBotao chatId={chat.id} />
-            </span>
-          ) : null}
+          {chat ? <ConversaTagsBotao chatId={chat.id} /> : null}
           {/* Botão do painel lateral só aparece em contato individual —
               em grupo não faz sentido (sem cliente vinculado). */}
-          {!grupo && chat && (
+          {!grupo && (
             <Tooltip
               label={painelAberto ? "Esconder painel" : "Mostrar painel do cliente"}
               side="bottom"
@@ -858,7 +843,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                 type="button"
                 onClick={() => setPainelAberto((v) => !v)}
                 className={cn(
-                  "grid place-items-center size-8 sm:size-9 rounded-md transition-colors",
+                  "hidden md:grid place-items-center size-9 rounded-md transition-colors",
                   painelAberto
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
@@ -883,11 +868,6 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-72 p-1">
-              {chat ? (
-                <div className="sm:hidden px-1 pb-1 mb-1 border-b border-border/60">
-                  <ConversaTagsBotao chatId={chat.id} />
-                </div>
-              ) : null}
               {tem("whatsapp.exportar") && (
               <button
                 type="button"
@@ -898,7 +878,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
               >
                 <Download className="size-4 text-muted-foreground" />
-                Exportar conversa (PDF)
+                Baixar conversa
               </button>
               )}
               {tem("whatsapp.apagar_mensagens") && (<>
@@ -946,11 +926,13 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
         onScroll={handleScroll}
         className={cn(
           "flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain relative",
-          "bg-card",
+          "bg-muted/30",
         )}
       >
         {isLoading ? (
-          <MensagensSkeleton />
+          <div className="flex justify-center py-8">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
         ) : isError && mensagens.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted-foreground">
             <AlertCircle className="size-5 text-destructive" />
@@ -1027,8 +1009,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                 >
                   {novoDia && (
                     <div className="text-center my-3">
-                      <span className="text-2xs text-muted-foreground">
-                        {rotuloDia(dataM)}
+                      <span className="inline-block bg-card border rounded-full px-3 py-0.5 text-2xs uppercase tracking-wide text-muted-foreground">
+                        {format(dataM, "d 'de' MMMM", { locale: ptBR })}
                       </span>
                     </div>
                   )}
@@ -1092,16 +1074,34 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
           ))}
       </div>
 
-      {/* Painel lateral — overlay sobre a direita da conversa (desktop) e
-          tela cheia no celular (o adv3 escondia no mobile). */}
-      {painelAberto && !grupo && chat && (
+      {/* Painel do cliente — overlay flutuante sobre a direita da conversa
+          (desktop). Não encolhe a conversa: desliza por cima com sombra,
+          a conversa segue visível atrás. Fecha no X. */}
+      {painelAberto && !grupo && (
         <div
           className={cn(
-            "absolute inset-0 md:inset-y-0 md:left-auto md:right-0 z-30 bg-card shadow-2xl",
+            "absolute inset-y-0 right-0 z-30 hidden md:block bg-card shadow-2xl",
             "animate-in slide-in-from-right-8 fade-in-0 duration-200",
           )}
         >
-          <PainelConversa chat={chat} nomeContato={nome} onClose={() => setPainelAberto(false)} />
+          <ClientContextPanel
+            clienteId={chat?.clienteId ?? null}
+            canal="whatsapp"
+            fotoPath={chat?.fotoPath ?? null}
+            conversaId={chatId}
+            sugestao={numero}
+            nomeSugerido={chat?.nome ?? null}
+            chat={chat}
+            vinculando={vincular.isPending}
+            onVincular={(clienteId) => {
+              if (!chat) return Promise.resolve();
+              return vincular.mutateAsync({
+                chatRowId: chat.id,
+                clienteId,
+              });
+            }}
+            onClose={() => setPainelAberto(false)}
+          />
         </div>
       )}
 
@@ -1255,13 +1255,6 @@ function LinhaPresenca({ chat }: { chat: WhatsappChat | undefined }) {
  * pegam só `+<digits>` pra ficar legível. Usado como fallback do
  * `resolveMencao` quando o contato não tem nome nem pushName.
  */
-/** Separador de dia: "Hoje", "Ontem", "14 de outubro" (com ano se outro ano). */
-function rotuloDia(d: Date): string {
-  if (isToday(d)) return "Hoje";
-  if (isYesterday(d)) return "Ontem";
-  const mesmoAno = d.getFullYear() === new Date().getFullYear();
-  return format(d, mesmoAno ? "d 'de' MMMM" : "d 'de' MMMM 'de' yyyy", { locale: ptBR });
-}
 
 function formatTelefoneMencao(numero: string): string {
   const d = numero.replace(/\D/g, "");

@@ -16,6 +16,8 @@ type Props = {
   /** IDs selecionadas. Vazio = "todas". */
   selecionadas: string[];
   onChange: (selecionadas: string[]) => void;
+  /** Mostra botão "+" pra ir pra Canais. */
+  ehDono: boolean;
 };
 
 /**
@@ -33,6 +35,7 @@ export function InstanceFilterBar({
   sessoes,
   selecionadas,
   onChange,
+  ehDono,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -107,7 +110,7 @@ export function InstanceFilterBar({
                 <StatusDot status={statusAgregado} />
                 <p className="text-[10.5px] text-muted-foreground truncate leading-tight">
                   {todas && sessoes.length > 1
-                    ? `${sessoes.filter((s) => s.status === "WORKING").length} de ${sessoes.length} conectadas`
+                    ? `${sessoes.length} conectadas`
                     : `${labelStatus(statusAgregado)}${principal?.numero ? ` · ${formatNumero(principal.numero)}` : ""}`}
                 </p>
               </div>
@@ -179,7 +182,7 @@ export function InstanceFilterBar({
             );
           })}
 
-          {(
+          {ehDono && (
             <>
               <div className="my-1 border-t" />
               <Link
@@ -237,7 +240,7 @@ function InstanceAvatar({
       <div
         className={cn(
           "size-9 rounded-lg grid place-items-center overflow-hidden text-xs font-bold",
-          "bg-muted text-foreground",
+          "bg-gradient-to-br from-foreground/20 to-foreground/10 text-foreground",
           "border border-border/40",
         )}
       >

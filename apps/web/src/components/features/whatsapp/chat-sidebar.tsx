@@ -35,7 +35,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
-import { ConversasSkeleton } from "@/components/ui/skeleton";
 import { useDebounced } from "@/hooks/use-debounced";
 import {
   ColaboradorAvatar,
@@ -64,13 +63,7 @@ import {
 } from "@/lib/queries/whatsapp";
 import { coletarMencaoIds, substituirMencoes } from "@/lib/whatsapp-mencoes";
 
-import {
-  CHIPS_FILTRO,
-  CHIPS_RESPONSAVEL,
-  ChatFilterChips,
-  type FiltroChip,
-  type FiltroResponsavel,
-} from "./chat-filter-chips";
+import { ChatFilterChips, type FiltroChip } from "./chat-filter-chips";
 import { DownloadConversaDialog } from "./download-conversa-dialog";
 
 type Props = {
@@ -103,14 +96,12 @@ export function ChatSidebar({
 }: Props) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<FiltroChip>("todas");
-  const { euId } = useEu();
+  const { euId, tem } = useEu();
   const colaboradores = useColaboradoresMap();
-  // Começa em "Todas": no primeiro dia ninguém tem conversa atribuída, e uma
-  // caixa "Minhas" vazia pareceria defeito.
-  const [filtroResp, setFiltroResp] = useState<FiltroResponsavel>("todas");
+  const planoDeixaApagar = tem("whatsapp.apagar_mensagens");
   // 300ms é o sweet spot: rápido o bastante pra parecer responsivo,
   // longo o bastante pra não disparar query a cada tecla.
-  const buscaDebounced = useDebounced(busca, 200);
+  const buscaDebounced = useDebounced(busca, 300);
 
   // Traduz chip → filtros pro hook
   const filtros = useMemo(() => {
@@ -118,25 +109,18 @@ export function ChatSidebar({
       q: buscaDebounced,
       tipo: filtro === "grupos" ? ("group" as const) : undefined,
       vinculo: filtro === "clientes" ? ("com" as const) : undefined,
-      atendimentoStatus:
-        filtro === "abertas"
-          ? ("aberto" as const)
-          : filtro === "em_atendimento"
-            ? ("em_atendimento" as const)
-            : filtro === "finalizadas"
-              ? ("finalizado" as const)
-              : undefined,
+      // Chips do painel Denos: "Minhas" / "Sem responsável".
       responsavel:
-        filtroResp === "sem"
+        filtro === "sem"
           ? "sem"
-          : filtroResp === "minhas"
+          : filtro === "minhas"
             ? (euId ?? "00000000-0000-0000-0000-000000000000")
             : undefined,
       // A aba "Arquivadas" mostra só as arquivadas; as outras abas
       // mostram só as não-arquivadas (comportamento estilo WhatsApp).
       arquivados: filtro === "arquivadas",
     };
-  }, [buscaDebounced, filtro, filtroResp, euId]);
+  }, [buscaDebounced, filtro, euId]);
 
   // Teto da lista, que cresce a pedido. Volta ao tamanho de uma página
   // sempre que o filtro ou a instância muda: senão trocar de aba já entraria
@@ -273,7 +257,7 @@ export function ChatSidebar({
         </div>
         {/* O modo seleção só existe pra apagar em lote: sem direito de apagar,
             ele não teria nenhuma ação no fim. */}
-        {chats.length > 0 && (
+        {chats.length > 0 && planoDeixaApagar && (
           <Tooltip label="Selecionar conversas" side="bottom">
             <button
               type="button"
@@ -291,15 +275,9 @@ export function ChatSidebar({
         )}
       </div>
 
-      {/* Chips de filtro: responsável (novo) + status/tipo */}
+      {/* Chips de filtro */}
       <div className="shrink-0">
-        <ChatFilterChips
-          chips={CHIPS_RESPONSAVEL}
-          ativo={filtroResp}
-          onChange={setFiltroResp}
-          className="pb-0"
-        />
-        <ChatFilterChips chips={CHIPS_FILTRO} ativo={filtro} onChange={setFiltro} />
+        <ChatFilterChips ativo={filtro} onChange={setFiltro} />
       </div>
 
       {/* Barra de ações do modo seleção */}
@@ -435,11 +413,13 @@ function ListaConversas({
       className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
     >
       {isLoading ? (
-        <ConversasSkeleton />
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
       ) : chats.length === 0 ? (
         <EmptyState busca={busca} filtro={filtro} />
       ) : (
-        <div className="pb-2" role="list">
+        <div className="pb-2">
           {fixadas.length > 0 && (
             <div className="px-3 pt-3 pb-1 sticky top-0 bg-card/70 backdrop-blur-sm z-[1]">
               <p className="text-[9.5px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/70 flex items-center gap-1.5">
@@ -545,14 +525,11 @@ function EmptyState({ busca, filtro }: { busca: string; filtro: FiltroChip }) {
   } else if (filtro === "clientes") {
     titulo = "Nenhuma conversa vinculada";
     descricao = "Vincule conversas a clientes pra organizar o atendimento.";
-  } else if (filtro === "em_atendimento") {
-    titulo = "Nada em atendimento";
-    descricao = "Conversas assumidas por alguém aparecem aqui.";
-  } else if (filtro === "finalizadas") {
-    titulo = "Nenhuma finalizada";
-    descricao = "Use \"Finalizar atendimento\" no topo da conversa.";
-  } else if (filtro === "abertas") {
-    titulo = "Nenhuma conversa aberta";
+  } else if (filtro === "minhas") {
+    titulo = "Nenhuma conversa sua";
+    descricao = "Conversas que você assumir aparecem aqui.";
+  } else if (filtro === "sem") {
+    titulo = "Nenhuma conversa sem responsável";
     descricao = "Conversas que ainda esperam alguém assumir aparecem aqui.";
   } else if (filtro === "arquivadas") {
     titulo = "Nenhuma conversa arquivada";
@@ -572,6 +549,10 @@ function EmptyState({ busca, filtro }: { busca: string; filtro: FiltroChip }) {
             <Inbox className="size-6 text-bronze/60" />
           )}
         </div>
+        <span
+          aria-hidden
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-px bg-gradient-to-r from-transparent via-bronze/40 to-transparent"
+        />
       </div>
       <p className="text-sm font-medium text-foreground/80 font-serif">{titulo}</p>
       <p className="text-xs mt-1 max-w-[220px] leading-relaxed">
@@ -653,6 +634,7 @@ const ChatItem = memo(function ChatItemImpl({
   const apagar = useApagarChat(chat.sessaoId);
   const fixar = useFixarChat();
   const arquivar = useArquivarChat();
+  const planoDeixaApagar = useEu().tem("whatsapp.apagar_mensagens");
   const [menuOpen, setMenuOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
 
@@ -736,8 +718,7 @@ const ChatItem = memo(function ChatItemImpl({
   const naoLidas = chat.naoLidas ?? 0;
 
   return (
-    <div
-      role="listitem"
+    <li
       className={cn(
         "relative transition-colors mx-2 my-0.5 rounded-lg",
         selecionado
@@ -855,6 +836,7 @@ const ChatItem = memo(function ChatItemImpl({
               )}
               {temCliente && (
                 <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-bronze/15 text-bronze rounded-full px-1.5 py-0.5 leading-none">
+                  <span className="size-1 rounded-full bg-bronze" aria-hidden />
                   Cliente
                 </span>
               )}
@@ -864,6 +846,7 @@ const ChatItem = memo(function ChatItemImpl({
                   side="top"
                 >
                   <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-primary/10 text-primary rounded-full px-1.5 py-0.5 leading-none max-w-[120px]">
+                    <span className="size-1 rounded-full bg-primary" aria-hidden />
                     <span className="truncate">
                       {sessao.apelido ?? formatPhone(sessao.numero ?? "")}
                     </span>
@@ -932,6 +915,8 @@ const ChatItem = memo(function ChatItemImpl({
             )}
             {chat.arquivado ? "Desarquivar conversa" : "Arquivar conversa"}
           </button>
+          {planoDeixaApagar ? (
+            <>
           <button
             type="button"
             onClick={handleLimpar}
@@ -950,6 +935,8 @@ const ChatItem = memo(function ChatItemImpl({
             <Trash2 className="size-4" />
             Apagar conversa
           </button>
+            </>
+          ) : null}
         </PopoverContent>
       </Popover>
       )}
@@ -962,7 +949,7 @@ const ChatItem = memo(function ChatItemImpl({
         sessaoId={chat.sessaoId}
         numero={chat.tipo === "group" ? null : chat.chatId.replace("@c.us", "")}
       />
-    </div>
+    </li>
   );
 });
 

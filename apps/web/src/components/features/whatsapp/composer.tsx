@@ -197,7 +197,7 @@ export function Composer({
     <form
       onSubmit={handleSubmit}
       onPaste={handleColar}
-      className="shrink-0 border-t barra-fixa p-3 space-y-2"
+      className="shrink-0 border-t bg-card/40 p-3 space-y-2"
     >
       {replyTo && (
         <div className="flex items-start gap-2 rounded-md bg-muted px-2 py-1.5 text-xs">

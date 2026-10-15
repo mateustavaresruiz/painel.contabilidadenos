@@ -1,54 +1,50 @@
-import { Plug, WifiOff, type LucideIcon } from "lucide-react";
+import { Lock, Plug, type LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
 /**
- * Tela do Atendimento quando não dá pra abrir as conversas. São dois casos
- * diferentes, com textos diferentes (o adv3 dizia "não configurado" até para
- * instância que só estava desconectada, defeito 10):
- *  - `sem-instancia`: nenhum número cadastrado ainda;
- *  - `desconectada`: há número, mas nenhum está conectado agora.
+ * Tela mostrada quando o canal selecionado (WhatsApp ou E-mail) ainda
+ * não foi configurado. Redireciona pra Configurações → Conexões, onde o
+ * dono cria/conecta tudo.
+ *
+ * Pra usuários que não são donos, mostra só uma mensagem informativa —
+ * eles não podem configurar canais.
+ *
+ * Usa o EmptyState padrão (mesmo do módulo de E-mail) num container
+ * centralizado e responsivo, pra manter os dois canais consistentes.
  */
 export function CanalSemConfigurar({
   icone: Icon,
   canal,
-  motivo,
+  ehDono,
 }: {
   icone: LucideIcon;
   canal: string;
-  motivo: "sem-instancia" | "desconectada";
+  ehDono: boolean;
 }) {
   return (
     <div className="flex-1 grid place-items-center p-4 sm:p-8">
-      {motivo === "sem-instancia" ? (
+      {ehDono ? (
         <EmptyState
           icon={Icon}
-          title={`${canal} ainda não conectado`}
-          description="Cadastre o número do escritório em Conexões e escaneie o QR Code com o celular. Depois disso as conversas chegam aqui em tempo real."
+          title={`${canal} não configurado`}
+          description="Configure em Configurações → Conexões pra começar a enviar e receber mensagens dos seus clientes direto aqui."
           action={
             <Button asChild>
               <Link to="/configuracoes?tab=conexoes">
-                <Plug />
-                Ir para Conexões
+                <Plug className="size-4 mr-2" />
+                Configurar em Conexões
               </Link>
             </Button>
           }
         />
       ) : (
         <EmptyState
-          icon={WifiOff}
-          title={`${canal} desconectado`}
-          description="O número está cadastrado, mas não está conectado agora. Em Conexões dá pra ver o status, reconectar ou ler o QR Code de novo."
-          action={
-            <Button asChild>
-              <Link to="/configuracoes?tab=conexoes">
-                <Plug />
-                Ver conexões
-              </Link>
-            </Button>
-          }
+          icon={Lock}
+          title={`${canal} não configurado`}
+          description="Quem configura os canais é quem gerencia os números do escritório. Peça pra conectar; depois disso você vai poder ler e responder mensagens por aqui."
         />
       )}
     </div>
