@@ -1,5 +1,32 @@
 # Design do painel Denos
 
+> **Nova direção (15/10/2026, aprovada pelo dono):** o visual austero abaixo ficou "sem vida".
+> Agora vale: cor da marca, cor por módulo, sombra suave em cartão, gradiente leve, imagem e
+> movimento. Onde esta seção contradiz o resto do arquivo, **esta seção vence**.
+>
+> - **Marca:** marinho da logo NÓS `--brand` #1b396d (amostrado de `public/logo.png`; escuro #13294f).
+>   Botões e links no azul vivo `--primary` #1f6feb (escuro #4c8dff).
+> - **Cores por módulo** (`--mod-*` em index.css, claro e escuro; helper `lib/cores-modulo.ts`):
+>   WhatsApp verde, Chamados laranja, Clientes azul, Certificados roxo, Pendências fiscais vermelho,
+>   Equipe teal, Configurações ardósia, Início marinho. Uso: `style={corModulo("chamados")}` mais as
+>   classes `chip-mod` (ícone em chip com fundo a 13%), `texto-mod` (número, link) ou `var(--mc)`.
+> - **Profundidade:** cartões podem ter sombra suave (`shadow-card`, `--sombra-card`) e subir no
+>   hover (`cartao-vivo`). Gradiente leve da cor do módulo é permitido em cartão de destaque.
+> - **Fonte:** Plus Jakarta Sans (variável, `@fontsource-variable/plus-jakarta-sans`), corpo e
+>   títulos; pesos 400/500/600/700. Tracking 0 no corpo, -0.015em em título.
+> - **Estilo do app** (Config `aparencia.estilo`, vale para todos; troca na pílula do Início para
+>   quem tem configuracoes.gerenciar): **A Marinho** (menu marinho com logo branca, banner com a foto
+>   do prédio) ou **B Claro e colorido** (menu claro, cartões com faixa colorida, ícones em círculos
+>   cheios, ilustrações de ícones lucide em bolhas). Padrão A. Os tokens `--sidebar-*` mudam com
+>   `html[data-estilo]`.
+> - **Logo:** grande. Menu aberto 48px de altura, recolhido 44px, cabeçalho do celular 44px, banner
+>   do Início 72px.
+> - **Movimento:** números contam até o valor (requestAnimationFrame), entrada escalonada, cartões
+>   sobem no hover; tudo respeita `prefers-reduced-motion`.
+> - **Início sem nada técnico:** saudação, "o que precisa de você hoje", atalhos e resumos em
+>   linguagem simples. Saúde das integrações, tempo de resposta e conexões ficam só em
+>   Configurações > Integrações.
+
 Base: análise do design da Apple enviada pelo dono em 14/10/2026 ("Apple-design-analysis").
 Aqui está a tradução daquele sistema para um **painel de trabalho** (denso, cheio de listas e
 formulários), não para uma vitrine de produto. Onde a referência fala de "product tile" e
@@ -56,7 +83,7 @@ Base 8: 4 · 8 · 12 · 16 · 24 · 32 · 48. Padding de cartão 24px; de págin
 celular).
 
 ### Profundidade
-- Sem sombra em cartão, botão ou texto. Separação = borda 1px `--hairline` ou troca de superfície
+- ~~Sem sombra em cartão~~ (revogado: sombra suave em cartão permitida). Sem sombra em botão ou texto. Separação = borda 1px `--hairline` ou troca de superfície
   (`--parchment` ↔ `--canvas`).
 - Barras fixas (cabeçalho, barra da conversa, composer) usam `--parchment` a 80% com
   `backdrop-filter: saturate(180%) blur(20px)`.
@@ -80,8 +107,8 @@ celular).
   Raio 18px. Mensagem do sistema/transferência = 12px `--ink-48` centralizada, sem balão.
 
 ## Regras
-- Um acento só. Status (vencido, aberto, concluído) é badge, nunca botão colorido.
-- Nada de gradiente, brilho, glow, ponto colorido decorativo.
+- ~~Um acento só~~ (revogado: marca e cores por módulo). Status (vencido, aberto, concluído) é badge, nunca botão colorido.
+- ~~Nada de gradiente~~ (revogado: gradiente leve da cor do módulo é permitido; sem glow).
 - Ícones: uma família só, traço 1.5.
 - Sem travessão (—) em texto de interface.
 - Estados de carregando (skeleton com a forma final), vazio (como popular) e erro em toda lista.

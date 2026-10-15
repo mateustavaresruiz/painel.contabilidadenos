@@ -89,7 +89,8 @@ export function ChamadosPage() {
   const podeTipos = usePermissao("chamados.tipos");
   const pedida = params.get("aba") ?? "lista";
   const aba = (pedida === "relatorio" && podeRelatorio) || (pedida === "tipos" && podeTipos) ? pedida : "lista";
-  const [nova, setNova] = useState(false);
+  // ?novo=1 (atalho do Início) abre o cadastro direto.
+  const [nova, setNova] = useState(() => podeCriar && params.get("novo") === "1");
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">

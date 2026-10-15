@@ -2,782 +2,673 @@ import {
   ArrowRight,
   BadgeCheck,
   Cake,
+  CheckCircle2,
   ClipboardList,
+  Heart,
   Landmark,
   MessageSquare,
+  MessagesSquare,
+  Palette,
+  PartyPopper,
+  Sparkles,
+  Sun,
+  UserPlus,
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { lazy, Suspense, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { EstadoBadge } from "@/components/features/configuracoes/estado-badge";
+import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Chips } from "@/components/ui/chips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useAlgumaPermissao, useEu, usePermissao } from "@/lib/colaborador";
+import { useEstilo, useSalvarEstilo, type Estilo } from "@/lib/aparencia";
+import { useEu, usePermissao } from "@/lib/colaborador";
+import { corModulo, type CorModulo } from "@/lib/cores-modulo";
 import { msgErro } from "@/lib/erro";
-import { useEhAdmin, useModulos, type ModuloChave } from "@/lib/modulos";
-import { PERIODOS, useDashboard, type Dashboard, type Periodo } from "@/lib/queries/dashboard";
-import { useResumoSaude } from "@/lib/queries/saude";
+import { useModulos, type ModuloChave } from "@/lib/modulos";
+import { useDashboard, type Dashboard } from "@/lib/queries/dashboard";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
-// recharts só baixa quando o gráfico aparece.
-const GraficoMensagens = lazy(() =>
-  import("@/components/features/dashboard/graficos").then((m) => ({ default: m.GraficoMensagens })),
-);
-const GraficoBarras = lazy(() =>
-  import("@/components/features/dashboard/graficos").then((m) => ({ default: m.GraficoBarras })),
-);
+/** Atraso da entrada escalonada: passos de 50ms. */
+const passo = (i: number): CSSProperties => ({ animationDelay: `${i * 50}ms` });
 
-const CHAVE_PERIODO = "denos:dashboard-periodo";
+const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
 
-/** O período como complemento de frase: "3 novos nos últimos 7 dias". */
-const NO_PERIODO: Record<Periodo, string> = {
-  hoje: "hoje",
-  "7d": "nos últimos 7 dias",
-  "30d": "nos últimos 30 dias",
-  mes: "neste mês",
-};
+const reduzMovimento = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
-function periodoSalvo(): Periodo {
-  try {
-    const v = localStorage.getItem(CHAVE_PERIODO);
-    if (v === "hoje" || v === "7d" || v === "30d" || v === "mes") return v;
-  } catch {
-    /* sem storage */
-  }
-  return "7d";
+/** Número que conta de 0 até o valor (requestAnimationFrame, 700ms). */
+function useContagem(alvo: number): number {
+  const [v, setV] = useState(0);
+  const de = useRef(0);
+  useEffect(() => {
+    if (reduzMovimento()) {
+      setV(alvo);
+      de.current = alvo;
+      return;
+    }
+    const inicio = performance.now();
+    const origem = de.current;
+    let id = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - inicio) / 700);
+      const e = 1 - Math.pow(1 - p, 3);
+      const atual = Math.round(origem + (alvo - origem) * e);
+      setV(atual);
+      de.current = atual;
+      if (p < 1) id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [alvo]);
+  return v;
 }
 
-/** Atraso da entrada escalonada: passos de 40ms. */
-const passo = (i: number): CSSProperties => ({ animationDelay: `${i * 40}ms` });
+function Numero({ valor, className }: { valor: number; className?: string }) {
+  const v = useContagem(valor);
+  return <span className={cn("nums", className)}>{v.toLocaleString("pt-BR")}</span>;
+}
 
-const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+// ---------------------------------------------------------------------------
+// Dados da página (os dois estilos usam os mesmos)
+// ---------------------------------------------------------------------------
 
-/** Visão geral: números do escritório no período, numa RPC só (painel_dashboard). */
-export function InicioPage() {
-  usePageTitle("Visão geral");
-  const { eu } = useEu();
+type Atencao = {
+  chave: string;
+  cor: CorModulo;
+  icon: LucideIcon;
+  valor: number;
+  titulo: string;
+  vazio: string;
+  extra?: string;
+  to: string;
+  acao: string;
+};
+
+type Atalho = { chave: string; cor: CorModulo; icon: LucideIcon; rotulo: string; to: string };
+
+function useInicio() {
+  const { eu, tem } = useEu();
   const { ativo } = useModulos();
-  const verNumeros = usePermissao("dashboard.ver");
-  const verSaude = usePermissao("configuracoes.gerenciar");
-  const [periodo, setPeriodo] = useState<Periodo>(periodoSalvo);
-  const { data, isLoading, error, isFetching } = useDashboard(periodo, verNumeros);
+  const verNumeros = tem("dashboard.ver");
+  const q = useDashboard("7d", verNumeros);
+  const d = q.data;
 
-  function escolher(p: Periodo) {
-    setPeriodo(p);
-    try {
-      localStorage.setItem(CHAVE_PERIODO, p);
-    } catch {
-      /* sem storage */
-    }
-  }
+  const nivers = (d?.aniversarios ?? []).filter((a) => a.diasAte === 0).length;
+  const certVencendo = (d?.certificados.vencidos ?? 0) + (d?.certificados.vencem30 ?? 0);
+  const todosAtencao: (Atencao & { modulo: ModuloChave })[] = [
+    {
+      chave: "conversas",
+      modulo: "whatsapp",
+      cor: "whatsapp",
+      icon: MessageSquare,
+      valor: d?.atendimento.semResponsavel ?? 0,
+      titulo: plural(d?.atendimento.semResponsavel ?? 0, "conversa esperando", "conversas esperando"),
+      vazio: "Ninguém esperando resposta",
+      to: "/whatsapp",
+      acao: "Responder",
+    },
+    {
+      chave: "chamados",
+      modulo: "chamados",
+      cor: "chamados",
+      icon: ClipboardList,
+      valor: d?.chamados.atrasados ?? 0,
+      titulo: plural(d?.chamados.atrasados ?? 0, "chamado atrasado", "chamados atrasados"),
+      vazio: "Nenhum chamado atrasado",
+      to: "/chamados",
+      acao: "Ver chamados",
+    },
+    {
+      chave: "certificados",
+      modulo: "certificados",
+      cor: "certificados",
+      icon: BadgeCheck,
+      valor: certVencendo,
+      titulo: plural(certVencendo, "certificado vencendo", "certificados vencendo"),
+      vazio: "Certificados em dia",
+      extra: d && d.certificados.vencidos > 0 ? `${d.certificados.vencidos} já ${plural(d.certificados.vencidos, "venceu", "venceram")}` : undefined,
+      to: "/certificados?status=vencendo",
+      acao: "Ver certificados",
+    },
+    {
+      chave: "aniversarios",
+      modulo: "clientes",
+      cor: "clientes",
+      icon: Cake,
+      valor: nivers,
+      titulo: plural(nivers, "aniversariante hoje", "aniversariantes hoje"),
+      vazio: "Nenhum aniversário hoje",
+      to: "/clientes/aniversarios",
+      acao: "Dar parabéns",
+    },
+  ];
+  const atencao = todosAtencao.filter((a) => ativo(a.modulo) && (a.chave !== "aniversarios" || tem("aniversarios.ver") || tem("clientes.ver")));
 
-  const saudacao = (() => {
-    const h = new Date().getHours();
-    return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
-  })();
+  const atalhos: Atalho[] = [
+    ativo("whatsapp") && tem("whatsapp.ver") && { chave: "wa", cor: "whatsapp", icon: MessageSquare, rotulo: "Abrir WhatsApp", to: "/whatsapp" },
+    ativo("clientes") && tem("clientes.editar") && { chave: "cli", cor: "clientes", icon: UserPlus, rotulo: "Novo cliente", to: "/clientes/novo" },
+    ativo("chamados") && tem("chamados.criar") && { chave: "ch", cor: "chamados", icon: ClipboardList, rotulo: "Abrir chamado", to: "/chamados?novo=1" },
+    ativo("certificados") && tem("certificados.editar") && { chave: "ce", cor: "certificados", icon: BadgeCheck, rotulo: "Cadastrar certificado", to: "/certificados?novo=1" },
+  ].filter(Boolean) as Atalho[];
+
+  const pendentes = atencao.filter((a) => a.valor > 0);
+  const resumoFrase = !verNumeros
+    ? "Tudo o que você precisa está no menu."
+    : q.isLoading
+      ? ""
+      : pendentes.length === 0
+        ? "Está tudo em dia por aqui. Bom trabalho!"
+        : `Hoje tem ${pendentes.map((a) => `${a.valor} ${a.titulo}`).join(", ")}.`;
+
+  const h = new Date().getHours();
+  const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+  const nome = eu?.nome?.split(" ")[0];
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-  const rotuloPeriodo = NO_PERIODO[periodo];
-  const props = { d: data, carregando: isLoading, rotulo: rotuloPeriodo };
-  const temAtendimento = ativo("whatsapp");
 
+  return { d, q, verNumeros, atencao, atalhos, resumoFrase, saudacao, nome, hoje, ativo };
+}
+
+type Inicio = ReturnType<typeof useInicio>;
+
+/** Início: o que precisa de você hoje, atalhos e um resumo amigável. */
+export function InicioPage() {
+  usePageTitle("Início");
+  const estilo = useEstilo();
+  const dados = useInicio();
+  const podeTrocar = usePermissao("configuracoes.gerenciar");
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1440px]">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between animate-rise">
-        <div className="min-w-0 space-y-1">
-          <p className="eyebrow first-letter:uppercase">{hoje}</p>
-          <h1 className="text-title-lg">
-            {saudacao}
-            {eu?.nome ? `, ${eu.nome.split(" ")[0]}` : ""}
-          </h1>
-          {verNumeros && <Contexto d={data} carregando={isLoading} />}
-        </div>
-        {verNumeros && (
-          <Chips opcoes={PERIODOS} valor={periodo} onChange={escolher} rotulo="Período" className="lg:justify-end" />
-        )}
-      </header>
-
-      {verSaude && (
-        <div className="animate-rise" style={passo(1)}>
-          <FaixaSaude />
-        </div>
-      )}
-
-      {!verNumeros ? (
-        <Bloco className="animate-rise" style={passo(2)}>
-          <Vazio
-            icon={ArrowRight}
-            titulo="Tudo à mão no menu"
-            texto="Use o menu ao lado para abrir o que você precisa. Os números do escritório aparecem aqui para quem tem essa permissão no cargo."
-          />
-        </Bloco>
-      ) : error ? (
-        <Bloco>
-          <p className="text-sm text-destructive">Não foi possível carregar a visão geral: {msgErro(error)}</p>
-        </Bloco>
-      ) : (
-        <div className={cn("space-y-6 transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-          <Destaques {...props} />
-          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3 lg:items-start">
-            {temAtendimento && (
-              <SecaoAtendimento {...props} className="lg:col-span-2 animate-rise" style={passo(6)} />
-            )}
-            {ativo("chamados") && (
-              <SecaoChamados
-                {...props}
-                className={cn("animate-rise", !temAtendimento && "lg:col-span-3")}
-                style={passo(7)}
-              />
-            )}
-            {ativo("clientes") && <SecaoClientes {...props} className="animate-rise" style={passo(8)} />}
-            {ativo("clientes") && <SecaoAniversarios {...props} className="animate-rise" style={passo(9)} />}
-            {(ativo("certificados") || ativo("pendenciasFiscais")) && (
-              <div className="grid gap-4 sm:gap-6 content-start animate-rise" style={passo(10)}>
-                {ativo("certificados") && <SecaoCertificados {...props} />}
-                {ativo("pendenciasFiscais") && <SecaoFiscal {...props} />}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+    <div className={cn("relative min-h-full", podeTrocar && "pb-16")}>
+      {estilo === "A" ? <InicioMarinho {...dados} /> : <InicioColorido {...dados} />}
+      {podeTrocar && <TrocaEstilo atual={estilo} />}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Peças
+// Estilo A: Marinho
 // ---------------------------------------------------------------------------
 
-type SecaoProps = {
-  d: Dashboard | undefined;
-  carregando: boolean;
-  rotulo: string;
-  className?: string;
-  style?: CSSProperties;
-};
-
-/** Cartão base: canvas, hairline, raio 18. */
-function Bloco({ className, style, children }: { className?: string; style?: CSSProperties; children: ReactNode }) {
+function InicioMarinho(p: Inicio) {
   return (
-    <section className={cn("rounded-card border bg-card text-card-foreground p-5 sm:p-6", className)} style={style}>
-      {children}
-    </section>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-[1440px]">
+      <section
+        className="relative overflow-hidden rounded-card text-white shadow-card animate-rise"
+        style={{ backgroundImage: "url(/login-predio.jpg)", backgroundSize: "cover", backgroundPosition: "center 40%" }}
+      >
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(110deg, color-mix(in srgb, var(--brand) 96%, transparent) 0%, color-mix(in srgb, var(--brand) 86%, transparent) 50%, color-mix(in srgb, var(--brand) 55%, transparent) 100%)",
+          }}
+        />
+        <div className="relative px-5 py-6 sm:px-8 sm:py-9 lg:px-10 lg:py-10 flex flex-col gap-6 lg:gap-8">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 space-y-2">
+              <p className="text-xs font-medium text-white/70 first-letter:uppercase">{p.hoje}</p>
+              <h1 className="text-[28px] sm:text-[38px] leading-[1.1] font-bold tracking-[-0.015em]">
+                {p.saudacao}
+                {p.nome ? `, ${p.nome}` : ""}!
+              </h1>
+              <p className="text-sm sm:text-base text-white/85 max-w-xl [text-wrap:pretty] min-h-6">
+                {p.resumoFrase || <Skeleton className="h-4 w-64 bg-white/20" />}
+              </p>
+            </div>
+            <Logo branca className="h-14 sm:h-[72px] shrink-0 hidden sm:inline-flex opacity-95" />
+          </div>
+          {p.atalhos.length > 0 && (
+            <div className="grid grid-cols-2 lg:flex lg:flex-wrap gap-2.5 sm:gap-3">
+              {p.atalhos.map((a, i) => (
+                <Link
+                  key={a.chave}
+                  to={a.to}
+                  style={{ ...corModulo(a.cor), ...passo(2 + i) }}
+                  className="animate-rise group flex items-center gap-3 rounded-2xl bg-white/10 hover:bg-white/[0.18] border border-white/15 backdrop-blur-sm px-3.5 py-3 sm:pr-5 text-sm font-semibold transition-[background-color,transform] duration-200 hover:-translate-y-0.5 active:scale-[.98]"
+                >
+                  <span className="grid size-9 place-items-center rounded-xl bg-white text-[color:var(--mc)] shrink-0 shadow-card">
+                    <a.icon className="size-[18px]" />
+                  </span>
+                  <span className="min-w-0 leading-tight">{a.rotulo}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {p.verNumeros && (
+        <Conteudo p={p}>
+          <section className="space-y-3 sm:space-y-4">
+            <h2 className="text-title-md font-bold animate-rise" style={passo(3)}>
+              O que precisa de você hoje
+            </h2>
+            <GradeAtencao n={p.atencao.length}>
+              {p.atencao.map((a, i) => (
+                <Link
+                  key={a.chave}
+                  to={a.to}
+                  style={{
+                    ...corModulo(a.cor),
+                    ...passo(4 + i),
+                    backgroundImage: "linear-gradient(150deg, color-mix(in srgb, var(--mc) 11%, var(--card)) 0%, var(--card) 62%)",
+                  }}
+                  className="cartao-vivo animate-rise group relative overflow-hidden rounded-card border bg-card p-4 sm:p-5 flex flex-col gap-3 sm:gap-4 min-w-0"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="chip-mod grid size-11 place-items-center rounded-2xl">
+                      <a.icon className="size-5" />
+                    </span>
+                    {a.valor > 0 && <span className="size-2.5 rounded-full bg-[var(--mc)] animate-pulse" aria-hidden />}
+                  </div>
+                  <div className="min-w-0">
+                    {p.q.isLoading ? (
+                      <Skeleton className="h-10 w-14" />
+                    ) : (
+                      <Numero valor={a.valor} className={cn("block text-[32px] sm:text-[40px] leading-none font-bold tracking-[-0.015em]", a.valor > 0 ? "texto-mod" : "text-foreground/35")} />
+                    )}
+                    <p className="text-xs sm:text-sm font-semibold mt-2 line-clamp-2 sm:truncate">{a.valor > 0 || p.q.isLoading ? a.titulo : a.vazio}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 min-h-[18px] truncate">{a.extra ?? (a.valor > 0 ? "" : "Tudo certo")}</p>
+                  </div>
+                  <span className="texto-mod text-xs font-semibold inline-flex items-center gap-1">
+                    {a.acao}
+                    <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-1" />
+                  </span>
+                </Link>
+              ))}
+            </GradeAtencao>
+          </section>
+          <Resumos p={p} variante="A" />
+        </Conteudo>
+      )}
+      {!p.verNumeros && <SemNumeros />}
+    </div>
   );
 }
 
-function Secao({
+// ---------------------------------------------------------------------------
+// Estilo B: Claro e colorido
+// ---------------------------------------------------------------------------
+
+function InicioColorido(p: Inicio) {
+  const tudoEmDia = !p.q.isLoading && p.atencao.every((a) => a.valor === 0);
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-[1440px]">
+      <header className="flex flex-col gap-1.5 animate-rise">
+        <p className="text-xs font-semibold text-[color:var(--mod-inicio)] first-letter:uppercase">{p.hoje}</p>
+        <h1 className="text-[30px] sm:text-[38px] leading-[1.1] font-bold tracking-[-0.015em]">
+          {p.saudacao}
+          {p.nome ? `, ${p.nome}` : ""}!{" "}
+          <span className="inline-block" aria-hidden>
+            <Sun className="inline size-8 -mt-1.5 text-[#f59e0b]" />
+          </span>
+        </h1>
+        <p className="text-sm sm:text-base text-muted-foreground max-w-2xl min-h-6">
+          {p.resumoFrase || <Skeleton className="h-4 w-64" />}
+        </p>
+      </header>
+
+      {p.atalhos.length > 0 && (
+        <div className={cn("grid gap-3 sm:gap-4 grid-cols-2", p.atalhos.length >= 3 && "lg:grid-cols-4")}>
+          {p.atalhos.map((a, i) => (
+            <Link
+              key={a.chave}
+              to={a.to}
+              style={{ ...corModulo(a.cor), ...passo(1 + i), backgroundColor: "color-mix(in srgb, var(--mc) 8%, var(--card))" }}
+              className="cartao-vivo animate-rise group rounded-card border border-[color:color-mix(in_srgb,var(--mc)_18%,transparent)] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3"
+            >
+              <span className="grid size-12 place-items-center rounded-full bg-[var(--mc)] text-white shrink-0 shadow-card transition-transform duration-300 ease-brand group-hover:scale-110 group-hover:-rotate-6">
+                <a.icon className="size-[22px]" />
+              </span>
+              <span className="text-sm font-bold leading-tight">{a.rotulo}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {p.verNumeros && (
+        <Conteudo p={p}>
+          <section className="space-y-3 sm:space-y-4">
+            <h2 className="text-title-md font-bold animate-rise" style={passo(3)}>
+              O que precisa de você hoje
+            </h2>
+            {tudoEmDia ? (
+              <div className="rounded-card border bg-card shadow-card p-6 sm:p-10 flex flex-col sm:flex-row items-center gap-6 sm:gap-10 animate-rise" style={passo(4)}>
+                <Ilustracao principal={PartyPopper} cor="whatsapp" satelites={[{ icon: CheckCircle2, cor: "clientes" }, { icon: Sparkles, cor: "chamados" }, { icon: Heart, cor: "fiscal" }]} />
+                <div className="text-center sm:text-left space-y-1.5">
+                  <p className="text-title-md font-bold">Tudo em dia!</p>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    Ninguém esperando, nenhum chamado atrasado e nenhum certificado vencendo. Aproveite para adiantar o trabalho.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <GradeAtencao n={p.atencao.length}>
+                {p.atencao.map((a, i) => (
+                  <Link
+                    key={a.chave}
+                    to={a.to}
+                    style={{ ...corModulo(a.cor), ...passo(4 + i) }}
+                    className="cartao-vivo animate-rise group relative overflow-hidden rounded-card border bg-card p-4 pt-5 sm:p-5 sm:pt-6 flex flex-col items-start gap-3 sm:gap-4 min-w-0"
+                  >
+                    <span aria-hidden className="absolute inset-x-0 top-0 h-1.5 bg-[var(--mc)]" />
+                    <span
+                      aria-hidden
+                      className="absolute -right-8 -top-8 size-28 rounded-full opacity-60"
+                      style={{ background: "color-mix(in srgb, var(--mc) 9%, transparent)" }}
+                    />
+                    <span className="relative grid size-14 place-items-center rounded-full bg-[var(--mc)] text-white shadow-card transition-transform duration-300 ease-brand group-hover:scale-110">
+                      <a.icon className="size-6" />
+                    </span>
+                    <div className="relative min-w-0 w-full">
+                      {p.q.isLoading ? (
+                        <Skeleton className="h-10 w-14" />
+                      ) : (
+                        <Numero valor={a.valor} className={cn("block text-[32px] sm:text-[40px] leading-none font-bold tracking-[-0.015em]", a.valor === 0 && "text-foreground/30")} />
+                      )}
+                      <p className="text-xs sm:text-sm font-semibold mt-2 line-clamp-2 sm:truncate">{a.valor > 0 || p.q.isLoading ? a.titulo : a.vazio}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 min-h-[18px] truncate">{a.extra ?? ""}</p>
+                    </div>
+                    <span className="texto-mod text-xs font-bold inline-flex items-center gap-1">
+                      {a.acao}
+                      <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-1" />
+                    </span>
+                  </Link>
+                ))}
+              </GradeAtencao>
+            )}
+          </section>
+          <Resumos p={p} variante="B" />
+        </Conteudo>
+      )}
+      {!p.verNumeros && <SemNumeros colorido />}
+    </div>
+  );
+}
+
+/** Ilustração feita de ícones em bolhas coloridas (sem desenho à mão). */
+function Ilustracao({
+  principal: Principal,
+  cor,
+  satelites,
+  pequena,
+}: {
+  principal: LucideIcon;
+  cor: CorModulo;
+  satelites: { icon: LucideIcon; cor: CorModulo }[];
+  pequena?: boolean;
+}) {
+  const pos = ["-left-3 top-2", "-right-2 -top-1", "right-0 -bottom-2"];
+  return (
+    <div className={cn("relative shrink-0", pequena ? "size-24" : "size-36")} aria-hidden>
+      <span
+        className="absolute inset-0 rounded-[42%_58%_55%_45%/48%_42%_58%_52%]"
+        style={{ ...corModulo(cor), background: "color-mix(in srgb, var(--mc) 14%, transparent)" }}
+      />
+      <span
+        className="absolute inset-[18%] grid place-items-center rounded-full bg-[var(--mc)] text-white shadow-card"
+        style={corModulo(cor)}
+      >
+        <Principal className={pequena ? "size-7" : "size-10"} />
+      </span>
+      {satelites.slice(0, 3).map((s, i) => (
+        <span
+          key={i}
+          className={cn("absolute grid place-items-center rounded-full bg-card shadow-card texto-mod animate-rise", pequena ? "size-7" : "size-10", pos[i])}
+          style={{ ...corModulo(s.cor), ...passo(3 + i * 2) }}
+        >
+          <s.icon className={pequena ? "size-3.5" : "size-5"} />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Peças comuns
+// ---------------------------------------------------------------------------
+
+function Conteudo({ p, children }: { p: Inicio; children: ReactNode }) {
+  if (p.q.error)
+    return (
+      <div className="rounded-card border bg-card p-6 text-sm text-destructive">
+        Não foi possível carregar o resumo: {msgErro(p.q.error)}
+      </div>
+    );
+  return <>{children}</>;
+}
+
+function GradeAtencao({ n, children }: { n: number; children: ReactNode }) {
+  return (
+    <div className={cn("grid gap-3 sm:gap-4 grid-cols-2", n >= 4 && "xl:grid-cols-4", n === 3 && "xl:grid-cols-3")}>
+      {children}
+    </div>
+  );
+}
+
+function SemNumeros({ colorido }: { colorido?: boolean }) {
+  return (
+    <div className="rounded-card border bg-card shadow-card p-6 sm:p-10 flex flex-col sm:flex-row items-center gap-6 animate-rise" style={passo(3)}>
+      {colorido ? (
+        <Ilustracao pequena principal={Sparkles} cor="inicio" satelites={[{ icon: MessageSquare, cor: "whatsapp" }, { icon: Users, cor: "clientes" }]} />
+      ) : (
+        <span className="chip-mod grid size-14 place-items-center rounded-2xl" style={corModulo("inicio")}>
+          <Sparkles className="size-6" />
+        </span>
+      )}
+      <div className="text-center sm:text-left">
+        <p className="text-title-sm font-bold">Bom trabalho hoje!</p>
+        <p className="text-sm text-muted-foreground">Use os atalhos acima ou o menu ao lado para abrir o que precisar.</p>
+      </div>
+    </div>
+  );
+}
+
+function CartaoResumo({
   titulo,
-  subtitulo,
+  cor,
+  icon: Icon,
   link,
   children,
-  className,
+  variante,
   style,
+  className,
 }: {
   titulo: string;
-  subtitulo?: string;
+  cor: CorModulo;
+  icon: LucideIcon;
   link?: { to: string; texto: string };
   children: ReactNode;
-  className?: string;
+  variante: Estilo;
   style?: CSSProperties;
+  className?: string;
 }) {
   return (
-    <Bloco className={cn("flex flex-col gap-5", className)} style={style}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-title-sm font-semibold">{titulo}</h2>
-          {subtitulo && <p className="text-xs text-muted-foreground mt-0.5">{subtitulo}</p>}
-        </div>
+    <section
+      style={{ ...corModulo(cor), ...style }}
+      className={cn("animate-rise rounded-card border bg-card shadow-card p-5 sm:p-6 flex flex-col gap-4 min-w-0", className)}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            "grid place-items-center shrink-0",
+            variante === "A" ? "chip-mod size-9 rounded-xl" : "size-10 rounded-full bg-[var(--mc)] text-white",
+          )}
+        >
+          <Icon className="size-[18px]" />
+        </span>
+        <h3 className="text-title-sm font-bold flex-1 min-w-0 truncate">{titulo}</h3>
         {link && (
-          <Link
-            to={link.to}
-            className="shrink-0 text-xs text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-1 -mr-2 hover:bg-primary/[0.08] transition-colors"
-          >
+          <Link to={link.to} className="texto-mod shrink-0 text-xs font-semibold inline-flex items-center gap-1 hover:underline underline-offset-4">
             {link.texto}
             <ArrowRight className="size-3.5" />
           </Link>
         )}
       </div>
       {children}
-    </Bloco>
+    </section>
   );
 }
 
-/** Ícone num círculo do acento a 10%. */
-function Icone({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
+function Stat({ rotulo, valor, cor, carregando }: { rotulo: string; valor: number; cor: CorModulo; carregando: boolean }) {
   return (
-    <span className={cn("grid place-items-center size-9 rounded-full bg-primary/10 text-primary shrink-0", className)}>
-      <Icon className="size-[18px]" />
-    </span>
-  );
-}
-
-/** Vazio com a próxima ação: ícone, frase curta, botão. */
-function Vazio({
-  icon,
-  titulo,
-  texto,
-  acao,
-  compacto,
-}: {
-  icon: LucideIcon;
-  titulo: string;
-  texto?: string;
-  acao?: { to: string; texto: string };
-  compacto?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex-1 rounded-pearl bg-background flex flex-col items-center justify-center text-center gap-2 px-5",
-        compacto ? "py-6" : "py-10",
-      )}
-    >
-      <Icone icon={icon} />
-      <p className="text-sm font-semibold mt-1">{titulo}</p>
-      {texto && <p className="text-xs text-muted-foreground max-w-xs [text-wrap:pretty]">{texto}</p>}
-      {acao && (
-        <Button asChild size="sm" className="mt-2 rounded-full">
-          <Link to={acao.to}>{acao.texto}</Link>
-        </Button>
-      )}
+    <div className="rounded-2xl px-4 py-3.5 min-w-0" style={{ ...corModulo(cor), background: "color-mix(in srgb, var(--mc) 7%, transparent)" }}>
+      {carregando ? <Skeleton className="h-8 w-12" /> : <Numero valor={valor} className="block text-[28px] leading-tight font-bold texto-mod" />}
+      <p className="text-xs text-muted-foreground mt-0.5 [text-wrap:balance]">{rotulo}</p>
     </div>
   );
 }
 
-/** Número pequeno dentro de uma seção (12px rótulo, 21px valor). */
-function Mini({
-  rotulo,
-  valor,
-  carregando,
-  to,
-  badge,
-}: {
-  rotulo: string;
-  valor: ReactNode;
-  carregando: boolean;
-  to?: string;
-  badge?: ReactNode;
-}) {
-  const corpo = (
-    <>
-      <p className="text-2xs text-muted-foreground truncate">{rotulo}</p>
-      {carregando ? (
-        <Skeleton className="h-6 w-12 mt-1" />
-      ) : (
-        <p className="text-title-md font-semibold nums mt-0.5 flex items-center gap-2 flex-wrap">
-          {valor}
-          {badge}
-        </p>
-      )}
-    </>
-  );
-  const base = "block rounded-pearl bg-background px-3.5 py-3 min-w-0";
-  return to ? (
-    <Link to={to} className={cn(base, "transition-[background-color,transform] duration-150 hover:bg-accent active:scale-[.98]")}>
-      {corpo}
-    </Link>
-  ) : (
-    <div className={base}>{corpo}</div>
-  );
-}
+function Resumos({ p, variante }: { p: Inicio; variante: Estilo }) {
+  const d: Dashboard | undefined = p.d;
+  const c = p.q.isLoading;
+  const semana: { rotulo: string; valor: number; cor: CorModulo }[] = [];
+  if (p.ativo("whatsapp")) semana.push({ rotulo: "mensagens trocadas", valor: (d?.atendimento.recebidas ?? 0) + (d?.atendimento.enviadas ?? 0), cor: "whatsapp" });
+  if (p.ativo("chamados")) semana.push({ rotulo: "chamados resolvidos", valor: d?.chamados.concluidosNoPeriodo ?? 0, cor: "chamados" });
+  if (p.ativo("clientes")) semana.push({ rotulo: "clientes novos", valor: d?.clientes.novosNoPeriodo ?? 0, cor: "clientes" });
+  const proximos = (d?.aniversarios ?? []).slice(0, 5);
+  const fiscal = d?.fiscal.ultimaPorStatus;
 
-function Iniciais({ nome }: { nome: string }) {
-  const p = nome.trim().split(/\s+/);
-  const ini = ((p[0]?.[0] ?? "") + (p.length > 1 ? (p[p.length - 1][0] ?? "") : "")).toUpperCase();
   return (
-    <span
-      aria-hidden
-      className="grid place-items-center size-8 rounded-full bg-primary/10 text-primary text-2xs font-semibold shrink-0"
-    >
-      {ini || "?"}
-    </span>
-  );
-}
-
-/** Ranking em lista: iniciais, nome, barra fina proporcional, total. */
-function Ranking({ dados, avatar = true }: { dados: { nome: string; total: number }[]; avatar?: boolean }) {
-  const max = Math.max(1, ...dados.map((d) => d.total));
-  return (
-    <ul className="space-y-3">
-      {dados.slice(0, 6).map((d) => (
-        <li key={d.nome} className="flex items-center gap-3">
-          {avatar && <Iniciais nome={d.nome} />}
-          <div className="flex-1 min-w-0 space-y-1.5">
-            <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="truncate">{d.nome}</span>
-              <span className="nums font-semibold">{d.total}</span>
+    <section className="space-y-3 sm:space-y-4">
+      <h2 className="text-title-md font-bold animate-rise" style={passo(8)}>
+        Como foi a semana
+      </h2>
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3 lg:items-start">
+        {semana.length > 0 && (
+          <CartaoResumo titulo="Últimos 7 dias" cor="inicio" icon={MessagesSquare} variante={variante} style={passo(9)} className="lg:col-span-2">
+            <div className={cn("grid gap-3 grid-cols-2", semana.length === 3 && "sm:grid-cols-3")}>
+              {semana.map((s) => (
+                <Stat key={s.rotulo} {...s} carregando={c} />
+              ))}
             </div>
-            <div className="h-1.5 rounded-full bg-foreground/[0.06] overflow-hidden">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${(d.total / max) * 100}%` }} />
-            </div>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function SkeletonLista({ linhas = 3 }: { linhas?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: linhas }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <Skeleton className="size-8 rounded-full" />
-          <div className="flex-1 space-y-1.5">
-            <Skeleton className="h-3.5 w-2/3" />
-            <Skeleton className="h-1.5 w-full rounded-full" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function minutos(v: number | null): string {
-  if (v == null) return "-";
-  if (v < 1) return "< 1 min";
-  if (v < 60) return `${Math.round(v)} min`;
-  const h = Math.floor(v / 60);
-  const m = Math.round(v % 60);
-  return m ? `${h} h ${m} min` : `${h} h`;
-}
-
-// ---------------------------------------------------------------------------
-// Cabeçalho: linha de contexto
-// ---------------------------------------------------------------------------
-
-function Contexto({ d, carregando }: { d: Dashboard | undefined; carregando: boolean }) {
-  const { ativo } = useModulos();
-  if (carregando || !d) return <Skeleton className="h-4 w-56 mt-1" />;
-  const partes: string[] = [];
-  if (ativo("whatsapp") && d.atendimento.semResponsavel > 0)
-    partes.push(plural(d.atendimento.semResponsavel, "conversa aguardando resposta", "conversas aguardando resposta"));
-  if (ativo("chamados") && d.chamados.atrasados > 0)
-    partes.push(plural(d.chamados.atrasados, "chamado atrasado", "chamados atrasados"));
-  if (ativo("certificados") && d.certificados.vencidos > 0)
-    partes.push(plural(d.certificados.vencidos, "certificado vencido", "certificados vencidos"));
-  const niver = ativo("clientes") ? d.aniversarios.filter((a) => a.diasAte === 0).length : 0;
-  if (niver > 0) partes.push(plural(niver, "aniversário hoje", "aniversários hoje"));
-  return (
-    <p className="text-sm text-muted-foreground pt-1">
-      {partes.length ? partes.join(" · ") : "Nada pedindo sua atenção agora. Bom trabalho."}
-    </p>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Destaques: 4 números grandes, cada um leva à sua página
-// ---------------------------------------------------------------------------
-
-type Destaque = {
-  modulo: ModuloChave;
-  icon: LucideIcon;
-  rotulo: string;
-  valor: number;
-  to: string;
-  detalhe: ReactNode;
-};
-
-function Destaques({ d, carregando, rotulo }: SecaoProps) {
-  const { ativo } = useModulos();
-  const a = d?.atendimento;
-  const ch = d?.chamados;
-  const cl = d?.clientes;
-  const ce = d?.certificados;
-  const fi = d?.fiscal?.ultimaPorStatus;
-  const todos: Destaque[] = [
-    {
-      modulo: "whatsapp",
-      icon: MessageSquare,
-      rotulo: "Conversas ativas",
-      valor: a?.conversasAtivas ?? 0,
-      to: "/whatsapp",
-      detalhe:
-        a && a.semResponsavel > 0 ? (
-          <Badge variant="warning">{plural(a.semResponsavel, "sem responsável", "sem responsável")}</Badge>
-        ) : (
-          `${(a?.recebidas ?? 0) + (a?.enviadas ?? 0)} mensagens ${rotulo}`
-        ),
-    },
-    {
-      modulo: "chamados",
-      icon: ClipboardList,
-      rotulo: "Chamados em aberto",
-      valor: (ch?.abertos ?? 0) + (ch?.emAndamento ?? 0),
-      to: "/chamados",
-      detalhe:
-        ch && ch.atrasados > 0 ? (
-          <Badge variant="destructive">{plural(ch.atrasados, "atrasado", "atrasados")}</Badge>
-        ) : (
-          `${ch?.concluidosNoPeriodo ?? 0} concluídos ${rotulo}`
-        ),
-    },
-    {
-      modulo: "clientes",
-      icon: Users,
-      rotulo: "Clientes ativos",
-      valor: cl?.ativos ?? 0,
-      to: "/clientes",
-      detalhe: `${plural(cl?.novosNoPeriodo ?? 0, "novo", "novos")} ${rotulo}`,
-    },
-    {
-      modulo: "certificados",
-      icon: BadgeCheck,
-      rotulo: "Certificados a vencer",
-      valor: ce?.vencem30 ?? 0,
-      to: "/certificados?status=vencendo",
-      detalhe:
-        ce && ce.vencidos > 0 ? (
-          <Badge variant="destructive">{plural(ce.vencidos, "vencido", "vencidos")}</Badge>
-        ) : (
-          "nos próximos 30 dias"
-        ),
-    },
-    {
-      modulo: "pendenciasFiscais",
-      icon: Landmark,
-      rotulo: "Com pendência fiscal",
-      valor: fi?.com_pendencia ?? 0,
-      to: "/pendencias-fiscais",
-      detalhe: `${fi?.ok ?? 0} regulares`,
-    },
-  ];
-  const lista = todos.filter((t) => ativo(t.modulo)).slice(0, 4);
-  if (lista.length === 0) return null;
-  return (
-    <div className={cn("grid gap-3 sm:gap-4 grid-cols-2", lista.length >= 3 && "lg:grid-cols-4", lista.length === 3 && "lg:grid-cols-3")}>
-      {lista.map((t, i) => (
-        <Link
-          key={t.modulo}
-          to={t.to}
-          style={passo(2 + i)}
-          className="animate-rise group rounded-card border bg-card p-4 sm:p-5 flex flex-col gap-3 sm:gap-4 min-w-0 transition-[border-color,transform] duration-150 hover:border-primary/40 active:scale-[.98]"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <Icone icon={t.icon} />
-            <ArrowRight className="size-4 text-muted-foreground opacity-0 -translate-x-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-x-0" />
-          </div>
-          <div className="min-w-0">
-            {carregando ? (
-              <Skeleton className="h-[38px] w-16" />
-            ) : (
-              <p className="text-title-xl font-semibold nums">{t.valor}</p>
+            {p.ativo("clientes") && (
+              <p className="text-xs text-muted-foreground">
+                Hoje o escritório cuida de{" "}
+                <strong className="text-foreground font-semibold">
+                  {c ? "..." : `${(d?.clientes.ativos ?? 0).toLocaleString("pt-BR")} ${plural(d?.clientes.ativos ?? 0, "cliente", "clientes")}`}
+                </strong>
+                .
+              </p>
             )}
-            <p className="text-sm mt-1 truncate">{t.rotulo}</p>
-            <div className="text-2xs text-muted-foreground mt-1.5 min-h-5 flex items-center truncate">
-              {carregando ? <Skeleton className="h-3 w-24" /> : t.detalhe}
-            </div>
-          </div>
-        </Link>
-      ))}
-    </div>
-  );
-}
+          </CartaoResumo>
+        )}
 
-// ---------------------------------------------------------------------------
-// Saúde (mesmas checagens de Configurações > Integrações)
-// ---------------------------------------------------------------------------
-
-function FaixaSaude() {
-  const { ativo } = useModulos();
-  const ehAdmin = useEhAdmin();
-  const itens = useResumoSaude({ whatsapp: ativo("whatsapp"), serpro: ativo("pendenciasFiscais") });
-  const conteudo = (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-      <span className="eyebrow">Saúde</span>
-      {itens.map((i) => (
-        <span key={i.chave} className="inline-flex items-center gap-2 text-xs">
-          <span>{i.nome}</span>
-          <EstadoBadge estado={i.estado} rotulo={i.detalhe} />
-        </span>
-      ))}
-      {ehAdmin && <ArrowRight className="size-4 text-muted-foreground ml-auto hidden sm:block" />}
-    </div>
-  );
-  return ehAdmin ? (
-    <Link
-      to="/configuracoes?tab=integracoes"
-      className="block rounded-card border bg-card/60 px-5 py-3 hover:bg-card transition-colors"
-      aria-label="Saúde das integrações: abrir Configurações, Integrações"
-    >
-      {conteudo}
-    </Link>
-  ) : (
-    <div className="rounded-card border bg-card/60 px-5 py-3">{conteudo}</div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Seções
-// ---------------------------------------------------------------------------
-
-function SecaoAtendimento({ d, carregando, rotulo, className, style }: SecaoProps) {
-  const a = d?.atendimento;
-  const pr = a?.primeiraResposta;
-  const podeConectar = useAlgumaPermissao(["whatsapp.conexoes", "configuracoes.gerenciar"]);
-  const semConexao = a && a.conexoes.total === 0;
-  return (
-    <Secao
-      titulo="Atendimento"
-      subtitulo={`Mensagens por dia ${rotulo}`}
-      link={{ to: "/whatsapp", texto: "Conversas" }}
-      className={className}
-      style={style}
-    >
-      <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-4">
-        <Mini rotulo="Recebidas" valor={a?.recebidas ?? 0} carregando={carregando} />
-        <Mini rotulo="Enviadas" valor={a?.enviadas ?? 0} carregando={carregando} />
-        <Mini rotulo="1ª resposta (mediana)" valor={minutos(pr?.medianaMin ?? null)} carregando={carregando} />
-        <Mini
-          rotulo="Conexões online"
-          valor={a ? `${a.conexoes.online}/${a.conexoes.total}` : "0/0"}
-          carregando={carregando}
-          to={podeConectar ? "/configuracoes?tab=conexoes" : undefined}
-          badge={
-            a && a.conexoes.total > 0 && a.conexoes.online < a.conexoes.total ? (
-              <Badge variant="warning">offline</Badge>
-            ) : undefined
-          }
-        />
-      </div>
-      {carregando ? (
-        <Skeleton className="h-[268px] w-full rounded-pearl" />
-      ) : semConexao ? (
-        <Vazio
-          icon={MessageSquare}
-          titulo="Nenhum WhatsApp conectado"
-          texto="Conecte um número para as conversas dos clientes chegarem aqui."
-          acao={podeConectar ? { to: "/configuracoes?tab=conexoes", texto: "Conectar WhatsApp" } : undefined}
-        />
-      ) : !a || a.recebidas + a.enviadas === 0 ? (
-        <Vazio
-          icon={MessageSquare}
-          titulo="Sem mensagens no período"
-          texto="Quando os clientes escreverem, o movimento de cada dia aparece aqui."
-        />
-      ) : (
-        <Suspense fallback={<Skeleton className="h-[268px] w-full rounded-pearl" />}>
-          <GraficoMensagens dados={a.mensagensPorDia} />
-        </Suspense>
-      )}
-      {!carregando && a && a.emAtendimentoPorColaborador.length > 0 && (
-        <div className="space-y-3 border-t border-divider pt-4">
-          <p className="eyebrow">Em atendimento agora</p>
-          <Ranking dados={a.emAtendimentoPorColaborador} />
-        </div>
-      )}
-      {pr && pr.respondidas > 0 && (
-        <p className="text-2xs text-muted-foreground -mt-1">
-          1ª resposta aproximada: média {minutos(pr.mediaMin)} em {plural(pr.respondidas, "conversa", "conversas")}
-          {pr.semResposta ? `, ${pr.semResposta} sem resposta em 24h` : ""}.
-        </p>
-      )}
-    </Secao>
-  );
-}
-
-function SecaoChamados({ d, carregando, rotulo, className, style }: SecaoProps) {
-  const c = d?.chamados;
-  const podeAbrir = useAlgumaPermissao(["chamados.criar", "chamados.gerenciar"]);
-  return (
-    <Secao titulo="Chamados" subtitulo={`Mais pedidos ${rotulo}`} link={{ to: "/chamados", texto: "Ver todos" }} className={className} style={style}>
-      <div className="grid gap-2 sm:gap-3 grid-cols-3">
-        <Mini rotulo="Abertos" valor={c?.abertos ?? 0} carregando={carregando} to="/chamados" />
-        <Mini rotulo="Andamento" valor={c?.emAndamento ?? 0} carregando={carregando} to="/chamados" />
-        <Mini rotulo="Concluídos" valor={c?.concluidosNoPeriodo ?? 0} carregando={carregando} />
-      </div>
-      {carregando ? (
-        <SkeletonLista />
-      ) : !c || c.topTipos.length === 0 ? (
-        <Vazio
-          compacto
-          icon={ClipboardList}
-          titulo="Nenhum chamado no período"
-          texto="Os tipos mais pedidos aparecem aqui."
-          acao={podeAbrir ? { to: "/chamados", texto: "Abrir chamado" } : undefined}
-        />
-      ) : (
-        <Suspense fallback={<SkeletonLista />}>
-          <GraficoBarras dados={c.topTipos.slice(0, 6)} rotulo="Tipos de chamado mais pedidos" larguraNome={120} />
-        </Suspense>
-      )}
-      {!carregando && c && c.porResponsavel.length > 0 && (
-        <div className="space-y-3 border-t border-divider pt-4">
-          <p className="eyebrow">Em aberto por responsável</p>
-          <Ranking dados={c.porResponsavel} />
-        </div>
-      )}
-    </Secao>
-  );
-}
-
-function SecaoClientes({ d, carregando, rotulo, className, style }: SecaoProps) {
-  const c = d?.clientes;
-  const podeCadastrar = usePermissao("clientes.editar");
-  return (
-    <Secao titulo="Clientes" subtitulo="Por regime tributário" link={{ to: "/clientes", texto: "Ver todos" }} className={className} style={style}>
-      <div className="grid gap-2 sm:gap-3 grid-cols-2">
-        <Mini rotulo="Ativos" valor={c?.ativos ?? 0} carregando={carregando} to="/clientes" />
-        <Mini rotulo={`Novos ${rotulo}`} valor={c?.novosNoPeriodo ?? 0} carregando={carregando} />
-      </div>
-      {carregando ? (
-        <SkeletonLista />
-      ) : !c || c.porRegime.length === 0 ? (
-        <Vazio
-          compacto
-          icon={Users}
-          titulo="Nenhum cliente ainda"
-          texto="Cadastre o primeiro para acompanhar regime, sócios e aniversários."
-          acao={podeCadastrar ? { to: "/clientes/novo", texto: "Cadastrar cliente" } : undefined}
-        />
-      ) : (
-        <Ranking avatar={false} dados={c.porRegime.map((r) => ({ nome: r.regime, total: r.total }))} />
-      )}
-    </Secao>
-  );
-}
-
-function SecaoAniversarios({ d, carregando, className, style }: SecaoProps) {
-  const lista = d?.aniversarios ?? [];
-  return (
-    <Secao
-      titulo="Aniversários"
-      subtitulo="Próximos 7 dias"
-      link={{ to: "/clientes/aniversarios", texto: "Ver todos" }}
-      className={className}
-      style={style}
-    >
-      {carregando ? (
-        <SkeletonLista linhas={4} />
-      ) : lista.length === 0 ? (
-        <Vazio compacto icon={Cake} titulo="Nenhum aniversário por perto" texto="Ninguém faz aniversário nos próximos 7 dias." />
-      ) : (
-        <ul className="-my-2 divide-y divide-divider">
-          {lista.slice(0, 7).map((a) => (
-            <li key={`${a.origem}:${a.socioId ?? a.clienteId}`} className="flex items-center gap-3 py-2.5">
-              <Iniciais nome={a.nome} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{a.nome}</p>
-                <p className="text-2xs text-muted-foreground truncate">
-                  {a.origem === "empresa" ? `${a.anos} anos de empresa` : `${a.anos} anos`}
-                  {a.origem === "socio" ? ` · sócio de ${a.clienteNome}` : ""}
-                </p>
+        <div className={cn("grid gap-4 sm:gap-6 content-start", semana.length === 0 && "lg:col-span-3 lg:grid-cols-2")}>
+        {p.ativo("clientes") && (
+          <CartaoResumo
+            titulo="Aniversários"
+            cor="clientes"
+            icon={Cake}
+            variante={variante}
+            link={{ to: "/clientes/aniversarios", texto: "Ver todos" }}
+            style={passo(10)}
+          >
+            {c ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-9 w-full" />
+                ))}
               </div>
-              {a.diasAte === 0 ? (
-                <Badge>hoje</Badge>
-              ) : (
-                <span className="text-2xs text-muted-foreground shrink-0">
-                  {a.diasAte === 1 ? "amanhã" : `em ${a.diasAte} dias`}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </Secao>
+            ) : proximos.length === 0 ? (
+              <div className="flex items-center gap-4 py-2">
+                {variante === "B" ? (
+                  <Ilustracao pequena principal={Cake} cor="clientes" satelites={[{ icon: PartyPopper, cor: "chamados" }, { icon: Heart, cor: "fiscal" }]} />
+                ) : null}
+                <p className="text-sm text-muted-foreground">Ninguém faz aniversário nos próximos 7 dias.</p>
+              </div>
+            ) : (
+              <ul className="-my-1.5 divide-y divide-divider">
+                {proximos.map((a) => (
+                  <li key={`${a.origem}:${a.socioId ?? a.clienteId}`} className="flex items-center gap-3 py-2.5">
+                    <span className="chip-mod grid size-9 place-items-center rounded-full text-2xs font-bold shrink-0" aria-hidden>
+                      {iniciais(a.nome)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{a.nome}</p>
+                      <p className="text-2xs text-muted-foreground truncate">
+                        {a.origem === "empresa" ? `${a.anos} anos de empresa` : `faz ${a.anos} anos`}
+                      </p>
+                    </div>
+                    {a.diasAte === 0 ? (
+                      <Badge>hoje</Badge>
+                    ) : (
+                      <span className="text-2xs text-muted-foreground shrink-0">{a.diasAte === 1 ? "amanhã" : `em ${a.diasAte} dias`}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CartaoResumo>
+        )}
+
+        {p.ativo("pendenciasFiscais") && (
+          <CartaoResumo
+            titulo="Situação fiscal"
+            cor="fiscal"
+            icon={Landmark}
+            variante={variante}
+            link={{ to: "/pendencias-fiscais", texto: "Abrir" }}
+            style={passo(11)}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <Stat rotulo={plural(fiscal?.com_pendencia ?? 0, "empresa com pendência", "empresas com pendência")} valor={fiscal?.com_pendencia ?? 0} cor="fiscal" carregando={c} />
+              <Stat rotulo={plural(fiscal?.ok ?? 0, "empresa em dia", "empresas em dia")} valor={fiscal?.ok ?? 0} cor="whatsapp" carregando={c} />
+            </div>
+          </CartaoResumo>
+        )}
+        </div>
+      </div>
+    </section>
   );
 }
 
-/** Linha de status: rótulo, número, badge opcional. */
-function Linha({ rotulo, valor, to, badge }: { rotulo: string; valor: number; to?: string; badge?: ReactNode }) {
-  const corpo = (
-    <>
-      <span className="flex-1 text-sm truncate">{rotulo}</span>
-      {badge}
-      <span className="nums text-sm font-semibold w-8 text-right">{valor}</span>
-    </>
-  );
-  const base = "flex items-center gap-2 py-2.5";
-  return (
-    <li>
-      {to ? (
-        <Link to={to} className={cn(base, "rounded-lg -mx-2 px-2 hover:bg-accent transition-colors")}>
-          {corpo}
-        </Link>
-      ) : (
-        <div className={base}>{corpo}</div>
-      )}
-    </li>
-  );
+function iniciais(nome: string) {
+  const p = nome.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p.length > 1 ? (p[p.length - 1][0] ?? "") : "")).toUpperCase() || "?";
 }
 
-function SkeletonLinhas({ n = 3 }: { n?: number }) {
+// ---------------------------------------------------------------------------
+// Troca de estilo (só configuracoes.gerenciar; vale para todos)
+// ---------------------------------------------------------------------------
+
+function TrocaEstilo({ atual }: { atual: Estilo }) {
+  const { salvar, pendente } = useSalvarEstilo();
+  async function escolher(e: Estilo) {
+    if (e === atual || pendente) return;
+    try {
+      await salvar(e);
+      toast.success(e === "A" ? "Estilo Marinho aplicado para todos" : "Estilo Claro e colorido aplicado para todos");
+    } catch (err) {
+      toast.error(`Não foi possível trocar o estilo: ${msgErro(err)}`);
+    }
+  }
   return (
-    <div className="space-y-3">
-      {Array.from({ length: n }).map((_, i) => (
-        <Skeleton key={i} className="h-5 w-full" />
+    <div className="fixed bottom-4 right-4 z-40 mb-safe-b flex items-center gap-1 rounded-full border bg-card/95 backdrop-blur p-1 pl-3 shadow-flutuante text-xs">
+      <Palette className="size-4 text-muted-foreground" aria-hidden />
+      <span className="font-semibold mr-1">Estilo</span>
+      {(
+        [
+          { v: "A", r: "Marinho" },
+          { v: "B", r: "Colorido" },
+        ] as const
+      ).map((o) => (
+        <button
+          key={o.v}
+          type="button"
+          onClick={() => void escolher(o.v)}
+          aria-pressed={atual === o.v}
+          className={cn(
+            "rounded-full h-8 px-3 font-semibold transition-[background-color,color,transform] duration-150 active:scale-[.97]",
+            atual === o.v ? "bg-brand text-brand-foreground dark:bg-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+        >
+          {o.v} · {o.r}
+        </button>
       ))}
     </div>
-  );
-}
-
-function SecaoCertificados({ d, carregando, rotulo }: SecaoProps) {
-  const c = d?.certificados;
-  const { ativo } = useModulos();
-  const podeCadastrar = usePermissao("certificados.editar");
-  return (
-    <Secao titulo="Certificados" link={{ to: "/certificados", texto: "Ver todos" }}>
-      {carregando ? (
-        <SkeletonLinhas />
-      ) : !c || c.total === 0 ? (
-        <Vazio
-          compacto
-          icon={BadgeCheck}
-          titulo="Nenhum certificado"
-          texto="Cadastre para receber aviso antes de vencer."
-          acao={podeCadastrar ? { to: "/certificados", texto: "Cadastrar certificado" } : undefined}
-        />
-      ) : (
-        <ul className="-my-2 divide-y divide-divider">
-          <Linha
-            rotulo="Vencidos"
-            valor={c.vencidos}
-            to="/certificados?status=vencido"
-            badge={c.vencidos > 0 ? <Badge variant="destructive">vencido</Badge> : undefined}
-          />
-          <Linha rotulo="Vencem em 7 dias" valor={c.vencem7} to="/certificados?status=vencendo" />
-          <Linha rotulo="Vencem em 30 dias" valor={c.vencem30} to="/certificados?status=vencendo" />
-          {ativo("certificadosAvisos") && (
-            <Linha
-              rotulo={`Avisos ${rotulo}`}
-              valor={c.avisos.enviados}
-              badge={c.avisos.falharam > 0 ? <Badge variant="warning">{c.avisos.falharam} falharam</Badge> : undefined}
-            />
-          )}
-        </ul>
-      )}
-    </Secao>
-  );
-}
-
-function SecaoFiscal({ d, carregando, rotulo }: SecaoProps) {
-  const f = d?.fiscal;
-  const u = f?.ultimaPorStatus;
-  return (
-    <Secao titulo="Pendências fiscais" link={{ to: "/pendencias-fiscais", texto: "Consultar" }}>
-      {carregando ? (
-        <SkeletonLinhas />
-      ) : (
-        <ul className="-my-2 divide-y divide-divider">
-          <Linha rotulo="Regulares" valor={u?.ok ?? 0} badge={u && u.ok > 0 ? <Badge variant="success">ok</Badge> : undefined} />
-          <Linha
-            rotulo="Com pendência"
-            valor={u?.com_pendencia ?? 0}
-            to="/pendencias-fiscais"
-            badge={u && u.com_pendencia > 0 ? <Badge variant="warning">pendência</Badge> : undefined}
-          />
-          <Linha
-            rotulo="Com erro"
-            valor={u?.erro ?? 0}
-            badge={u && u.pendente > 0 ? <Badge variant="secondary">{u.pendente} aguardando</Badge> : undefined}
-          />
-          <Linha rotulo={`Consultas ${rotulo}`} valor={f?.consultasNoPeriodo ?? 0} />
-        </ul>
-      )}
-    </Secao>
   );
 }

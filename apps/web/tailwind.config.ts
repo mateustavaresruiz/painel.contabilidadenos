@@ -31,21 +31,14 @@ export default {
       },
     },
     extend: {
-      // Pilha do sistema (SF Pro na Apple), Inter de reserva; emoji no fim.
+      // Plus Jakarta Sans (variável) no corpo e nos títulos; emoji no fim.
       fontFamily: {
-        sans: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Inter", "Segoe UI", "sans-serif", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"],
-        serif: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Inter", "Segoe UI", "sans-serif", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"],
-        heading: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Inter", "Segoe UI", "sans-serif"],
+        sans: ['"Plus Jakarta Sans Variable"', "system-ui", "-apple-system", "Segoe UI", "sans-serif", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"],
+        serif: ['"Plus Jakarta Sans Variable"', "system-ui", "sans-serif"],
+        heading: ['"Plus Jakarta Sans Variable"', "system-ui", "sans-serif"],
         mono: ["ui-monospace", "SFMono-Regular", "monospace"],
       },
-      // Só 400 e 600 (DESIGN.md). Os componentes vindos do adv3 usam
-      // font-medium/font-bold: aqui os dois resolvem em 600, sem caçar classe.
-      fontWeight: {
-        medium: "600",
-        bold: "600",
-        extrabold: "600",
-      },
-      // Sem sombra em cartão e botão; sombra só no que flutua.
+      // Sombra suave só em cartão (shadow-card); o resto continua sem. em cartão e botão; sombra só no que flutua.
       boxShadow: {
         sm: "none",
         DEFAULT: "none",
@@ -53,6 +46,8 @@ export default {
         lg: "var(--sombra-flutuante)",
         xl: "var(--sombra-flutuante)",
         "2xl": "var(--sombra-flutuante)",
+        card: "var(--sombra-card)",
+        "card-hover": "var(--sombra-card-hover)",
       },
       colors: {
         border: alpha("--border"),
@@ -105,6 +100,19 @@ export default {
         "lida-propria": alpha("--lida-propria"),
         divider: alpha("--divider"),
         chip: alpha("--chip"),
+        brand: {
+          DEFAULT: alpha("--brand"),
+          foreground: alpha("--brand-foreground"),
+          soft: alpha("--brand-soft"),
+        },
+        sidebar: {
+          DEFAULT: alpha("--sidebar"),
+          foreground: alpha("--sidebar-foreground"),
+          muted: alpha("--sidebar-muted"),
+          hover: alpha("--sidebar-hover"),
+          active: alpha("--sidebar-active"),
+          border: alpha("--sidebar-border"),
+        },
         bronze: {
           DEFAULT: alpha("--bronze"),
           foreground: alpha("--bronze-foreground"),
@@ -135,14 +143,14 @@ export default {
       },
       // Escala tipográfica do DESIGN.md (painel: corpo 15px).
       fontSize: {
-        "2xs": ["12px", { lineHeight: "1.33", letterSpacing: "-0.12px" }],
-        xs: ["13px", { lineHeight: "1.38", letterSpacing: "-0.08px" }],
-        sm: ["15px", { lineHeight: "1.47", letterSpacing: "-0.24px" }],
-        base: ["17px", { lineHeight: "1.41", letterSpacing: "-0.37px" }],
-        "title-sm": ["17px", { lineHeight: "1.41", letterSpacing: "-0.37px" }],
-        "title-md": ["21px", { lineHeight: "1.19", letterSpacing: "-0.2px" }],
-        "title-lg": ["28px", { lineHeight: "1.14", letterSpacing: "-0.28px" }],
-        "title-xl": ["34px", { lineHeight: "1.12", letterSpacing: "-0.374px" }],
+        "2xs": ["12px", { lineHeight: "1.33", letterSpacing: "0" }],
+        xs: ["13px", { lineHeight: "1.38", letterSpacing: "0" }],
+        sm: ["15px", { lineHeight: "1.47", letterSpacing: "0" }],
+        base: ["17px", { lineHeight: "1.41", letterSpacing: "0" }],
+        "title-sm": ["17px", { lineHeight: "1.41", letterSpacing: "0" }],
+        "title-md": ["21px", { lineHeight: "1.19", letterSpacing: "-0.015em" }],
+        "title-lg": ["28px", { lineHeight: "1.14", letterSpacing: "-0.015em" }],
+        "title-xl": ["34px", { lineHeight: "1.12", letterSpacing: "-0.015em" }],
       },
       // Easing da marca como utilitário (`ease-brand`) — aponta pro token
       // --ease-brand. Mais confiável que `ease-[var(--ease-brand)]` arbitrário.

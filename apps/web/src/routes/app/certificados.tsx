@@ -249,7 +249,7 @@ export function CertificadosPage() {
           }
         }}
         certificado={editando === "novo" ? null : editando}
-        clienteIdFixo={editando === "novo" ? novoPara : null}
+        clienteIdFixo={editando === "novo" && novoPara !== "1" ? novoPara : null}
       />
     </div>
   );

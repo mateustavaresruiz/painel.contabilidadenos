@@ -12,6 +12,7 @@ import { ColaboradorProvider } from "./lib/colaborador";
 import { msgErro } from "./lib/erro";
 import { bootTheme } from "./lib/theme";
 import { toast } from "./lib/toast";
+import "@fontsource-variable/plus-jakarta-sans";
 import "./index.css";
 
 bootTheme();

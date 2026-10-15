@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * (branco, fundo transparente) no escuro. O ícone hexagonal (`favicon.png`)
  * serve de marca compacta na sidebar recolhida.
  */
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className, branca }: { className?: string; /** Sempre a versão branca (menu marinho). */ branca?: boolean }) {
   // Logo enviada em Configurações > Geral (bucket público "marca") vence a NÓS.
   const { data: marca } = useMarca();
   if (marca?.logoUrl) {
@@ -22,23 +22,23 @@ export function Logo({ className }: { className?: string }) {
       <img
         src="/logo.png"
         alt="NÓS Contabilidade"
-        className="h-full w-auto object-contain dark:hidden mix-blend-multiply"
+        className={cn("h-full w-auto object-contain", branca ? "hidden" : "dark:hidden mix-blend-multiply")}
       />
       <img
         src="/logo-branco.png"
         alt="NÓS Contabilidade"
-        className="h-full w-auto object-contain hidden dark:block"
+        className={cn("h-full w-auto object-contain", branca ? "block" : "hidden dark:block")}
       />
     </span>
   );
 }
 
-export function LogoMark({ className }: { className?: string }) {
+export function LogoMark({ className, branca }: { className?: string; branca?: boolean }) {
   return (
     <img
       src="/favicon.png"
       alt="NÓS Contabilidade"
-      className={cn("size-8 object-contain dark:brightness-[2.2] dark:saturate-50", className)}
+      className={cn("size-8 object-contain", branca ? "brightness-0 invert" : "dark:brightness-[2.2] dark:saturate-50", className)}
     />
   );
 }

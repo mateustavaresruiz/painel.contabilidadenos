@@ -10,7 +10,9 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { PaginaSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
+import { useAplicarEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
+import { corModulo } from "@/lib/cores-modulo";
 import { useMarca, useModulos } from "@/lib/modulos";
 import { useTheme } from "@/lib/use-theme";
 import { cn } from "@/lib/utils";
@@ -95,6 +97,7 @@ export function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { recolhida, alternar } = useSidebarRecolhida();
   const { ativo } = useModulos();
+  const estilo = useAplicarEstilo();
 
   // Radix não fecha sozinho quando só o pathname muda.
   useEffect(() => {
@@ -121,7 +124,7 @@ export function AppLayout() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
       {/* Barra de topo: só no celular. Soma o entalhe do iPhone. */}
-      <header className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border barra-fixa px-4 pt-safe-t h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0">
+      <header className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border barra-fixa px-4 pt-safe-t h-[calc(4rem+env(safe-area-inset-top))] shrink-0">
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
@@ -130,28 +133,28 @@ export function AppLayout() {
         >
           <Menu className="size-5" />
         </button>
-        <Link to="/" className="inline-flex h-8">
-          <Logo className="h-8" />
+        <Link to="/" className="inline-flex h-11">
+          <Logo className="h-11" />
         </Link>
         <EuBotao compacto />
       </header>
 
       <aside
         className={cn(
-          "hidden md:flex shrink-0 border-r border-border bg-background flex-col min-h-0 overflow-hidden",
+          "hidden md:flex shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex-col min-h-0 overflow-hidden",
           "transition-[width] duration-200 ease-brand motion-reduce:transition-none",
-          recolhida ? "w-16" : "w-[248px]",
+          recolhida ? "w-[72px]" : "w-[264px]",
         )}
         data-recolhida={recolhida || undefined}
       >
-        <Sidebar recolhida={recolhida} alternar={alternar} />
+        <Sidebar recolhida={recolhida} alternar={alternar} estilo={estilo} />
       </aside>
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="left" showCloseButton overlayClassName="md:hidden" className="md:hidden pl-safe-l bg-background">
+        <SheetContent side="left" showCloseButton overlayClassName="md:hidden" className="md:hidden pl-safe-l bg-sidebar text-sidebar-foreground border-sidebar-border">
           <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
           <SheetDescription className="sr-only">Páginas do painel.</SheetDescription>
-          <Sidebar onNavigate={() => setDrawerOpen(false)} />
+          <Sidebar onNavigate={() => setDrawerOpen(false)} estilo={estilo} />
         </SheetContent>
       </Sheet>
 
@@ -176,11 +179,14 @@ function Sidebar({
   onNavigate,
   recolhida = false,
   alternar,
+  estilo,
 }: {
   onNavigate?: () => void;
   recolhida?: boolean;
   alternar?: () => void;
+  estilo: Estilo;
 }) {
+  const branca = estilo === "A";
   const { ativo } = useModulos();
   const { tem } = useEu();
   const { data: marca } = useMarca();
@@ -195,7 +201,7 @@ function Sidebar({
   const AlternarIcone = recolhida ? PanelLeftOpen : PanelLeftClose;
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className={cn("shrink-0 flex items-center h-[76px] mb-1", recolhida ? "justify-center px-0" : "pl-5 pr-3 gap-2")}>
+      <div className={cn("shrink-0 flex items-center h-[92px] mb-1", recolhida ? "justify-center px-0" : "pl-5 pr-3 gap-2")}>
         <NavLink
           to="/"
           end
@@ -204,11 +210,11 @@ function Sidebar({
           aria-label="Início"
         >
           {recolhida ? (
-            <LogoMark className="size-8" />
+            <LogoMark className="size-11" branca={branca} />
           ) : (
             <span className="flex min-w-0 flex-col">
-              <Logo className="h-9" />
-              <span className="mt-0.5 text-2xs text-muted-foreground truncate">{marca?.nome ?? "Painel interno"}</span>
+              <Logo className="h-12" branca={branca} />
+              <span className="mt-1 text-2xs text-sidebar-muted truncate">{marca?.nome ?? "Painel interno"}</span>
             </span>
           )}
         </NavLink>
@@ -217,7 +223,7 @@ function Sidebar({
             <button
               type="button"
               onClick={alternar}
-              className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-[color,background-color,transform] duration-150 hover:bg-accent hover:text-foreground active:scale-[.97]"
+              className="grid size-8 shrink-0 place-items-center rounded-md text-sidebar-muted transition-[color,background-color,transform] duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground active:scale-[.97]"
               aria-label="Recolher menu"
             >
               <AlternarIcone className="size-4" />
@@ -230,7 +236,7 @@ function Sidebar({
           <ItemNav key={item.to} item={item} onNavigate={onNavigate} recolhida={recolhida} />
         ))}
       </nav>
-      <div className="px-3 pb-3 pt-2 border-t border-divider space-y-0.5 shrink-0">
+      <div className="px-3 pb-3 pt-2 border-t border-sidebar-border space-y-0.5 shrink-0">
         {pode(NAV_CONFIGURACOES.permissao) && (tem("configuracoes.gerenciar") || ativo("whatsapp")) && (
           <ItemNav item={configuracoes} onNavigate={onNavigate} recolhida={recolhida} />
         )}
@@ -239,14 +245,14 @@ function Sidebar({
             <button
               type="button"
               onClick={alternar}
-              className="flex h-9 w-full items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,transform] duration-150 hover:bg-accent hover:text-foreground active:scale-[.97]"
+              className="flex h-9 w-full items-center justify-center rounded-md text-sidebar-muted transition-[color,background-color,transform] duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground active:scale-[.97]"
               aria-label="Expandir menu"
             >
               <AlternarIcone className="size-4" />
             </button>
           </Tooltip>
         )}
-        <EuBotao recolhida={recolhida} />
+        <EuBotao recolhida={recolhida} naSidebar />
       </div>
     </div>
   );
@@ -285,15 +291,28 @@ function ItemNav({
       aria-label={recolhida ? item.label : undefined}
       className={({ isActive }) =>
         cn(
-          "group relative flex h-9 items-center gap-3 rounded-md px-3 text-xs transition-[color,background-color] duration-150",
+          "group relative flex h-10 items-center gap-2.5 rounded-lg px-1.5 text-xs transition-[color,background-color] duration-150",
+          recolhida && "justify-center",
           isActive
-            ? "bg-primary/[0.08] text-primary font-semibold"
-            : "text-foreground hover:bg-accent/70",
+            ? "bg-sidebar-active text-sidebar-foreground font-semibold [html[data-estilo=B]_&]:texto-mod"
+            : "text-sidebar-foreground/85 hover:bg-sidebar-hover hover:text-sidebar-foreground",
         )
       }
+      style={corModulo(item.cor)}
     >
-      <Icon className="size-4 shrink-0" />
-      <span className={cn("truncate transition-opacity duration-150", recolhida && "opacity-0")}>{item.label}</span>
+      {({ isActive }) => (
+        <>
+          <span
+            className={cn(
+              "grid size-7 shrink-0 place-items-center rounded-md transition-[background-color,color,transform] duration-200 ease-brand",
+              isActive ? "bg-[var(--mc)] text-white scale-105" : "text-sidebar-muted group-hover:text-sidebar-foreground",
+            )}
+          >
+            <Icon className="size-4" />
+          </span>
+          <span className={cn("truncate transition-opacity duration-150", recolhida && "sr-only")}>{item.label}</span>
+        </>
+      )}
     </NavLink>
   );
   return (
@@ -306,7 +325,7 @@ function ItemNav({
         link
       )}
       {aberto && (
-        <div className="ml-[22px] mt-0.5 mb-1 space-y-0.5 border-l border-border pl-3 animate-in fade-in-0 slide-in-from-top-1 duration-150">
+        <div className="ml-[20px] mt-0.5 mb-1 space-y-0.5 border-l border-sidebar-border pl-3 animate-in fade-in-0 slide-in-from-top-1 duration-150">
           {item.filhos!.map((f) => (
             <NavLink
               key={f.to}
@@ -319,8 +338,8 @@ function ItemNav({
                 cn(
                   "flex h-8 items-center rounded-md px-2.5 text-xs transition-[color,background-color] duration-150",
                   isActive
-                    ? "text-primary font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/70",
+                    ? "text-sidebar-foreground font-semibold bg-sidebar-hover"
+                    : "text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-hover",
                 )
               }
             >
@@ -334,7 +353,7 @@ function ItemNav({
 }
 
 /** Quem está logado: nome, cargo, e-mail, tema e "Sair". */
-function EuBotao({ compacto, recolhida }: { compacto?: boolean; recolhida?: boolean }) {
+function EuBotao({ compacto, recolhida, naSidebar }: { compacto?: boolean; recolhida?: boolean; naSidebar?: boolean }) {
   const { eu, sessao, sair } = useEu();
   const { theme, setTheme } = useTheme();
   const [aberto, setAberto] = useState(false);
@@ -345,7 +364,8 @@ function EuBotao({ compacto, recolhida }: { compacto?: boolean; recolhida?: bool
         <button
           type="button"
           className={cn(
-            "flex items-center gap-3 rounded-md text-left transition-[background-color,transform] duration-150 hover:bg-accent/70 active:scale-[.98] data-[state=open]:bg-accent/70",
+            "flex items-center gap-3 rounded-md text-left transition-[background-color,transform] duration-150 active:scale-[.98]",
+            naSidebar ? "hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover" : "hover:bg-accent/70 data-[state=open]:bg-accent/70",
             compacto ? "p-1 -mr-1 rounded-full" : recolhida ? "w-full justify-center py-1.5" : "w-full px-2 py-1.5",
           )}
           aria-label="Sua conta"
@@ -358,7 +378,7 @@ function EuBotao({ compacto, recolhida }: { compacto?: boolean; recolhida?: bool
           {!soAvatar && (
             <span className="flex-1 min-w-0">
               <span className="block text-xs font-semibold truncate">{eu?.nome}</span>
-              <span className="block text-2xs text-muted-foreground truncate">{eu?.cargo ?? ""}</span>
+              <span className="block text-2xs text-sidebar-muted truncate">{eu?.cargo ?? ""}</span>
             </span>
           )}
         </button>
