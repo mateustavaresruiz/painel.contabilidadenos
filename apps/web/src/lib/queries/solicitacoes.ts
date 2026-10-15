@@ -191,6 +191,20 @@ export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
   });
 }
 
+/** Um chamado pelo id (gaveta de detalhes). Entra no prefixo "solicitacoes": mudou algo, refaz. */
+export function useSolicitacao(id: string | null) {
+  useRealtimeInvalidate("Solicitacao", [["solicitacoes", "um", id], ["historico", "chamado", id]], { column: "id", value: id ?? "__none__" }, !!id);
+  return useQuery({
+    queryKey: ["solicitacoes", "um", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("Solicitacao").select(SELECT_SOLICITACAO).eq("id", id!).maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as Solicitacao | null;
+    },
+  });
+}
+
 export type NovaSolicitacao = {
   tipoId: string;
   descricao?: string | null;
@@ -230,6 +244,7 @@ export function useCriarSolicitacao() {
       qc.invalidateQueries({ queryKey: ["relatorio-solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["inicio"] });
       qc.invalidateQueries({ queryKey: ["contador", "chamados"] });
+      qc.invalidateQueries({ queryKey: ["historico"] });
     },
   });
 }
@@ -268,6 +283,7 @@ export function useAtualizarSolicitacao() {
       qc.invalidateQueries({ queryKey: ["relatorio-solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["inicio"] });
       qc.invalidateQueries({ queryKey: ["contador", "chamados"] });
+      qc.invalidateQueries({ queryKey: ["historico"] });
     },
   });
 }
@@ -284,6 +300,7 @@ export function useExcluirSolicitacao() {
       qc.invalidateQueries({ queryKey: ["relatorio-solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["inicio"] });
       qc.invalidateQueries({ queryKey: ["contador", "chamados"] });
+      qc.invalidateQueries({ queryKey: ["historico"] });
     },
   });
 }

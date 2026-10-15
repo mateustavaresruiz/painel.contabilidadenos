@@ -69,7 +69,7 @@ export function App() {
           <Route path="certificados" element={<Pagina modulo="certificados" permissao="certificados.ver"><CertificadosPage /></Pagina>} />
           <Route path="pendencias-fiscais" element={<Pagina modulo="pendenciasFiscais" permissao="serpro.consultar"><PendenciasFiscaisPage /></Pagina>} />
           <Route path="equipe" element={<Pagina modulo="equipe" permissao={["equipe.ver", "equipe.gerenciar"]}><EquipePage /></Pagina>} />
-          <Route path="configuracoes" element={<Pagina permissao={["configuracoes.gerenciar", "whatsapp.conexoes"]}><ConfiguracoesPage /></Pagina>} />
+          <Route path="configuracoes" element={<Pagina permissao={["configuracoes.gerenciar", "whatsapp.conexoes", "auditoria.ver"]}><ConfiguracoesPage /></Pagina>} />
 
           <Route path="atendimento" element={<Redireciona para="/whatsapp" />} />
           <Route path="conexoes" element={<Navigate to="/configuracoes?tab=conexoes" replace />} />

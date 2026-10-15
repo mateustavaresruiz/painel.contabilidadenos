@@ -5,6 +5,7 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardList,
+  History,
   Loader2,
   MessageSquare,
   Pencil,
@@ -18,6 +19,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
+import { ChamadoDrawer } from "@/components/features/solicitacoes/chamado-drawer";
 import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import {
   NovaSolicitacaoDialog,
@@ -158,6 +160,19 @@ export function ChamadosPage() {
         </TabsContent>
       </Tabs>
       <NovaSolicitacaoDialog open={nova} onOpenChange={setNova} origem={{}} />
+      <ChamadoDrawer
+        id={params.get("chamado")}
+        onClose={() =>
+          setParams(
+            (c) => {
+              const n = new URLSearchParams(c);
+              n.delete("chamado");
+              return n;
+            },
+            { replace: true },
+          )
+        }
+      />
     </PageContainer>
   );
 }
@@ -185,10 +200,24 @@ function ListaAba() {
   const atualizar = useAtualizarSolicitacao();
   const excluir = useExcluirSolicitacao();
   const mapa = useColaboradoresMap();
+  const [, setParams] = useSearchParams();
+  // O histórico abre numa gaveta; o id fica na URL (?chamado=) para poder mandar o link.
+  const abrir = (id: string) =>
+    setParams(
+      (c) => {
+        const n = new URLSearchParams(c);
+        n.set("chamado", id);
+        return n;
+      },
+      { replace: true },
+    );
   const filtrando = status !== "abertas" || !!tipoId || !!responsavel || !!clienteId || !!de || !!ate;
   // Botões da linha: os mesmos na tabela (desktop) e no card (celular).
   const acoesDe = (s: (typeof data)[number]) => (
     <>
+            <Button size="icon" variant="ghost" title="Ver histórico" aria-label="Ver histórico do chamado" onClick={() => abrir(s.id)}>
+              <History />
+            </Button>
             {s.chat && (
               <Button asChild size="icon" variant="ghost" title="Abrir conversa">
                 <Link
@@ -223,7 +252,7 @@ function ListaAba() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 rounded-card border bg-card p-3 lg:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-2 rounded-card border bg-card p-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <Select value={status || TODOS} onValueChange={(v) => setStatus(v === TODOS ? "" : (v as SolicitacaoStatus | "abertas"))}>
           <SelectTrigger aria-label="Status">
             <SelectValue />
@@ -324,7 +353,15 @@ function ListaAba() {
                   const atrasada =
                     !!s.prazo && s.prazo < hojeISO() && (s.status === "aberta" || s.status === "em_andamento");
                   return (
-                    <TableRow key={s.id}>
+                    <TableRow
+                      key={s.id}
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        // Só o que não é controle (botão, link, status) abre a gaveta.
+                        if ((e.target as HTMLElement).closest("button, a, [role=combobox], [role=listbox], [role=option]")) return;
+                        abrir(s.id);
+                      }}
+                    >
                       <TableCell className="min-w-[220px]">
                         <p className="font-medium">{s.tipo?.nome ?? "-"}</p>
                         {s.descricao && <p className="text-xs text-muted-foreground line-clamp-2 max-w-md">{s.descricao}</p>}
@@ -377,6 +414,7 @@ function ListaAba() {
             return (
               <ItemCard
                 key={s.id}
+                onClick={() => abrir(s.id)}
                 titulo={s.tipo?.nome ?? "-"}
                 subtitulo={subtituloContato(s)}
                 selo={

@@ -81,6 +81,7 @@ function invalidarConversa(qc: ReturnType<typeof useQueryClient>, chatRowId: str
   qc.invalidateQueries({ queryKey: ["whatsapp-chats"] });
   qc.invalidateQueries({ queryKey: ["whatsapp-chat"] });
   qc.invalidateQueries({ queryKey: ["atendimento-transferencias", chatRowId] });
+  qc.invalidateQueries({ queryKey: ["historico", "conversa", chatRowId] });
   qc.invalidateQueries({ queryKey: ["inicio"] });
 }
 

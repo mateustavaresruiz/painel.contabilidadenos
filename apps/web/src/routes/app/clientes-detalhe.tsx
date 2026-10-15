@@ -67,9 +67,11 @@ import { useAtualizarSolicitacao, useSolicitacoes } from "@/lib/queries/solicita
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 
+import { HistoricoLista } from "@/components/features/auditoria/linha-do-tempo";
+
 import { TipoBadge } from "./clientes";
 
-const ABAS = ["dados", "socios", "certificados", "solicitacoes", "conversas", "fiscal"] as const;
+const ABAS = ["dados", "socios", "certificados", "solicitacoes", "conversas", "fiscal", "historico"] as const;
 type Aba = (typeof ABAS)[number];
 
 export function ClienteDetalhePage() {
@@ -168,6 +170,7 @@ export function ClienteDetalhePage() {
             <TabsTrigger value="solicitacoes">Chamados</TabsTrigger>
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
             <TabsTrigger value="fiscal">Consultas fiscais</TabsTrigger>
+            <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="dados" className="mt-5">
@@ -184,6 +187,18 @@ export function ClienteDetalhePage() {
         </TabsContent>
         <TabsContent value="conversas" className="mt-5">
           <ConversasAba clienteId={cliente.id} telefone={cliente.telefone} />
+        </TabsContent>
+        <TabsContent value="historico" className="mt-5">
+          <p className="mb-3 text-sm text-muted-foreground">
+            Edições do cadastro, chamados, certificados, consultas fiscais e conversas deste cliente, do mais novo para o mais antigo.
+          </p>
+          <div className="max-w-3xl rounded-card border bg-card p-4">
+            <HistoricoLista
+              entidade="cliente"
+              id={cliente.id}
+              vazio="Ainda não há eventos deste cliente. Edições, chamados, certificados e consultas passam a aparecer aqui."
+            />
+          </div>
         </TabsContent>
         <TabsContent value="fiscal" className="mt-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">

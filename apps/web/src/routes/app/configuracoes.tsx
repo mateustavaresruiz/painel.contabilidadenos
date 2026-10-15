@@ -2,6 +2,7 @@ import { PageContainer } from "@/components/page-container";
 import { Lock, Settings } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { AuditoriaPainel } from "@/components/features/auditoria/auditoria-painel";
 import { ConfigGeral } from "@/components/features/configuracoes/geral";
 import { ConfigIntegracoes } from "@/components/features/configuracoes/integracoes";
 import { ConfigModulos } from "@/components/features/configuracoes/modulos";
@@ -15,7 +16,7 @@ import { usePermissao } from "@/lib/colaborador";
 import { useModulos } from "@/lib/modulos";
 import { WhatsappInstanciasSection } from "@/routes/app/inbox-canais";
 
-const ABAS = ["geral", "modulos", "integracoes", "conexoes", "sistema"] as const;
+const ABAS = ["geral", "modulos", "integracoes", "conexoes", "auditoria", "sistema"] as const;
 type Aba = (typeof ABAS)[number];
 
 /**
@@ -30,9 +31,10 @@ export function ConfiguracoesPage() {
   const ehAdmin = usePermissao("configuracoes.gerenciar");
   const { ativo } = useModulos();
   const conexoes = usePermissao("whatsapp.conexoes") && ativo("whatsapp");
+  const auditar = usePermissao("auditoria.ver");
   const [params, setParams] = useSearchParams();
   const pedida = params.get("tab") as Aba | null;
-  const abas = ABAS.filter((a) => (a === "conexoes" ? conexoes : ehAdmin));
+  const abas = ABAS.filter((a) => (a === "conexoes" ? conexoes : a === "auditoria" ? auditar : ehAdmin));
   const aba: Aba | undefined = pedida && abas.includes(pedida) ? pedida : abas[0];
 
   if (!aba) {
@@ -73,6 +75,7 @@ export function ConfiguracoesPage() {
             {ehAdmin && <TabsTrigger value="modulos">Módulos</TabsTrigger>}
             {ehAdmin && <TabsTrigger value="integracoes">Integrações</TabsTrigger>}
             {conexoes && <TabsTrigger value="conexoes">Conexões WhatsApp</TabsTrigger>}
+            {auditar && <TabsTrigger value="auditoria">Auditoria</TabsTrigger>}
             {ehAdmin && <TabsTrigger value="sistema">Sistema</TabsTrigger>}
           </TabsList>
         </div>
@@ -88,6 +91,11 @@ export function ConfiguracoesPage() {
         {conexoes && (
           <TabsContent value="conexoes" className="mt-5">
             <WhatsappInstanciasSection ehDono={conexoes} />
+          </TabsContent>
+        )}
+        {auditar && (
+          <TabsContent value="auditoria" className="mt-5">
+            <AuditoriaPainel />
           </TabsContent>
         )}
         <TabsContent value="sistema" className="mt-5">

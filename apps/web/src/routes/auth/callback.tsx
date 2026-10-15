@@ -7,6 +7,7 @@ import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEu } from "@/lib/colaborador";
+import { registrarLogin } from "@/lib/queries/auditoria";
 import { supabase } from "@/lib/supabase";
 
 const TIPOS: EmailOtpType[] = ["magiclink", "email", "invite", "signup", "email_change", "recovery"];
@@ -22,7 +23,10 @@ function verificarUmaVez(tokenHash: string, tipo: EmailOtpType): Promise<string 
   if (!p) {
     p = supabase.auth
       .verifyOtp({ token_hash: tokenHash, type: tipo })
-      .then(({ error }) => (error ? error.message : null));
+      .then(async ({ error }) => {
+        if (!error) await registrarLogin("link");
+        return error ? error.message : null;
+      });
     emAndamento.set(tokenHash, p);
   }
   return p;

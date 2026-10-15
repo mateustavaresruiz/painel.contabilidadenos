@@ -68,7 +68,10 @@ export const CATALOGO_PERMISSOES: GrupoPermissoes[] = [
   },
   {
     modulo: "Configurações",
-    permissoes: [{ chave: "configuracoes.gerenciar", rotulo: "Configurações do painel", descricao: "Módulos, integrações, marca e sistema." }],
+    permissoes: [
+      { chave: "configuracoes.gerenciar", rotulo: "Configurações do painel", descricao: "Módulos, integrações, marca e sistema." },
+      { chave: "auditoria.ver", rotulo: "Ver a auditoria", descricao: "Vê o histórico completo do painel: quem fez o quê e quando, em todos os módulos." },
+    ],
   },
 ];
 

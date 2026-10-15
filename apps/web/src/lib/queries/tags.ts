@@ -122,6 +122,9 @@ export function useToggleChatTag() {
         if (error) throw error;
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsapp-chat-tags"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["whatsapp-chat-tags"] });
+      void qc.invalidateQueries({ queryKey: ["historico", "conversa"] });
+    },
   });
 }

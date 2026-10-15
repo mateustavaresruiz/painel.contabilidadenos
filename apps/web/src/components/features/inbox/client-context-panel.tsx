@@ -2,6 +2,7 @@ import {
   ArrowRightLeft,
   BadgeCheck,
   ClipboardList,
+  History,
   ExternalLink,
   Loader2,
   MapPin,
@@ -26,7 +27,9 @@ import {
   StatusSolicitacaoSelect,
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { Button } from "@/components/ui/button";
+import { HistoricoLista } from "@/components/features/auditoria/linha-do-tempo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
@@ -41,6 +44,7 @@ import {
 } from "@/lib/queries/clientes";
 import { useAtualizarSolicitacao, useSolicitacoes } from "@/lib/queries/solicitacoes";
 import { mediaSignedUrl, type WhatsappChat } from "@/lib/queries/whatsapp";
+import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 
 import { VincularClienteDialog } from "./vincular-cliente-dialog";
@@ -95,6 +99,7 @@ export function ClientContextPanel({
 }: Props) {
   const [vincularOpen, setVincularOpen] = useState(false);
   const [novaSolicitacao, setNovaSolicitacao] = useState(false);
+  const [aba, setAba] = useState<"perfil" | "historico">("perfil");
   const podeCriarChamado = usePermissao("chamados.criar");
   const chamadoNaConversa = useModulos().ativo("chamadoNaConversa") && podeCriarChamado;
 
@@ -106,7 +111,7 @@ export function ClientContextPanel({
       <header className="px-4 h-14 shrink-0 border-b flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <MessageCircle className="size-4 text-foreground shrink-0" />
-          <p className="text-sm font-medium truncate">Contexto do cliente</p>
+          <p className="text-sm font-medium truncate">Perfil do cliente</p>
         </div>
         {onClose && (
           <button
@@ -120,7 +125,25 @@ export function ClientContextPanel({
         )}
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      <Tabs
+        value={aba}
+        onValueChange={(v) => setAba(v as "perfil" | "historico")}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        {chat && (
+          <div className="shrink-0 border-b px-4 py-2.5">
+            <TabsList className="w-full">
+              <TabsTrigger value="perfil" className="flex-1">
+                Perfil
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="flex-1">
+                <History />
+                Histórico
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        )}
+      <TabsContent value="perfil" className="mt-0 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {clienteId ? (
           <ClienteVinculado
             clienteId={clienteId}
@@ -148,7 +171,20 @@ export function ClientContextPanel({
             <AtendimentoSection chat={chat} />
           </div>
         )}
-      </div>
+      </TabsContent>
+      {chat && (
+        <TabsContent value="historico" className="mt-0 flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-3">
+          <p className="mb-2 text-xs text-muted-foreground">
+            Quem assumiu, transferiu e finalizou, cliente vinculado, etiquetas e chamados desta conversa.
+          </p>
+          <HistoricoLista
+            entidade="conversa"
+            id={chat.id}
+            vazio="Nada registrado nesta conversa ainda. Assumir, transferir, finalizar, etiquetar e abrir chamado aparecem aqui."
+          />
+        </TabsContent>
+      )}
+      </Tabs>
 
       <VincularClienteDialog
         open={vincularOpen}
@@ -670,8 +706,6 @@ function QuickAction({
 }
 
 function iniciais(nome: string): string {
-  const partes = (nome || "?").trim().split(/\s+/).filter(Boolean);
-  if (partes.length === 0) return "?";
-  if (partes.length === 1) return partes[0]!.slice(0, 2).toUpperCase();
-  return (partes[0]![0]! + partes[partes.length - 1]![0]!).toUpperCase();
+  // Só palavras com letra: "William Cruz Advogado ..." não vira "W.".
+  return iniciaisDeContato(nome) ?? "?";
 }

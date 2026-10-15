@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEu } from "@/lib/colaborador";
+import { registrarLogin } from "@/lib/queries/auditoria";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -277,6 +278,8 @@ export function LoginPage() {
           ? "Muitas tentativas seguidas. Aguarde alguns minutos."
           : "Código inválido ou expirado. Confira o último e-mail ou peça outro.",
       );
+    } else {
+      void registrarLogin("codigo");
     }
   }
 
