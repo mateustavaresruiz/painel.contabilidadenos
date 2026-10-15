@@ -268,6 +268,16 @@ html[data-vt] .animate-page-enter {
   animation: item-enter 160ms var(--ease-brand) backwards;
 }
 
+/* Entrada escalonada (Visão geral): sobe 8px e aparece; o atraso vem por
+   style={{ animationDelay }} em passos de 40ms. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-rise {
+  animation: rise 360ms var(--ease-brand) backwards;
+}
+
 /* Brilho do skeleton: um passe lento de claro sobre a forma final. */
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 1; }

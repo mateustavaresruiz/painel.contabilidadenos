@@ -1,16 +1,25 @@
-import { ArrowRight, Cake } from "lucide-react";
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Cake,
+  ClipboardList,
+  Landmark,
+  MessageSquare,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { lazy, Suspense, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { EstadoBadge } from "@/components/features/configuracoes/estado-badge";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Chips } from "@/components/ui/chips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useEu, usePermissao } from "@/lib/colaborador";
+import { useAlgumaPermissao, useEu, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
-import { useEhAdmin, useModulos } from "@/lib/modulos";
+import { useEhAdmin, useModulos, type ModuloChave } from "@/lib/modulos";
 import { PERIODOS, useDashboard, type Dashboard, type Periodo } from "@/lib/queries/dashboard";
 import { useResumoSaude } from "@/lib/queries/saude";
 import { cn } from "@/lib/utils";
@@ -25,6 +34,14 @@ const GraficoBarras = lazy(() =>
 
 const CHAVE_PERIODO = "denos:dashboard-periodo";
 
+/** O período como complemento de frase: "3 novos nos últimos 7 dias". */
+const NO_PERIODO: Record<Periodo, string> = {
+  hoje: "hoje",
+  "7d": "nos últimos 7 dias",
+  "30d": "nos últimos 30 dias",
+  mes: "neste mês",
+};
+
 function periodoSalvo(): Periodo {
   try {
     const v = localStorage.getItem(CHAVE_PERIODO);
@@ -34,6 +51,11 @@ function periodoSalvo(): Periodo {
   }
   return "7d";
 }
+
+/** Atraso da entrada escalonada: passos de 40ms. */
+const passo = (i: number): CSSProperties => ({ animationDelay: `${i * 40}ms` });
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 /** Visão geral: números do escritório no período, numa RPC só (painel_dashboard). */
 export function InicioPage() {
@@ -58,48 +80,67 @@ export function InicioPage() {
     const h = new Date().getHours();
     return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
   })();
-  const rotuloPeriodo = PERIODOS.find((p) => p.valor === periodo)?.rotulo.toLowerCase() ?? "";
+  const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  const rotuloPeriodo = NO_PERIODO[periodo];
+  const props = { d: data, carregando: isLoading, rotulo: rotuloPeriodo };
+  const temAtendimento = ativo("whatsapp");
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="eyebrow">
-            {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-          <h1 className="text-title-lg mt-1">
-            {saudacao}, {eu?.nome.split(" ")[0]}
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1440px]">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between animate-rise">
+        <div className="min-w-0 space-y-1">
+          <p className="eyebrow first-letter:uppercase">{hoje}</p>
+          <h1 className="text-title-lg">
+            {saudacao}
+            {eu?.nome ? `, ${eu.nome.split(" ")[0]}` : ""}
           </h1>
+          {verNumeros && <Contexto d={data} carregando={isLoading} />}
         </div>
         {verNumeros && (
-          <Chips opcoes={PERIODOS} valor={periodo} onChange={escolher} rotulo="Período" className="sm:justify-end" />
+          <Chips opcoes={PERIODOS} valor={periodo} onChange={escolher} rotulo="Período" className="lg:justify-end" />
         )}
       </header>
 
-      {verSaude && <FaixaSaude />}
+      {verSaude && (
+        <div className="animate-rise" style={passo(1)}>
+          <FaixaSaude />
+        </div>
+      )}
 
       {!verNumeros ? (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Use o menu ao lado para abrir o que você precisa. Os números do escritório aparecem aqui para quem tem
-            essa permissão no cargo.
-          </CardContent>
-        </Card>
+        <Bloco className="animate-rise" style={passo(2)}>
+          <Vazio
+            icon={ArrowRight}
+            titulo="Tudo à mão no menu"
+            texto="Use o menu ao lado para abrir o que você precisa. Os números do escritório aparecem aqui para quem tem essa permissão no cargo."
+          />
+        </Bloco>
       ) : error ? (
-        <Card>
-          <CardContent className="p-6 text-sm text-destructive">
-            Não foi possível carregar a visão geral: {msgErro(error)}
-          </CardContent>
-        </Card>
+        <Bloco>
+          <p className="text-sm text-destructive">Não foi possível carregar a visão geral: {msgErro(error)}</p>
+        </Bloco>
       ) : (
-        <div className={cn("space-y-6 transition-opacity", isFetching && !isLoading && "opacity-70")}>
-          {ativo("whatsapp") && <SecaoAtendimento d={data} carregando={isLoading} rotulo={rotuloPeriodo} />}
-          <div className="grid gap-6 xl:grid-cols-2">
-            {ativo("chamados") && <SecaoChamados d={data} carregando={isLoading} rotulo={rotuloPeriodo} />}
-            {ativo("clientes") && <SecaoClientes d={data} carregando={isLoading} rotulo={rotuloPeriodo} />}
-            {ativo("certificados") && <SecaoCertificados d={data} carregando={isLoading} rotulo={rotuloPeriodo} />}
-            {ativo("clientes") && <SecaoAniversarios d={data} carregando={isLoading} />}
-            {ativo("pendenciasFiscais") && <SecaoFiscal d={data} carregando={isLoading} rotulo={rotuloPeriodo} />}
+        <div className={cn("space-y-6 transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+          <Destaques {...props} />
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3 lg:items-start">
+            {temAtendimento && (
+              <SecaoAtendimento {...props} className="lg:col-span-2 animate-rise" style={passo(6)} />
+            )}
+            {ativo("chamados") && (
+              <SecaoChamados
+                {...props}
+                className={cn("animate-rise", !temAtendimento && "lg:col-span-3")}
+                style={passo(7)}
+              />
+            )}
+            {ativo("clientes") && <SecaoClientes {...props} className="animate-rise" style={passo(8)} />}
+            {ativo("clientes") && <SecaoAniversarios {...props} className="animate-rise" style={passo(9)} />}
+            {(ativo("certificados") || ativo("pendenciasFiscais")) && (
+              <div className="grid gap-4 sm:gap-6 content-start animate-rise" style={passo(10)}>
+                {ativo("certificados") && <SecaoCertificados {...props} />}
+                {ativo("pendenciasFiscais") && <SecaoFiscal {...props} />}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -111,94 +152,188 @@ export function InicioPage() {
 // Peças
 // ---------------------------------------------------------------------------
 
-type SecaoProps = { d: Dashboard | undefined; carregando: boolean; rotulo: string };
-
-function Secao({
-  titulo,
-  link,
-  children,
-  className,
-}: {
-  titulo: string;
-  link?: { to: string; texto: string };
-  children: ReactNode;
+type SecaoProps = {
+  d: Dashboard | undefined;
+  carregando: boolean;
+  rotulo: string;
   className?: string;
-}) {
+  style?: CSSProperties;
+};
+
+/** Cartão base: canvas, hairline, raio 18. */
+function Bloco({ className, style, children }: { className?: string; style?: CSSProperties; children: ReactNode }) {
   return (
-    <Card className={className}>
-      <CardContent className="p-6 space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-title-md">{titulo}</h2>
-          {link && (
-            <Link to={link.to} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-              {link.texto}
-              <ArrowRight className="size-3.5" />
-            </Link>
-          )}
-        </div>
-        {children}
-      </CardContent>
-    </Card>
+    <section className={cn("rounded-card border bg-card text-card-foreground p-5 sm:p-6", className)} style={style}>
+      {children}
+    </section>
   );
 }
 
-function Numero({
+function Secao({
+  titulo,
+  subtitulo,
+  link,
+  children,
+  className,
+  style,
+}: {
+  titulo: string;
+  subtitulo?: string;
+  link?: { to: string; texto: string };
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <Bloco className={cn("flex flex-col gap-5", className)} style={style}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-title-sm font-semibold">{titulo}</h2>
+          {subtitulo && <p className="text-xs text-muted-foreground mt-0.5">{subtitulo}</p>}
+        </div>
+        {link && (
+          <Link
+            to={link.to}
+            className="shrink-0 text-xs text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-1 -mr-2 hover:bg-primary/[0.08] transition-colors"
+          >
+            {link.texto}
+            <ArrowRight className="size-3.5" />
+          </Link>
+        )}
+      </div>
+      {children}
+    </Bloco>
+  );
+}
+
+/** Ícone num círculo do acento a 10%. */
+function Icone({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
+  return (
+    <span className={cn("grid place-items-center size-9 rounded-full bg-primary/10 text-primary shrink-0", className)}>
+      <Icon className="size-[18px]" />
+    </span>
+  );
+}
+
+/** Vazio com a próxima ação: ícone, frase curta, botão. */
+function Vazio({
+  icon,
+  titulo,
+  texto,
+  acao,
+  compacto,
+}: {
+  icon: LucideIcon;
+  titulo: string;
+  texto?: string;
+  acao?: { to: string; texto: string };
+  compacto?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex-1 rounded-pearl bg-background flex flex-col items-center justify-center text-center gap-2 px-5",
+        compacto ? "py-6" : "py-10",
+      )}
+    >
+      <Icone icon={icon} />
+      <p className="text-sm font-semibold mt-1">{titulo}</p>
+      {texto && <p className="text-xs text-muted-foreground max-w-xs [text-wrap:pretty]">{texto}</p>}
+      {acao && (
+        <Button asChild size="sm" className="mt-2 rounded-full">
+          <Link to={acao.to}>{acao.texto}</Link>
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Número pequeno dentro de uma seção (12px rótulo, 21px valor). */
+function Mini({
   rotulo,
   valor,
   carregando,
   to,
-  detalhe,
   badge,
 }: {
   rotulo: string;
   valor: ReactNode;
   carregando: boolean;
   to?: string;
-  detalhe?: string;
   badge?: ReactNode;
 }) {
   const corpo = (
     <>
-      <p className="text-xs text-muted-foreground">{rotulo}</p>
+      <p className="text-2xs text-muted-foreground truncate">{rotulo}</p>
       {carregando ? (
-        <Skeleton className="h-9 w-16 mt-1" />
+        <Skeleton className="h-6 w-12 mt-1" />
       ) : (
-        <p className="text-title-xl font-semibold nums mt-0.5 flex items-center gap-2">
+        <p className="text-title-md font-semibold nums mt-0.5 flex items-center gap-2 flex-wrap">
           {valor}
           {badge}
         </p>
       )}
-      {detalhe && <p className="text-2xs text-muted-foreground mt-0.5">{detalhe}</p>}
     </>
   );
+  const base = "block rounded-pearl bg-background px-3.5 py-3 min-w-0";
   return to ? (
-    <Link to={to} className="block rounded-pearl -m-2 p-2 transition-[background-color,transform] duration-150 hover:bg-accent/60 active:scale-[.98]">
+    <Link to={to} className={cn(base, "transition-[background-color,transform] duration-150 hover:bg-accent active:scale-[.98]")}>
       {corpo}
     </Link>
   ) : (
-    <div>{corpo}</div>
+    <div className={base}>{corpo}</div>
   );
 }
 
-function Vazio({ children }: { children: ReactNode }) {
-  // Vazio com a forma do bloco (parchment dentro do cartão), não texto solto.
+function Iniciais({ nome }: { nome: string }) {
+  const p = nome.trim().split(/\s+/);
+  const ini = ((p[0]?.[0] ?? "") + (p.length > 1 ? (p[p.length - 1][0] ?? "") : "")).toUpperCase();
   return (
-    <p className="rounded-pearl bg-background px-4 py-6 text-center text-xs text-muted-foreground [text-wrap:pretty]">
-      {children}
-    </p>
+    <span
+      aria-hidden
+      className="grid place-items-center size-8 rounded-full bg-primary/10 text-primary text-2xs font-semibold shrink-0"
+    >
+      {ini || "?"}
+    </span>
   );
 }
 
-function SkeletonGrafico({ altura = "h-40" }: { altura?: string }) {
-  return <Skeleton className={cn("w-full", altura)} />;
+/** Ranking em lista: iniciais, nome, barra fina proporcional, total. */
+function Ranking({ dados, avatar = true }: { dados: { nome: string; total: number }[]; avatar?: boolean }) {
+  const max = Math.max(1, ...dados.map((d) => d.total));
+  return (
+    <ul className="space-y-3">
+      {dados.slice(0, 6).map((d) => (
+        <li key={d.nome} className="flex items-center gap-3">
+          {avatar && <Iniciais nome={d.nome} />}
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="truncate">{d.nome}</span>
+              <span className="nums font-semibold">{d.total}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-foreground/[0.06] overflow-hidden">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${(d.total / max) * 100}%` }} />
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function Barras({ dados, rotulo, vazio }: { dados: { nome: string; total: number }[]; rotulo: string; vazio: string }) {
-  if (dados.length === 0) return <Vazio>{vazio}</Vazio>;
+function SkeletonLista({ linhas = 3 }: { linhas?: number }) {
   return (
-    <Suspense fallback={<SkeletonGrafico altura="h-24" />}>
-      <GraficoBarras dados={dados} rotulo={rotulo} />
-    </Suspense>
+    <div className="space-y-3">
+      {Array.from({ length: linhas }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton className="size-8 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-2/3" />
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -209,6 +344,138 @@ function minutos(v: number | null): string {
   const h = Math.floor(v / 60);
   const m = Math.round(v % 60);
   return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+// ---------------------------------------------------------------------------
+// Cabeçalho: linha de contexto
+// ---------------------------------------------------------------------------
+
+function Contexto({ d, carregando }: { d: Dashboard | undefined; carregando: boolean }) {
+  const { ativo } = useModulos();
+  if (carregando || !d) return <Skeleton className="h-4 w-56 mt-1" />;
+  const partes: string[] = [];
+  if (ativo("whatsapp") && d.atendimento.semResponsavel > 0)
+    partes.push(plural(d.atendimento.semResponsavel, "conversa aguardando resposta", "conversas aguardando resposta"));
+  if (ativo("chamados") && d.chamados.atrasados > 0)
+    partes.push(plural(d.chamados.atrasados, "chamado atrasado", "chamados atrasados"));
+  if (ativo("certificados") && d.certificados.vencidos > 0)
+    partes.push(plural(d.certificados.vencidos, "certificado vencido", "certificados vencidos"));
+  const niver = ativo("clientes") ? d.aniversarios.filter((a) => a.diasAte === 0).length : 0;
+  if (niver > 0) partes.push(plural(niver, "aniversário hoje", "aniversários hoje"));
+  return (
+    <p className="text-sm text-muted-foreground pt-1">
+      {partes.length ? partes.join(" · ") : "Nada pedindo sua atenção agora. Bom trabalho."}
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Destaques: 4 números grandes, cada um leva à sua página
+// ---------------------------------------------------------------------------
+
+type Destaque = {
+  modulo: ModuloChave;
+  icon: LucideIcon;
+  rotulo: string;
+  valor: number;
+  to: string;
+  detalhe: ReactNode;
+};
+
+function Destaques({ d, carregando, rotulo }: SecaoProps) {
+  const { ativo } = useModulos();
+  const a = d?.atendimento;
+  const ch = d?.chamados;
+  const cl = d?.clientes;
+  const ce = d?.certificados;
+  const fi = d?.fiscal?.ultimaPorStatus;
+  const todos: Destaque[] = [
+    {
+      modulo: "whatsapp",
+      icon: MessageSquare,
+      rotulo: "Conversas ativas",
+      valor: a?.conversasAtivas ?? 0,
+      to: "/whatsapp",
+      detalhe:
+        a && a.semResponsavel > 0 ? (
+          <Badge variant="warning">{plural(a.semResponsavel, "sem responsável", "sem responsável")}</Badge>
+        ) : (
+          `${(a?.recebidas ?? 0) + (a?.enviadas ?? 0)} mensagens ${rotulo}`
+        ),
+    },
+    {
+      modulo: "chamados",
+      icon: ClipboardList,
+      rotulo: "Chamados em aberto",
+      valor: (ch?.abertos ?? 0) + (ch?.emAndamento ?? 0),
+      to: "/chamados",
+      detalhe:
+        ch && ch.atrasados > 0 ? (
+          <Badge variant="destructive">{plural(ch.atrasados, "atrasado", "atrasados")}</Badge>
+        ) : (
+          `${ch?.concluidosNoPeriodo ?? 0} concluídos ${rotulo}`
+        ),
+    },
+    {
+      modulo: "clientes",
+      icon: Users,
+      rotulo: "Clientes ativos",
+      valor: cl?.ativos ?? 0,
+      to: "/clientes",
+      detalhe: `${plural(cl?.novosNoPeriodo ?? 0, "novo", "novos")} ${rotulo}`,
+    },
+    {
+      modulo: "certificados",
+      icon: BadgeCheck,
+      rotulo: "Certificados a vencer",
+      valor: ce?.vencem30 ?? 0,
+      to: "/certificados?status=vencendo",
+      detalhe:
+        ce && ce.vencidos > 0 ? (
+          <Badge variant="destructive">{plural(ce.vencidos, "vencido", "vencidos")}</Badge>
+        ) : (
+          "nos próximos 30 dias"
+        ),
+    },
+    {
+      modulo: "pendenciasFiscais",
+      icon: Landmark,
+      rotulo: "Com pendência fiscal",
+      valor: fi?.com_pendencia ?? 0,
+      to: "/pendencias-fiscais",
+      detalhe: `${fi?.ok ?? 0} regulares`,
+    },
+  ];
+  const lista = todos.filter((t) => ativo(t.modulo)).slice(0, 4);
+  if (lista.length === 0) return null;
+  return (
+    <div className={cn("grid gap-3 sm:gap-4 grid-cols-2", lista.length >= 3 && "lg:grid-cols-4", lista.length === 3 && "lg:grid-cols-3")}>
+      {lista.map((t, i) => (
+        <Link
+          key={t.modulo}
+          to={t.to}
+          style={passo(2 + i)}
+          className="animate-rise group rounded-card border bg-card p-4 sm:p-5 flex flex-col gap-3 sm:gap-4 min-w-0 transition-[border-color,transform] duration-150 hover:border-primary/40 active:scale-[.98]"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <Icone icon={t.icon} />
+            <ArrowRight className="size-4 text-muted-foreground opacity-0 -translate-x-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-x-0" />
+          </div>
+          <div className="min-w-0">
+            {carregando ? (
+              <Skeleton className="h-[38px] w-16" />
+            ) : (
+              <p className="text-title-xl font-semibold nums">{t.valor}</p>
+            )}
+            <p className="text-sm mt-1 truncate">{t.rotulo}</p>
+            <div className="text-2xs text-muted-foreground mt-1.5 min-h-5 flex items-center truncate">
+              {carregando ? <Skeleton className="h-3 w-24" /> : t.detalhe}
+            </div>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -234,13 +501,13 @@ function FaixaSaude() {
   return ehAdmin ? (
     <Link
       to="/configuracoes?tab=integracoes"
-      className="block rounded-card border bg-card px-5 py-3 hover:bg-accent/40 transition-colors"
+      className="block rounded-card border bg-card/60 px-5 py-3 hover:bg-card transition-colors"
       aria-label="Saúde das integrações: abrir Configurações, Integrações"
     >
       {conteudo}
     </Link>
   ) : (
-    <div className="rounded-card border bg-card px-5 py-3">{conteudo}</div>
+    <div className="rounded-card border bg-card/60 px-5 py-3">{conteudo}</div>
   );
 }
 
@@ -248,42 +515,28 @@ function FaixaSaude() {
 // Seções
 // ---------------------------------------------------------------------------
 
-function SecaoAtendimento({ d, carregando, rotulo }: SecaoProps) {
+function SecaoAtendimento({ d, carregando, rotulo, className, style }: SecaoProps) {
   const a = d?.atendimento;
-  const { ativo } = useModulos();
   const pr = a?.primeiraResposta;
+  const podeConectar = useAlgumaPermissao(["whatsapp.conexoes", "configuracoes.gerenciar"]);
+  const semConexao = a && a.conexoes.total === 0;
   return (
-    <Secao titulo="Atendimento" link={{ to: "/whatsapp", texto: "Conversas" }}>
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
-        <Numero rotulo="Conversas ativas" valor={a?.conversasAtivas ?? 0} carregando={carregando} to="/whatsapp" />
-        <Numero
-          rotulo="Sem responsável"
-          valor={a?.semResponsavel ?? 0}
-          carregando={carregando}
-          to="/whatsapp"
-          badge={a && a.semResponsavel > 0 ? <Badge variant="warning">aguardando</Badge> : undefined}
-        />
-        <Numero
-          rotulo={`Mensagens (${rotulo})`}
-          valor={(a?.recebidas ?? 0) + (a?.enviadas ?? 0)}
-          carregando={carregando}
-          detalhe={a ? `${a.recebidas} recebidas · ${a.enviadas} enviadas` : undefined}
-        />
-        <Numero
-          rotulo="1ª resposta (mediana)"
-          valor={minutos(pr?.medianaMin ?? null)}
-          carregando={carregando}
-          detalhe={
-            pr
-              ? `Aproximado · média ${minutos(pr.mediaMin)} · ${pr.respondidas} respondidas${pr.semResposta ? `, ${pr.semResposta} sem resposta em 24h` : ""}`
-              : "Aproximado"
-          }
-        />
-        <Numero
+    <Secao
+      titulo="Atendimento"
+      subtitulo={`Mensagens por dia ${rotulo}`}
+      link={{ to: "/whatsapp", texto: "Conversas" }}
+      className={className}
+      style={style}
+    >
+      <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-4">
+        <Mini rotulo="Recebidas" valor={a?.recebidas ?? 0} carregando={carregando} />
+        <Mini rotulo="Enviadas" valor={a?.enviadas ?? 0} carregando={carregando} />
+        <Mini rotulo="1ª resposta (mediana)" valor={minutos(pr?.medianaMin ?? null)} carregando={carregando} />
+        <Mini
           rotulo="Conexões online"
           valor={a ? `${a.conexoes.online}/${a.conexoes.total}` : "0/0"}
           carregando={carregando}
-          to={ativo("whatsapp") ? "/configuracoes?tab=conexoes" : undefined}
+          to={podeConectar ? "/configuracoes?tab=conexoes" : undefined}
           badge={
             a && a.conexoes.total > 0 && a.conexoes.online < a.conexoes.total ? (
               <Badge variant="warning">offline</Badge>
@@ -291,188 +544,211 @@ function SecaoAtendimento({ d, carregando, rotulo }: SecaoProps) {
           }
         />
       </div>
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-2">
-          <p className="eyebrow">Mensagens por dia</p>
-          {carregando ? (
-            <SkeletonGrafico altura="h-56" />
-          ) : !a || a.recebidas + a.enviadas === 0 ? (
-            <Vazio>Nenhuma mensagem no período.</Vazio>
-          ) : (
-            <Suspense fallback={<SkeletonGrafico altura="h-56" />}>
-              <GraficoMensagens dados={a.mensagensPorDia} />
-            </Suspense>
-          )}
+      {carregando ? (
+        <Skeleton className="h-[268px] w-full rounded-pearl" />
+      ) : semConexao ? (
+        <Vazio
+          icon={MessageSquare}
+          titulo="Nenhum WhatsApp conectado"
+          texto="Conecte um número para as conversas dos clientes chegarem aqui."
+          acao={podeConectar ? { to: "/configuracoes?tab=conexoes", texto: "Conectar WhatsApp" } : undefined}
+        />
+      ) : !a || a.recebidas + a.enviadas === 0 ? (
+        <Vazio
+          icon={MessageSquare}
+          titulo="Sem mensagens no período"
+          texto="Quando os clientes escreverem, o movimento de cada dia aparece aqui."
+        />
+      ) : (
+        <Suspense fallback={<Skeleton className="h-[268px] w-full rounded-pearl" />}>
+          <GraficoMensagens dados={a.mensagensPorDia} />
+        </Suspense>
+      )}
+      {!carregando && a && a.emAtendimentoPorColaborador.length > 0 && (
+        <div className="space-y-3 border-t border-divider pt-4">
+          <p className="eyebrow">Em atendimento agora</p>
+          <Ranking dados={a.emAtendimentoPorColaborador} />
         </div>
-        <div className="space-y-2">
-          <p className="eyebrow">Em atendimento por pessoa</p>
-          {carregando ? (
-            <SkeletonGrafico />
-          ) : (
-            <Barras
-              dados={a?.emAtendimentoPorColaborador ?? []}
-              rotulo="Conversas em atendimento por colaborador"
-              vazio="Ninguém com conversa em atendimento agora."
-            />
-          )}
-        </div>
-      </div>
+      )}
+      {pr && pr.respondidas > 0 && (
+        <p className="text-2xs text-muted-foreground -mt-1">
+          1ª resposta aproximada: média {minutos(pr.mediaMin)} em {plural(pr.respondidas, "conversa", "conversas")}
+          {pr.semResposta ? `, ${pr.semResposta} sem resposta em 24h` : ""}.
+        </p>
+      )}
     </Secao>
   );
 }
 
-function SecaoChamados({ d, carregando, rotulo }: SecaoProps) {
+function SecaoChamados({ d, carregando, rotulo, className, style }: SecaoProps) {
   const c = d?.chamados;
+  const podeAbrir = useAlgumaPermissao(["chamados.criar", "chamados.gerenciar"]);
   return (
-    <Secao titulo="Chamados" link={{ to: "/chamados", texto: "Ver chamados" }}>
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-        <Numero rotulo="Abertos" valor={c?.abertos ?? 0} carregando={carregando} to="/chamados" />
-        <Numero rotulo="Em andamento" valor={c?.emAndamento ?? 0} carregando={carregando} to="/chamados" />
-        <Numero
-          rotulo={`Concluídos (${rotulo})`}
-          valor={c?.concluidosNoPeriodo ?? 0}
-          carregando={carregando}
-          detalhe={c ? `${c.criadosNoPeriodo} criados no período` : undefined}
-        />
-        <Numero
-          rotulo="Atrasados"
-          valor={c?.atrasados ?? 0}
-          carregando={carregando}
-          to="/chamados"
-          badge={c && c.atrasados > 0 ? <Badge variant="destructive">prazo vencido</Badge> : undefined}
-        />
+    <Secao titulo="Chamados" subtitulo={`Mais pedidos ${rotulo}`} link={{ to: "/chamados", texto: "Ver todos" }} className={className} style={style}>
+      <div className="grid gap-2 sm:gap-3 grid-cols-3">
+        <Mini rotulo="Abertos" valor={c?.abertos ?? 0} carregando={carregando} to="/chamados" />
+        <Mini rotulo="Andamento" valor={c?.emAndamento ?? 0} carregando={carregando} to="/chamados" />
+        <Mini rotulo="Concluídos" valor={c?.concluidosNoPeriodo ?? 0} carregando={carregando} />
       </div>
-      <div className="grid gap-6 sm:grid-cols-2">
-        <div className="space-y-2">
-          <p className="eyebrow">Mais pedidos ({rotulo})</p>
-          {carregando ? (
-            <SkeletonGrafico />
-          ) : (
-            <Barras dados={c?.topTipos ?? []} rotulo="Tipos de chamado mais pedidos" vazio="Nenhum chamado no período." />
-          )}
-        </div>
-        <div className="space-y-2">
+      {carregando ? (
+        <SkeletonLista />
+      ) : !c || c.topTipos.length === 0 ? (
+        <Vazio
+          compacto
+          icon={ClipboardList}
+          titulo="Nenhum chamado no período"
+          texto="Os tipos mais pedidos aparecem aqui."
+          acao={podeAbrir ? { to: "/chamados", texto: "Abrir chamado" } : undefined}
+        />
+      ) : (
+        <Suspense fallback={<SkeletonLista />}>
+          <GraficoBarras dados={c.topTipos.slice(0, 6)} rotulo="Tipos de chamado mais pedidos" larguraNome={120} />
+        </Suspense>
+      )}
+      {!carregando && c && c.porResponsavel.length > 0 && (
+        <div className="space-y-3 border-t border-divider pt-4">
           <p className="eyebrow">Em aberto por responsável</p>
-          {carregando ? (
-            <SkeletonGrafico />
-          ) : (
-            <Barras
-              dados={c?.porResponsavel ?? []}
-              rotulo="Chamados em aberto por responsável"
-              vazio="Nenhum chamado em aberto."
-            />
-          )}
+          <Ranking dados={c.porResponsavel} />
         </div>
-      </div>
+      )}
     </Secao>
   );
 }
 
-function SecaoClientes({ d, carregando, rotulo }: SecaoProps) {
+function SecaoClientes({ d, carregando, rotulo, className, style }: SecaoProps) {
   const c = d?.clientes;
+  const podeCadastrar = usePermissao("clientes.editar");
   return (
-    <Secao titulo="Clientes" link={{ to: "/clientes", texto: "Ver clientes" }}>
-      <div className="grid gap-4 grid-cols-2">
-        <Numero rotulo="Ativos" valor={c?.ativos ?? 0} carregando={carregando} to="/clientes" />
-        <Numero rotulo={`Novos (${rotulo})`} valor={c?.novosNoPeriodo ?? 0} carregando={carregando} />
+    <Secao titulo="Clientes" subtitulo="Por regime tributário" link={{ to: "/clientes", texto: "Ver todos" }} className={className} style={style}>
+      <div className="grid gap-2 sm:gap-3 grid-cols-2">
+        <Mini rotulo="Ativos" valor={c?.ativos ?? 0} carregando={carregando} to="/clientes" />
+        <Mini rotulo={`Novos ${rotulo}`} valor={c?.novosNoPeriodo ?? 0} carregando={carregando} />
       </div>
-      <div className="space-y-2">
-        <p className="eyebrow">Por regime tributário</p>
-        {carregando ? (
-          <SkeletonGrafico />
-        ) : (
-          <Barras
-            dados={(c?.porRegime ?? []).map((r) => ({ nome: r.regime, total: r.total }))}
-            rotulo="Clientes ativos por regime tributário"
-            vazio="Nenhum cliente cadastrado ainda."
-          />
-        )}
-      </div>
+      {carregando ? (
+        <SkeletonLista />
+      ) : !c || c.porRegime.length === 0 ? (
+        <Vazio
+          compacto
+          icon={Users}
+          titulo="Nenhum cliente ainda"
+          texto="Cadastre o primeiro para acompanhar regime, sócios e aniversários."
+          acao={podeCadastrar ? { to: "/clientes/novo", texto: "Cadastrar cliente" } : undefined}
+        />
+      ) : (
+        <Ranking avatar={false} dados={c.porRegime.map((r) => ({ nome: r.regime, total: r.total }))} />
+      )}
     </Secao>
+  );
+}
+
+function SecaoAniversarios({ d, carregando, className, style }: SecaoProps) {
+  const lista = d?.aniversarios ?? [];
+  return (
+    <Secao
+      titulo="Aniversários"
+      subtitulo="Próximos 7 dias"
+      link={{ to: "/clientes/aniversarios", texto: "Ver todos" }}
+      className={className}
+      style={style}
+    >
+      {carregando ? (
+        <SkeletonLista linhas={4} />
+      ) : lista.length === 0 ? (
+        <Vazio compacto icon={Cake} titulo="Nenhum aniversário por perto" texto="Ninguém faz aniversário nos próximos 7 dias." />
+      ) : (
+        <ul className="-my-2 divide-y divide-divider">
+          {lista.slice(0, 7).map((a) => (
+            <li key={`${a.origem}:${a.socioId ?? a.clienteId}`} className="flex items-center gap-3 py-2.5">
+              <Iniciais nome={a.nome} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{a.nome}</p>
+                <p className="text-2xs text-muted-foreground truncate">
+                  {a.origem === "empresa" ? `${a.anos} anos de empresa` : `${a.anos} anos`}
+                  {a.origem === "socio" ? ` · sócio de ${a.clienteNome}` : ""}
+                </p>
+              </div>
+              {a.diasAte === 0 ? (
+                <Badge>hoje</Badge>
+              ) : (
+                <span className="text-2xs text-muted-foreground shrink-0">
+                  {a.diasAte === 1 ? "amanhã" : `em ${a.diasAte} dias`}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Secao>
+  );
+}
+
+/** Linha de status: rótulo, número, badge opcional. */
+function Linha({ rotulo, valor, to, badge }: { rotulo: string; valor: number; to?: string; badge?: ReactNode }) {
+  const corpo = (
+    <>
+      <span className="flex-1 text-sm truncate">{rotulo}</span>
+      {badge}
+      <span className="nums text-sm font-semibold w-8 text-right">{valor}</span>
+    </>
+  );
+  const base = "flex items-center gap-2 py-2.5";
+  return (
+    <li>
+      {to ? (
+        <Link to={to} className={cn(base, "rounded-lg -mx-2 px-2 hover:bg-accent transition-colors")}>
+          {corpo}
+        </Link>
+      ) : (
+        <div className={base}>{corpo}</div>
+      )}
+    </li>
+  );
+}
+
+function SkeletonLinhas({ n = 3 }: { n?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: n }).map((_, i) => (
+        <Skeleton key={i} className="h-5 w-full" />
+      ))}
+    </div>
   );
 }
 
 function SecaoCertificados({ d, carregando, rotulo }: SecaoProps) {
   const c = d?.certificados;
   const { ativo } = useModulos();
+  const podeCadastrar = usePermissao("certificados.editar");
   return (
-    <Secao titulo="Certificados digitais" link={{ to: "/certificados", texto: "Ver certificados" }}>
-      {!carregando && c?.total === 0 ? (
-        <Vazio>Nenhum certificado cadastrado. Cadastre em Certificados digitais para acompanhar a validade.</Vazio>
-      ) : (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-          <Numero
-            rotulo="Vencidos"
-            valor={c?.vencidos ?? 0}
-            carregando={carregando}
-            to="/certificados?status=vencido"
-            badge={c && c.vencidos > 0 ? <Badge variant="destructive">vencido</Badge> : undefined}
-          />
-          <Numero rotulo="Vencem em 7 dias" valor={c?.vencem7 ?? 0} carregando={carregando} to="/certificados?status=vencendo" />
-          <Numero rotulo="Vencem em 30 dias" valor={c?.vencem30 ?? 0} carregando={carregando} to="/certificados?status=vencendo" />
-          <Numero
-            rotulo={`Avisos (${rotulo})`}
-            valor={c?.avisos.enviados ?? 0}
-            carregando={carregando}
-            detalhe={
-              !ativo("certificadosAvisos")
-                ? "Avisos automáticos desligados"
-                : c && c.avisos.falharam > 0
-                  ? `${c.avisos.falharam} não enviados`
-                  : "enviados pelo WhatsApp"
-            }
-            badge={c && c.avisos.falharam > 0 ? <Badge variant="warning">falhas</Badge> : undefined}
-          />
-        </div>
-      )}
-    </Secao>
-  );
-}
-
-function SecaoAniversarios({ d, carregando }: Omit<SecaoProps, "rotulo">) {
-  const lista = d?.aniversarios ?? [];
-  const hoje = lista.filter((a) => a.diasAte === 0);
-  const semana = lista.filter((a) => a.diasAte > 0);
-  const item = (a: Dashboard["aniversarios"][number]) => (
-    <li key={`${a.origem}:${a.socioId ?? a.clienteId}`} className="flex items-center gap-2 py-2 text-sm">
-      <Cake className="size-4 text-muted-foreground shrink-0" />
-      <span className="flex-1 min-w-0 truncate">
-        <span className="font-semibold">{a.nome}</span>
-        <span className="text-muted-foreground">
-          {" · "}
-          {a.origem === "empresa" ? `${a.anos} anos de empresa` : `${a.anos} anos`}
-          {a.origem === "socio" ? ` · sócio de ${a.clienteNome}` : ""}
-        </span>
-      </span>
-      {a.diasAte === 0 ? (
-        <Badge>hoje</Badge>
-      ) : (
-        <span className="text-2xs text-muted-foreground shrink-0">
-          {a.diasAte === 1 ? "amanhã" : `em ${a.diasAte} dias`}
-        </span>
-      )}
-    </li>
-  );
-  return (
-    <Secao titulo="Aniversários" link={{ to: "/clientes/aniversarios", texto: "Ver todos" }}>
+    <Secao titulo="Certificados" link={{ to: "/certificados", texto: "Ver todos" }}>
       {carregando ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-6 w-full" />
-          ))}
-        </div>
-      ) : lista.length === 0 ? (
-        <Vazio>Ninguém faz aniversário nos próximos 7 dias.</Vazio>
+        <SkeletonLinhas />
+      ) : !c || c.total === 0 ? (
+        <Vazio
+          compacto
+          icon={BadgeCheck}
+          titulo="Nenhum certificado"
+          texto="Cadastre para receber aviso antes de vencer."
+          acao={podeCadastrar ? { to: "/certificados", texto: "Cadastrar certificado" } : undefined}
+        />
       ) : (
-        <div className="space-y-3">
-          {hoje.length > 0 && <ul className="divide-y divide-divider">{hoje.map(item)}</ul>}
-          {semana.length > 0 && (
-            <div>
-              <p className="eyebrow">Esta semana</p>
-              <ul className="divide-y divide-divider">{semana.slice(0, 8).map(item)}</ul>
-            </div>
+        <ul className="-my-2 divide-y divide-divider">
+          <Linha
+            rotulo="Vencidos"
+            valor={c.vencidos}
+            to="/certificados?status=vencido"
+            badge={c.vencidos > 0 ? <Badge variant="destructive">vencido</Badge> : undefined}
+          />
+          <Linha rotulo="Vencem em 7 dias" valor={c.vencem7} to="/certificados?status=vencendo" />
+          <Linha rotulo="Vencem em 30 dias" valor={c.vencem30} to="/certificados?status=vencendo" />
+          {ativo("certificadosAvisos") && (
+            <Linha
+              rotulo={`Avisos ${rotulo}`}
+              valor={c.avisos.enviados}
+              badge={c.avisos.falharam > 0 ? <Badge variant="warning">{c.avisos.falharam} falharam</Badge> : undefined}
+            />
           )}
-        </div>
+        </ul>
       )}
     </Secao>
   );
@@ -483,28 +759,25 @@ function SecaoFiscal({ d, carregando, rotulo }: SecaoProps) {
   const u = f?.ultimaPorStatus;
   return (
     <Secao titulo="Pendências fiscais" link={{ to: "/pendencias-fiscais", texto: "Consultar" }}>
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-        <Numero rotulo={`Consultas (${rotulo})`} valor={f?.consultasNoPeriodo ?? 0} carregando={carregando} />
-        <Numero
-          rotulo="Regulares"
-          valor={u?.ok ?? 0}
-          carregando={carregando}
-          detalhe="última consulta de cada cliente"
-        />
-        <Numero
-          rotulo="Com pendência"
-          valor={u?.com_pendencia ?? 0}
-          carregando={carregando}
-          to="/pendencias-fiscais"
-          badge={u && u.com_pendencia > 0 ? <Badge variant="warning">pendência</Badge> : undefined}
-        />
-        <Numero
-          rotulo="Com erro"
-          valor={u?.erro ?? 0}
-          carregando={carregando}
-          detalhe={u && u.pendente > 0 ? `${u.pendente} aguardando` : undefined}
-        />
-      </div>
+      {carregando ? (
+        <SkeletonLinhas />
+      ) : (
+        <ul className="-my-2 divide-y divide-divider">
+          <Linha rotulo="Regulares" valor={u?.ok ?? 0} badge={u && u.ok > 0 ? <Badge variant="success">ok</Badge> : undefined} />
+          <Linha
+            rotulo="Com pendência"
+            valor={u?.com_pendencia ?? 0}
+            to="/pendencias-fiscais"
+            badge={u && u.com_pendencia > 0 ? <Badge variant="warning">pendência</Badge> : undefined}
+          />
+          <Linha
+            rotulo="Com erro"
+            valor={u?.erro ?? 0}
+            badge={u && u.pendente > 0 ? <Badge variant="secondary">{u.pendente} aguardando</Badge> : undefined}
+          />
+          <Linha rotulo={`Consultas ${rotulo}`} valor={f?.consultasNoPeriodo ?? 0} />
+        </ul>
+      )}
     </Secao>
   );
 }
