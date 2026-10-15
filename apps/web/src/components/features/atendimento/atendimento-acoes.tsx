@@ -1,7 +1,6 @@
-import { ArrowRightLeft, CheckCircle2, Hand, Loader2, RotateCcw } from "lucide-react";
+import { ArrowRightLeft, Loader2 } from "lucide-react";
 import { useState } from "react";
 
-import { ColaboradorAvatar, SemResponsavelAvatar } from "@/components/colaborador-avatar";
 import { ColaboradorSelect } from "@/components/colaborador-select";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,12 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip } from "@/components/ui/tooltip";
+import { confirmar } from "@/components/ui/confirm-dialog";
 import { useColaboradoresMap, useEu, type Colaborador } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
-import { useModulos } from "@/lib/modulos";
 import {
-  useMudarStatusAtendimento,
+  useFinalizarAtendimento,
   useTransferirAtendimento,
   type AtendimentoTransferencia,
 } from "@/lib/queries/atendimento";
@@ -28,129 +26,63 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 /**
- * Ações de atendimento no topo da conversa (novo no painel Denos):
- * responsável, Assumir, Finalizar/Reabrir e Transferir.
+ * Ações de atendimento da conversa (estilo Blip): assumir, tomar de outra
+ * pessoa (supervisor), finalizar, reabrir e transferir. O cabeçalho
+ * (conversa-cabecalho.tsx) só desenha; a lógica mora aqui.
  */
-export function AtendimentoAcoes({ chat }: { chat: WhatsappChat }) {
-  const { eu, tem } = useEu();
+export function useAcoesAtendimento(chat: WhatsappChat | undefined) {
+  const { eu } = useEu();
   const mapa = useColaboradoresMap();
-  const responsavel = chat.responsavelId ? mapa.get(chat.responsavelId) : undefined;
   const transferir = useTransferirAtendimento();
-  const mudarStatus = useMudarStatusAtendimento();
+  const finalizarMut = useFinalizarAtendimento();
   const [transferirAberto, setTransferirAberto] = useState(false);
-  const podeTransferir = useModulos().ativo("transferenciaAtendimento") && tem("whatsapp.transferir");
-  // Assumir conversa de outra pessoa é transferir; sem responsável basta assumir.
-  const podeAssumir = chat.responsavelId
-    ? tem("whatsapp.transferir")
-    : tem("whatsapp.assumir") || tem("whatsapp.transferir");
+  const responsavel = chat?.responsavelId ? mapa.get(chat.responsavelId) : undefined;
 
-  const souEu = !!eu && chat.responsavelId === eu.id;
-  const finalizado = chat.atendimentoStatus === "finalizado";
-
-  async function assumir() {
-    if (!eu) return;
+  async function assumir(rotuloErro = "assumir") {
+    if (!eu || !chat) return;
     try {
       await transferir.mutateAsync({ chatRowId: chat.id, paraId: eu.id, porId: eu.id });
     } catch (err) {
-      toast.error("Não foi possível assumir: " + msgErro(err));
+      toast.error(`Não foi possível ${rotuloErro}: ` + msgErro(err));
     }
   }
 
-  async function mudar(status: "finalizado" | "em_atendimento" | "aberto") {
+  async function finalizar() {
+    if (!chat) return;
+    const ok = await confirmar({
+      titulo: "Finalizar atendimento?",
+      descricao:
+        "A conversa fica como Finalizada. Se o cliente escrever de novo, ela volta para a fila.",
+      confirmLabel: "Finalizar",
+    });
+    if (!ok) return;
     try {
-      await mudarStatus.mutateAsync({ chatRowId: chat.id, status });
+      await finalizarMut.mutateAsync({ chatRowId: chat.id });
     } catch (err) {
-      toast.error(msgErro(err));
+      toast.error("Não foi possível finalizar: " + msgErro(err));
     }
   }
 
-  return (
-    <div className="flex items-center gap-1.5 shrink-0">
-      <Tooltip
-        label={
-          responsavel
-            ? `Responsável: ${responsavel.nome}${finalizado ? " (finalizado)" : ""}`
-            : "Sem responsável"
-        }
-        side="bottom"
-      >
-        <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border bg-card px-1 py-0.5 pr-2 text-2xs font-medium max-w-[150px]">
-          {responsavel ? (
-            <ColaboradorAvatar nome={responsavel.nome} cor={responsavel.cor} size="2xs" />
-          ) : (
-            <SemResponsavelAvatar size="2xs" />
-          )}
-          <span className="truncate">
-            {responsavel ? responsavel.nome.split(" ")[0] : "Sem responsável"}
-          </span>
-        </span>
-      </Tooltip>
-
-      {!souEu && !finalizado && podeAssumir && (
-        <Button
-          size="sm"
-          onClick={assumir}
-          disabled={transferir.isPending || !eu}
-          className="h-8"
-          title={responsavel ? `Assumir no lugar de ${responsavel.nome}` : "Assumir o atendimento"}
-        >
-          {transferir.isPending ? <Loader2 className="animate-spin" /> : <Hand />}
-          <span className="hidden lg:inline">Assumir</span>
-        </Button>
-      )}
-
-      {souEu && !finalizado && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => void mudar("finalizado")}
-          disabled={mudarStatus.isPending}
-          className="h-8"
-          title="Finalizar atendimento"
-        >
-          <CheckCircle2 />
-          <span className="hidden lg:inline">Finalizar</span>
-        </Button>
-      )}
-
-      {finalizado && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => void mudar(chat.responsavelId ? "em_atendimento" : "aberto")}
-          disabled={mudarStatus.isPending}
-          className="h-8"
-          title="Reabrir atendimento"
-        >
-          <RotateCcw />
-          <span className="hidden lg:inline">Reabrir</span>
-        </Button>
-      )}
-
-      {podeTransferir && (
-      <Tooltip label="Transferir atendimento" side="bottom">
-        <button
-          type="button"
-          onClick={() => setTransferirAberto(true)}
-          className="grid place-items-center size-8 rounded-md text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
-          aria-label="Transferir atendimento"
-        >
-          <ArrowRightLeft className="size-4" />
-        </button>
-      </Tooltip>
-      )}
-
+  return {
+    responsavel,
+    ocupado: transferir.isPending || finalizarMut.isPending,
+    assumir: () => assumir("assumir"),
+    tomar: () => assumir("assumir a conversa"),
+    reabrir: () => assumir("reabrir"),
+    finalizar,
+    abrirTransferir: () => setTransferirAberto(true),
+    dialogoTransferir: chat ? (
       <TransferirDialog
         open={transferirAberto}
         onOpenChange={setTransferirAberto}
         chat={chat}
         responsavel={responsavel}
       />
-    </div>
-  );
+    ) : null,
+  };
 }
 
-function TransferirDialog({
+export function TransferirDialog({
   open,
   onOpenChange,
   chat,
@@ -239,7 +171,7 @@ function TransferirDialog({
   );
 }
 
-/** Frase de uma transferência ("Transferido de A para B · motivo"). */
+/** Frase do registro de atendimento ("Ana transferiu para Bruno · motivo"). */
 export function textoTransferencia(
   t: AtendimentoTransferencia,
   mapa: Map<string, Colaborador>,
@@ -247,12 +179,31 @@ export function textoTransferencia(
   const nome = (id: string | null) => (id ? mapa.get(id)?.nome ?? "alguém" : null);
   const de = nome(t.deId);
   const para = nome(t.paraId);
-  const por = nome(t.porId);
+  const por = nome(t.porId) ?? para ?? "Alguém";
   let base: string;
+  switch (t.evento) {
+    case "assumiu":
+      return `${por} assumiu a conversa`;
+    case "tomou":
+      return `${por} assumiu a conversa de ${de ?? "outra pessoa"}`;
+    case "transferiu":
+      return `${nome(t.porId) ?? de ?? "Alguém"} transferiu para ${para ?? "alguém"}${t.motivo ? ` · ${t.motivo}` : ""}`;
+    case "devolveu":
+      return `${por} devolveu para a fila${t.motivo ? ` · ${t.motivo}` : ""}`;
+    case "finalizou":
+      return `${por} finalizou o atendimento${t.motivo ? ` · ${t.motivo}` : ""}`;
+    case "reabriu":
+      return `${por} reabriu o atendimento`;
+    case "fila":
+      return "Voltou para a fila";
+    default:
+      break;
+  }
+  // Registros anteriores à migration 007 (sem evento): deduz pelo de/para.
   if (!t.deId && t.paraId && t.porId === t.paraId) base = `${para} assumiu o atendimento`;
   else if (t.deId && t.paraId && t.porId === t.paraId) base = `${para} assumiu (antes com ${de})`;
   else if (!t.paraId) base = de ? `${de} devolveu para a fila` : "Devolvido para a fila";
-  else if (!t.deId) base = `Atribuído a ${para}${por ? ` por ${por}` : ""}`;
+  else if (!t.deId) base = `Atribuído a ${para}${nome(t.porId) ? ` por ${nome(t.porId)}` : ""}`;
   else base = `Transferido de ${de} para ${para}`;
   return t.motivo ? `${base} · ${t.motivo}` : base;
 }
@@ -267,10 +218,14 @@ export function DivisorTransferencia({
   mapa: Map<string, Colaborador>;
   className?: string;
 }) {
+  const hora = new Date(t.criadoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return (
-    <p className={cn("my-3 px-6 text-center text-2xs text-muted-foreground", className)} role="note">
-      {textoTransferencia(t, mapa)} ·{" "}
-      {new Date(t.criadoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-    </p>
+    <div className={cn("my-3 flex items-center gap-3 px-2 text-2xs text-muted-foreground", className)} role="note">
+      <span className="h-px flex-1 bg-border/70" aria-hidden />
+      <span className="max-w-[80%] text-center">
+        {textoTransferencia(t, mapa)} · {hora}
+      </span>
+      <span className="h-px flex-1 bg-border/70" aria-hidden />
+    </div>
   );
 }

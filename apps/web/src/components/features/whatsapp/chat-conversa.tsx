@@ -1,18 +1,6 @@
 import { format, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import {
-  AlertCircle,
-  Download,
-  Eraser,
-  Loader2,
-  Lock,
-  LogOut,
-  MessageSquare,
-  MoreVertical,
-  PanelRight,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { AlertCircle, Hand, MessageSquare, Loader2, Lock, Mic, Paperclip, Smile } from "lucide-react";
 import {
   Fragment,
   useCallback,
@@ -27,31 +15,22 @@ import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/ui/confirm-dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Tooltip } from "@/components/ui/tooltip";
 import { openMediaViewer } from "@/components/ui/media-viewer";
-import { ConversaTagsBotao } from "@/components/features/whatsapp/conversa-tags";
-import {
-  AtendimentoAcoes,
-  DivisorTransferencia,
-} from "@/components/features/atendimento/atendimento-acoes";
+import { DivisorTransferencia } from "@/components/features/atendimento/atendimento-acoes";
 import { ClientContextPanel } from "@/components/features/inbox/client-context-panel";
 import {
   NovaSolicitacaoDialog,
-  SolicitacaoBotaoSeAtivo,
   type OrigemSolicitacao,
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { useColaboradoresMap, useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatTelefone, parsePgTimestamp } from "@/lib/format";
-import { useTransferencias, useWhatsappChatAberto } from "@/lib/queries/atendimento";
-import { AvatarIniciais } from "@/components/avatar-iniciais";
-import { avatarFicticio } from "@/lib/avatar-ficticio";
-import { iniciaisDeContato } from "@/lib/iniciais";
+import {
+  useTransferencias,
+  useTransferirAtendimento,
+  useWhatsappChatAberto,
+} from "@/lib/queries/atendimento";
+import { estadoAtendimento } from "@/lib/atendimento-estado";
 import { cn } from "@/lib/utils";
 import {
   mediaSignedUrl,
@@ -75,6 +54,7 @@ import {
 } from "@/lib/queries/whatsapp";
 
 import { Composer } from "./composer";
+import { ConversaCabecalho } from "./conversa-cabecalho";
 import { DownloadConversaDialog } from "./download-conversa-dialog";
 import { MessageBubble } from "./message-bubble";
 
@@ -119,7 +99,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   const limpar = useLimparChat(sessaoId);
   const apagar = useApagarChat(sessaoId);
   const vincular = useVincularChatCliente();
-  const { tem } = useEu();
+  const { tem, eu } = useEu();
   const sairGrupo = useSairDoGrupo(sessaoId);
   const refresh = useRefreshContact(sessaoId);
   const backfill = useBackfillParticipantes();
@@ -756,6 +736,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   }
 
   const grupo = chat?.tipo === "group" || chatId.endsWith("@g.us");
+  const atendimento = estadoAtendimento(chat, eu?.id, tem);
   const ehLid = chatId.endsWith("@lid");
   const numero = ehLid ? null : chatId.replace("@c.us", "").replace("@g.us", "");
   // Header da conversa: mesmo fallback do sidebar — usa os últimos
@@ -773,154 +754,25 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   return (
     <div className="flex-1 flex min-w-0 h-full min-h-0 overflow-hidden relative">
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
-        {/* Header — gradient sutil pra dar profundidade
-            visual sem cair em "WhatsApp-clone". */}
-        <div
-          className={cn(
-            "shrink-0 border-b flex items-center gap-3 px-4 py-2.5",
-            "bg-gradient-to-r from-foreground/[0.04] via-card/40 to-card/30",
-          )}
-        >
-          <ConversaAvatar
-            semente={chat?.chatId ?? nome}
-            nome={chat?.nome}
-            grupo={grupo}
-            fotoPath={chat?.fotoPath}
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <p className="font-medium text-sm truncate leading-tight">
-                {nome}
-              </p>
-              {chat?.clienteId ? (
-                <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-muted text-foreground rounded-full px-1.5 py-0.5 leading-none shrink-0">
-                  <span className="size-1 rounded-full bg-foreground" aria-hidden />
-                  Cliente
-                </span>
-              ) : null}
-            </div>
-            <LinhaPresenca chat={chat} />
-            {/* Linha "via {instância}" — sempre visível pra deixar claro
-                por qual número essa conversa está rodando. Importante
-                principalmente em escritórios com 2+ instâncias. */}
-            {sessao && (
-              <div className="flex items-center gap-1.5 mt-1 text-2xs text-muted-foreground/80">
-                <span
-                  className={cn(
-                    "size-1.5 rounded-full shrink-0",
-                    sessao.status === "WORKING" &&
-                      "bg-foreground ring-2 ring-foreground/25",
-                    sessao.status === "STARTING" && "bg-foreground/60 animate-pulse",
-                    sessao.status === "FAILED" && "bg-destructive",
-                    sessao.status === "STOPPED" && "bg-muted-foreground/40",
-                  )}
-                  aria-hidden
-                />
-                <span className="truncate">
-                  via{" "}
-                  <span className="font-medium text-foreground/70">
-                    {sessao.apelido ??
-                      formatHeaderNumero(sessao.numero) ??
-                      "WhatsApp"}
-                  </span>
-                  {sessao.status === "WORKING" && (
-                    <span className="text-muted-foreground"> · Online</span>
-                  )}
-                </span>
-              </div>
-            )}
-          </div>
-          {chat && !grupo ? <AtendimentoAcoes chat={chat} /> : null}
-          {chat ? (
-            <SolicitacaoBotaoSeAtivo origem={{ chatRowId: chat.id, clienteId: chat.clienteId }} />
-          ) : null}
-          {chat ? <ConversaTagsBotao chatId={chat.id} /> : null}
-          {/* Botão do painel lateral só aparece em contato individual —
-              em grupo não faz sentido (sem cliente vinculado). */}
-          {!grupo && (
-            <Tooltip
-              label={painelAberto ? "Esconder painel" : "Mostrar painel do cliente"}
-              side="bottom"
-            >
-              <button
-                type="button"
-                onClick={() => setPainelAberto((v) => !v)}
-                className={cn(
-                  "hidden md:grid place-items-center size-9 rounded-md transition-colors",
-                  painelAberto
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-                )}
-                aria-label="Alternar painel do cliente"
-                aria-pressed={painelAberto}
-              >
-                <PanelRight className="size-4" />
-              </button>
-            </Tooltip>
-          )}
-
-          {/* Menu de ações destrutivas (limpar / apagar) */}
-          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="grid place-items-center size-9 rounded-md text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
-                aria-label="Mais ações"
-              >
-                <MoreVertical className="size-4" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 p-1">
-              {tem("whatsapp.exportar") && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setDownloadOpen(true);
-                }}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
-              >
-                <Download className="size-4 text-muted-foreground" />
-                Baixar conversa
-              </button>
-              )}
-              {tem("whatsapp.apagar_mensagens") && (<>
-              <div className="my-1 h-px bg-border/60" />
-              <button
-                type="button"
-                onClick={handleLimpar}
-                disabled={limpar.isPending}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left disabled:opacity-50"
-              >
-                <Eraser className="size-4 text-muted-foreground" />
-                Limpar mensagens
-              </button>
-              </>)}
-              {chat?.tipo === "group" && tem("whatsapp.conexoes") ? (
-                <button
-                  type="button"
-                  onClick={handleSairGrupo}
-                  disabled={sairGrupo.isPending}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-destructive/10 text-destructive text-left disabled:opacity-50"
-                >
-                  <LogOut className="size-4" />
-                  Sair do grupo
-                </button>
-              ) : null}
-              {tem("whatsapp.apagar_mensagens") && (
-              <button
-                type="button"
-                onClick={handleApagar}
-                disabled={apagar.isPending}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-destructive/10 text-destructive text-left disabled:opacity-50"
-              >
-                <Trash2 className="size-4" />
-                Apagar conversa
-              </button>
-              )}
-            </PopoverContent>
-          </Popover>
-        </div>
+        <ConversaCabecalho
+          chat={chat}
+          chatId={chatId}
+          sessao={sessao}
+          nome={nome}
+          numero={numero}
+          grupo={grupo}
+          painelAberto={painelAberto}
+          onTogglePainel={() => setPainelAberto((v) => !v)}
+          menuAberto={menuOpen}
+          onMenuAbertoChange={setMenuOpen}
+          onBaixar={() => setDownloadOpen(true)}
+          onLimpar={handleLimpar}
+          onApagar={handleApagar}
+          onSairGrupo={handleSairGrupo}
+          limpando={limpar.isPending}
+          apagando={apagar.isPending}
+          saindo={sairGrupo.isPending}
+        />
 
       {/* Mensagens — scroll dedicado da conversa. Fundo limpo (cinza
           bem claro), sem ornamentos, no espírito minimalista/claro. */}
@@ -1038,6 +890,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
                     }
                     onQuotedClick={irParaMensagem}
                     onCriarSolicitacao={handleCriarSolicitacao}
+                    somenteLeitura={atendimento.bloqueada && !grupo}
                   />
                 </div>
                 </Fragment>
@@ -1064,6 +917,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
             </p>
           ) : chat?.podeEnviar === false ? (
             <ComposerBloqueado motivo={chat.motivoBloqueio} />
+          ) : chat && !grupo && atendimento.bloqueada ? (
+            <ComposerEmAtendimento chat={chat} podeTomar={atendimento.podeTomar} />
           ) : (
             <Composer
               // key: rascunho/anexo/gravação não vazam para a próxima conversa.
@@ -1073,6 +928,15 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
               replyTo={replyTo ?? undefined}
               onCancelReply={() => setReplyTo(null)}
               textoInicial={textoInicial}
+              dica={
+                grupo
+                  ? undefined
+                  : atendimento.enviarAssume
+                  ? "Ao enviar, você assume esta conversa."
+                  : atendimento.enviarReabre
+                  ? "Esta conversa está finalizada. Ao enviar, você a reabre."
+                  : undefined
+              }
             />
           ))}
       </div>
@@ -1147,6 +1011,67 @@ function ComposerBloqueado({ motivo }: { motivo: string | null }) {
 }
 
 /**
+ * Conversa em atendimento por OUTRA pessoa (estilo Blip): o campo de texto dá
+ * lugar a este aviso e os atalhos de anexo, emoji e voz ficam apagados. Só
+ * quem tem `whatsapp.assumir_de_outros` vê o botão. O servidor barra o envio
+ * de qualquer jeito (409).
+ */
+export function ComposerEmAtendimento({ chat, podeTomar }: { chat: WhatsappChat; podeTomar: boolean }) {
+  const mapa = useColaboradoresMap();
+  const { eu } = useEu();
+  const transferir = useTransferirAtendimento();
+  const responsavel = chat.responsavelId ? mapa.get(chat.responsavelId) : undefined;
+  const nome = responsavel?.nome ?? "outra pessoa";
+
+  async function tomar() {
+    if (!eu) return;
+    try {
+      await transferir.mutateAsync({ chatRowId: chat.id, paraId: eu.id, porId: eu.id });
+    } catch (err) {
+      toast.error("Não foi possível assumir a conversa: " + msgErro(err));
+    }
+  }
+
+  const apagado = "grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground/40";
+  return (
+    <div className="shrink-0 border-t bg-card/40 p-3" role="region" aria-label="Conversa em atendimento">
+      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+        <span className="flex items-center gap-1 max-sm:hidden" aria-hidden>
+          <span className={apagado}><Smile className="size-4" /></span>
+          <span className={apagado}><Paperclip className="size-4" /></span>
+        </span>
+        <div className="flex min-h-11 min-w-0 flex-1 basis-full items-center gap-3 rounded-xl border border-dashed border-border bg-muted/50 px-3 py-2 sm:basis-0">
+          <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="text-sm font-medium text-foreground">
+              Em atendimento por <span className="font-semibold">{nome}</span>
+            </p>
+            <p className="mt-0.5 text-2xs text-muted-foreground">
+              {podeTomar
+                ? "Para responder, assuma a conversa."
+                : "Só quem está com a conversa pode responder. Peça para a pessoa transferir."}
+            </p>
+          </div>
+          {podeTomar && (
+            <Button size="sm" onClick={tomar} disabled={transferir.isPending || !eu} className="shrink-0 max-sm:hidden">
+              {transferir.isPending ? <Loader2 className="animate-spin" /> : <Hand />}
+              Assumir conversa
+            </Button>
+          )}
+        </div>
+        <span className={cn(apagado, "max-sm:hidden")} aria-hidden><Mic className="size-4" /></span>
+        {podeTomar && (
+          <Button onClick={tomar} disabled={transferir.isPending || !eu} className="w-full sm:hidden">
+            {transferir.isPending ? <Loader2 className="animate-spin" /> : <Hand />}
+            Assumir conversa
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Decide se mostra o nome do remetente acima da bubble. Lógica
  * inspirada no WhatsApp: agrupa mensagens consecutivas do mesmo
  * remetente (se as 2 últimas vieram da mesma pessoa, só a primeira
@@ -1173,85 +1098,6 @@ function shouldShowRemetente(
   return false;
 }
 
-// "digitando…/gravando…" obsoleto após esta janela (caso falte o evento de
-// saída); "online" obsoleto um pouco depois. Aí cai pra "visto por último".
-const PRESENCA_TYPING_TTL_MS = 18_000;
-const PRESENCA_ONLINE_TTL_MS = 90_000;
-
-/** Deriva o texto de presença do chat, respeitando a validade (TTL). */
-function presencaTexto(
-  chat: WhatsappChat | undefined,
-): { texto: string; ativo: boolean } | null {
-  if (!chat || chat.tipo !== "individual" || !chat.presenceEstado) return null;
-  const em = chat.presenceEm
-    ? parsePgTimestamp(chat.presenceEm)?.getTime() ?? 0
-    : 0;
-  const idade = Date.now() - em;
-  const est = chat.presenceEstado;
-  if (
-    (est === "typing" || est === "recording") &&
-    idade < PRESENCA_TYPING_TTL_MS
-  ) {
-    return {
-      texto: est === "recording" ? "gravando áudio…" : "digitando…",
-      ativo: true,
-    };
-  }
-  if (est === "online" && idade < PRESENCA_ONLINE_TTL_MS) {
-    return { texto: "online", ativo: true };
-  }
-  const visto = chat.ultimoVistoEm ? parsePgTimestamp(chat.ultimoVistoEm) : null;
-  if (visto) {
-    const quando = isSameDay(visto, new Date())
-      ? `às ${format(visto, "HH:mm")}`
-      : `em ${format(visto, "dd/MM 'às' HH:mm", { locale: ptBR })}`;
-    return { texto: `visto por último ${quando}`, ativo: false };
-  }
-  return null;
-}
-
-/**
- * Segunda linha do header: presença do contato ("digitando…/online/visto
- * por último") quando há sinal recente; senão cai pro "sobre"/vínculo
- * (comportamento anterior). Isolado com tick próprio pra expirar o
- * indicador sem re-renderizar a conversa inteira.
- */
-function LinhaPresenca({ chat }: { chat: WhatsappChat | undefined }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 8_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const pres = presencaTexto(chat);
-  if (pres) {
-    return (
-      <p
-        className={cn(
-          "text-2xs truncate mt-0.5 flex items-center gap-1.5",
-          pres.ativo
-            ? "text-foreground font-medium"
-            : "text-muted-foreground",
-        )}
-      >
-        {pres.ativo && (
-          <span
-            className="size-1.5 rounded-full bg-foreground animate-pulse shrink-0"
-            aria-hidden
-          />
-        )}
-        <span className="truncate">{pres.texto}</span>
-      </p>
-    );
-  }
-  return (
-    <p className="text-2xs text-muted-foreground truncate italic mt-0.5">
-      {chat?.sobre ??
-        (chat?.clienteId ? "Cliente vinculado" : "Sem cliente vinculado")}
-    </p>
-  );
-}
-
 /**
  * Formata um número (só dígitos) pra mostrar em menções `@<num>`.
  * Brasil em DDD+celular vira "(11) 99785-3643"; outros formatos
@@ -1268,79 +1114,4 @@ function formatTelefoneMencao(numero: string): string {
     return `(${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`;
   }
   return `+${d}`;
-}
-
-function formatHeaderNumero(numero: string | null): string | null {
-  if (!numero) return null;
-  const d = numero.replace(/\D/g, "");
-  if (d.length === 13 && d.startsWith("55")) {
-    return `+55 ${d.slice(2, 4)} ${d.slice(4, 9)}-${d.slice(9)}`;
-  }
-  if (d.length === 12 && d.startsWith("55")) {
-    return `+55 ${d.slice(2, 4)} ${d.slice(4, 8)}-${d.slice(8)}`;
-  }
-  return numero;
-}
-
-/**
- * Avatar do header da conversa — versão um pouco maior do que o
- * usado na sidebar (`size-9` vs `size-10`). Carrega `fotoPath` via
- * signed URL e cai pras iniciais quando não tem foto ou quando o
- * load falha.
- */
-function ConversaAvatar({
-  semente,
-  nome,
-  grupo,
-  fotoPath,
-}: {
-  /** Identificador do chat (JID). É a semente do desenho, NUNCA o nome. */
-  semente: string;
-  nome?: string | null;
-  grupo: boolean;
-  fotoPath?: string | null;
-}) {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const temFoto = fotoPath && fotoPath !== "__none__";
-
-  useEffect(() => {
-    if (!temFoto) {
-      setPhotoUrl(null);
-      return;
-    }
-    let cancel = false;
-    mediaSignedUrl(fotoPath!).then((url) => {
-      if (!cancel) setPhotoUrl(url);
-    });
-    return () => {
-      cancel = true;
-    };
-  }, [fotoPath, temFoto]);
-
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center size-9 rounded-full text-sm font-medium overflow-hidden",
-        grupo ? "bg-foreground/[0.06] text-foreground" : "bg-primary/15 text-primary",
-      )}
-    >
-      {photoUrl ? (
-        <img
-          src={photoUrl}
-          alt=""
-          className="size-full object-cover"
-          loading="lazy"
-          onError={() => setPhotoUrl(null)}
-        />
-      ) : grupo ? (
-        <Users className="size-4" />
-      ) : iniciaisDeContato(nome) ? (
-        <AvatarIniciais nome={nome} semente={semente} className="size-full text-xs" />
-      ) : (
-        // Mesmo desenho da lista, mesma semente: o rosto não muda ao abrir a
-        // conversa.
-        <img src={avatarFicticio(semente)} alt="" className="size-full" loading="lazy" />
-      )}
-    </span>
-  );
 }

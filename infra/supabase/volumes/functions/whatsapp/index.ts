@@ -61,6 +61,10 @@
 //     POST   /messages/forward       { sessaoId, messageId, toChatIds[] }
 //     POST   /messages/poll-vote     { sessaoId, chatId, pollMessageId, votes[] }
 //     POST   /messages/react         { sessaoId, messageId, reaction }
+//   (envio, reação, edição, apagar e enquete passam por exigirAtendimento: 409 se a
+//    conversa está com outra pessoa; livre → quem mexe assume. _shared/whatsapp-atendimento.ts)
+//   (todas as de envio/reação/edição/apagar passam por exigirAtendimento: 409 se a
+//    conversa está com outra pessoa; livre → quem mexe assume. Ver _shared/whatsapp-atendimento.ts)
 //     POST   /messages/refetch-media { mensagemId }
 //     POST   /messages/typing        { sessaoId, chatId, state }
 //     PATCH  /messages/:id           { text }  → edita (até 15 min)
@@ -98,6 +102,8 @@ import { chatSafe, removerPorPrefixo } from "../_shared/storage-purge.ts";
 import { runAfterResponse } from "../_shared/background.ts";
 import { type Colaborador, exigirColaborador, semPermissao, tem } from "../_shared/acesso.ts";
 import { PUBLIC_BASE_URL } from "../_shared/env.ts";
+import { garantirAtendimento } from "../_shared/whatsapp-atendimento.ts";
+import { atendimentoDb } from "../_shared/whatsapp-atendimento-db.ts";
 import {
   criarLinhaProvisoria,
   enviarTexto,
@@ -184,6 +190,28 @@ async function bloqueioEnvio(
     );
   }
   return null;
+}
+
+/**
+ * Atendimento no estilo Blip (regra em _shared/whatsapp-atendimento.ts):
+ * conversa livre → quem mexe assume; conversa de outra pessoa → 409, a menos
+ * que tenha `whatsapp.assumir_de_outros` (aí toma a conversa e registra);
+ * finalizada → reabre em nome de quem enviou. Roda ANTES de falar com o WAHA,
+ * em todo caminho que sai pelo número (texto, mídia, encaminhar, enquete,
+ * reação, edição, apagar). Retorna a Response 409 ou null se pode seguir.
+ */
+async function exigirAtendimento(
+  c: Colaborador,
+  sessaoId: string,
+  chatId: string,
+): Promise<Response | null> {
+  const r = await garantirAtendimento(atendimentoDb, {
+    sessaoId,
+    chatId,
+    eu: { id: c.id, nome: c.nome },
+    podeAssumirDeOutros: tem(c, "whatsapp.assumir_de_outros"),
+  });
+  return r.ok ? null : json(r.conflito, { status: 409 });
 }
 
 async function getSessaoOrFail(sessaoId: string): Promise<Sessao | null> {
@@ -1566,6 +1594,8 @@ serve(async (req) => {
 
       const bloqueio = await bloqueioEnvio(sessaoMsg.id, chatId);
       if (bloqueio) return bloqueio;
+      const emAtendimento = await exigirAtendimento(colaborador, sessaoMsg.id, chatId);
+      if (emAtendimento) return emAtendimento;
 
       const r = await enviarTexto({
         tenantId,
@@ -1638,6 +1668,12 @@ serve(async (req) => {
         const bloqueio = await bloqueioEnvio(sessaoMsg.id, toChatId);
         if (bloqueio) {
           const corpo = await bloqueio.json().catch(() => ({}));
+          resultados.push({ chatId: toChatId, ok: false, motivo: corpo.motivo, erro: corpo.error });
+          continue;
+        }
+        const ocupado = await exigirAtendimento(colaborador, sessaoMsg.id, toChatId);
+        if (ocupado) {
+          const corpo = await ocupado.json().catch(() => ({}));
           resultados.push({ chatId: toChatId, ok: false, motivo: corpo.motivo, erro: corpo.error });
           continue;
         }
@@ -1728,6 +1764,8 @@ serve(async (req) => {
       if (!sessaoMsg) return notFound("Sessão não encontrada");
       const bloqueio = await bloqueioEnvio(sessaoMsg.id, chatId);
       if (bloqueio) return bloqueio;
+      const emAtendimento = await exigirAtendimento(colaborador, sessaoMsg.id, chatId);
+      if (emAtendimento) return emAtendimento;
       try {
         await waha.sendPollVote({ session: sessaoMsg.nome, chatId, pollMessageId, votes });
       } catch (err) {
@@ -1775,6 +1813,8 @@ serve(async (req) => {
 
       const bloqueioMidia = await bloqueioEnvio(sessaoMsg.id, chatId);
       if (bloqueioMidia) return bloqueioMidia;
+      const emAtendimentoMidia = await exigirAtendimento(colaborador, sessaoMsg.id, chatId);
+      if (emAtendimentoMidia) return emAtendimentoMidia;
 
       const { data: signed, error: signErr } = await supabaseAdmin.storage
         .from(BUCKET)
@@ -1848,6 +1888,18 @@ serve(async (req) => {
       if (!sessaoIdBody || !messageId) return badRequest("sessaoId e messageId obrigatórios");
       const sessaoMsg = await getSessaoOrFail(sessaoIdBody);
       if (!sessaoMsg) return notFound("Sessão não encontrada");
+      // A reação chega só com o wamId: descobre a conversa pela mensagem.
+      const { data: alvo } = await supabaseAdmin
+        .from("WhatsappMensagem")
+        .select("chatId")
+        .eq("tenantId", tenantId)
+        .eq("sessaoId", sessaoMsg.id)
+        .eq("wamId", messageId)
+        .maybeSingle();
+      if (alvo?.chatId) {
+        const emAtendimento = await exigirAtendimento(colaborador, sessaoMsg.id, alvo.chatId as string);
+        if (emAtendimento) return emAtendimento;
+      }
       try {
         await waha.reactToMessage({ session: sessaoMsg.nome, messageId, reaction });
       } catch (err) {
@@ -1915,6 +1967,8 @@ serve(async (req) => {
       if (!msgRow.wamId) return badRequest("Mensagem sem wamId — não dá pra apagar no WhatsApp.");
       const sessaoMsg = await getSessaoOrFail(msgRow.sessaoId);
       if (!sessaoMsg) return notFound("Sessão da mensagem não encontrada");
+      const emAtendimento = await exigirAtendimento(colaborador, msgRow.sessaoId, msgRow.chatId);
+      if (emAtendimento) return emAtendimento;
       try {
         await waha.deleteMessage({ session: sessaoMsg.nome, chatId: msgRow.chatId, messageId: msgRow.wamId });
       } catch (err) {
@@ -1955,6 +2009,8 @@ serve(async (req) => {
       if (bloqueio) return bloqueio;
       const sessaoMsg = await getSessaoOrFail(msgRow.sessaoId);
       if (!sessaoMsg) return notFound("Sessão da mensagem não encontrada");
+      const emAtendimento = await exigirAtendimento(colaborador, msgRow.sessaoId, msgRow.chatId);
+      if (emAtendimento) return emAtendimento;
       try {
         await waha.editMessage({ session: sessaoMsg.nome, chatId: msgRow.chatId, messageId: msgRow.wamId, text: novoTexto });
       } catch (err) {

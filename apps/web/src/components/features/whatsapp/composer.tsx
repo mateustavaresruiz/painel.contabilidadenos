@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { arquivosColados } from "@/lib/clipboard-arquivos";
 import { useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
+import { ehConflitoAtendimento } from "@/lib/queries/atendimento";
 import { toast } from "@/lib/toast";
 import { useEnviarMidia, useEnviarTexto } from "@/lib/queries/whatsapp";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,8 @@ type Props = {
   onCancelReply?: () => void;
   /** Texto inicial do campo (ex.: "Parabenizar no WhatsApp" pré-preenche). */
   textoInicial?: string;
+  /** Aviso discreto sob o campo (ex.: "Ao enviar, você assume esta conversa."). */
+  dica?: string;
 };
 
 /** Altura máxima do campo de mensagem (~8 linhas). */
@@ -56,6 +59,7 @@ export function Composer({
   replyTo,
   onCancelReply,
   textoInicial,
+  dica,
 }: Props) {
   // 🔴 O Composer é montado com key={chatId} pelo pai: rascunho, anexo e
   // gravação NÃO passam para a próxima conversa (defeito 56 do adv3).
@@ -128,7 +132,7 @@ export function Composer({
         },
         {
           onError: (err) => {
-            toast.error("Não foi possível enviar o arquivo: " + msgErro(err));
+            if (!ehConflitoAtendimento(err)) toast.error("Não foi possível enviar o arquivo: " + msgErro(err));
             // Restaura UI pro user tentar de novo
             setArquivo(file);
           },
@@ -157,7 +161,9 @@ export function Composer({
       },
       {
         // A bolha fica na conversa marcada "não enviada", com reenviar.
-        onError: (err) => toast.error("Mensagem não enviada: " + msgErro(err)),
+        onError: (err) => {
+          if (!ehConflitoAtendimento(err)) toast.error("Mensagem não enviada: " + msgErro(err));
+        },
       },
     );
     setTexto("");
@@ -181,7 +187,9 @@ export function Composer({
         replyToTexto: replyTo?.texto,
       },
       {
-        onError: (err) => toast.error("Áudio não enviado: " + msgErro(err)),
+        onError: (err) => {
+          if (!ehConflitoAtendimento(err)) toast.error("Áudio não enviado: " + msgErro(err));
+        },
         onSettled: () => setEnviandoMidia(null),
       },
     );
@@ -369,6 +377,9 @@ export function Composer({
           />
         )}
       </div>
+      )}
+      {dica && !enviandoMidia && (
+        <p className="px-1 text-2xs text-muted-foreground">{dica}</p>
       )}
     </form>
   );

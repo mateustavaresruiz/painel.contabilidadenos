@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { msgErro } from "@/lib/erro";
+import { ehConflitoAtendimento } from "@/lib/queries/atendimento";
 import { useEditarMensagem } from "@/lib/queries/whatsapp";
 
 type Props = {
@@ -56,6 +57,7 @@ export function EditarMensagemDialog({
       toast.success("Mensagem editada.");
       onOpenChange(false);
     } catch (err) {
+      if (ehConflitoAtendimento(err)) return; // aviso e recarga: main.tsx
       toast.error(msgErro(err));
     }
   }

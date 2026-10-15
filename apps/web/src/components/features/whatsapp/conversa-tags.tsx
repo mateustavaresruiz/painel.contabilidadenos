@@ -48,8 +48,17 @@ export function TagsDaConversa({ chatId, className }: { chatId: string; classNam
   );
 }
 
-/** Botão do header: aplica/remove etiquetas e cria novas. */
-export function ConversaTagsBotao({ chatId }: { chatId: string }) {
+/**
+ * Aplica/remove etiquetas e cria novas. `variante="item"` é a linha rotulada
+ * do menu ⋮ do cabeçalho; o padrão é o botão de ícone.
+ */
+export function ConversaTagsBotao({
+  chatId,
+  variante = "icone",
+}: {
+  chatId: string;
+  variante?: "icone" | "item";
+}) {
   const { data: tags } = useTags();
   const { data: links } = useChatTagLinks();
   const toggle = useToggleChatTag();
@@ -100,9 +109,20 @@ export function ConversaTagsBotao({ chatId }: { chatId: string }) {
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-9" title="Etiquetas">
-          <TagIcon className={cn("size-4", aplicadas.size > 0 && "text-primary")} />
-        </Button>
+        {variante === "item" ? (
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent max-sm:min-h-11"
+          >
+            <TagIcon className={cn("size-4", aplicadas.size > 0 ? "text-primary" : "text-muted-foreground")} />
+            <span className="flex-1">Etiquetas</span>
+            {aplicadas.size > 0 && <span className="text-2xs text-muted-foreground">{aplicadas.size}</span>}
+          </button>
+        ) : (
+          <Button variant="ghost" size="icon" className="size-9" title="Etiquetas">
+            <TagIcon className={cn("size-4", aplicadas.size > 0 && "text-primary")} />
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-3">
         <div className="space-y-3">

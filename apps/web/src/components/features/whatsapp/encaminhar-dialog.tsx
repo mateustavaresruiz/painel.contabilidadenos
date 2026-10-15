@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useDebounced } from "@/hooks/use-debounced";
 import { msgErro } from "@/lib/erro";
+import { ehConflitoAtendimento } from "@/lib/queries/atendimento";
 import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import {
@@ -76,6 +77,7 @@ export function EncaminharDialog({
       );
       onOpenChange(false);
     } catch (err) {
+      if (ehConflitoAtendimento(err)) return; // aviso e recarga: main.tsx
       toast.error(msgErro(err));
     }
   }

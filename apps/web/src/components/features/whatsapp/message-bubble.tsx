@@ -37,6 +37,7 @@ import { openMediaViewer } from "@/components/ui/media-viewer";
 import { formatBytes, parsePgTimestamp } from "@/lib/format";
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { useEu } from "@/lib/colaborador";
+import { ehConflitoAtendimento } from "@/lib/queries/atendimento";
 import { msgErro } from "@/lib/erro";
 import {
   Popover,
@@ -91,6 +92,9 @@ type MessageBubbleProps = {
   onQuotedClick?: (wamId: string) => void;
   /** Novo no painel Denos: "Abrir chamado a partir desta mensagem". */
   onCriarSolicitacao?: (msg: WhatsappMensagem) => void;
+  /** Conversa em atendimento por outra pessoa: sem responder, reagir, editar,
+   *  encaminhar nem apagar (o servidor também barra com 409). */
+  somenteLeitura?: boolean;
 };
 
 /** Reações rápidas do menu da mensagem (o adv3 só exibia as recebidas). */
@@ -165,6 +169,7 @@ export const MessageBubble = memo(function MessageBubble({
   quotedMsg,
   onQuotedClick,
   onCriarSolicitacao,
+  somenteLeitura = false,
 }: MessageBubbleProps) {
   const direita = msg.fromMe;
   const apagada = !!msg.apagadoEm;
@@ -179,10 +184,12 @@ export const MessageBubble = memo(function MessageBubble({
   const { tem } = useEu();
   const pendente = !!msg._pendente || msg.id.startsWith("temp-");
   // WhatsApp só deixa apagar mensagens próprias.
-  const podeApagar = direita && !apagada && !pendente && tem("whatsapp.apagar_mensagens");
+  const podeApagar =
+    !somenteLeitura && direita && !apagada && !pendente && tem("whatsapp.apagar_mensagens");
   // Encaminhar precisa do wamId real (msg já existente no WhatsApp) e
   // só faz sentido pra conteúdo — não pra reaction/system nem apagada.
   const podeEncaminhar =
+    !somenteLeitura &&
     !!msg.wamId &&
     !apagada &&
     msg.tipo !== "reaction" &&
@@ -192,6 +199,7 @@ export const MessageBubble = memo(function MessageBubble({
   // Responder (citar) precisa do wamId real e não faz sentido pra
   // reaction/system, placeholder (sem conteúdo) nem mensagem apagada.
   const podeResponder =
+    !somenteLeitura &&
     !!onReply &&
     !!msg.wamId &&
     !apagada &&
@@ -211,6 +219,7 @@ export const MessageBubble = memo(function MessageBubble({
     ? (Date.now() - tsEnvio.getTime()) / 60_000
     : Infinity;
   const podeEditar =
+    !somenteLeitura &&
     direita &&
     !apagada &&
     msg.tipo === "text" &&
@@ -245,6 +254,7 @@ export const MessageBubble = memo(function MessageBubble({
     try {
       await reagir.mutateAsync({ sessaoId: msg.sessaoId, messageId: msg.wamId, reaction: emoji });
     } catch (err) {
+      if (ehConflitoAtendimento(err)) return; // aviso e recarga: main.tsx
       toast.error("Não foi possível reagir: " + msgErro(err));
     }
   }
@@ -300,6 +310,7 @@ export const MessageBubble = memo(function MessageBubble({
       await apagar.mutateAsync(msg.id);
       toast.success("Mensagem apagada.");
     } catch (err) {
+      if (ehConflitoAtendimento(err)) return;
       toast.error(err instanceof Error ? err.message : "Erro ao apagar");
     }
   }

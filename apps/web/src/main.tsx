@@ -1,4 +1,4 @@
-import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -10,6 +10,7 @@ import { ConfirmDialogProvider } from "./components/ui/confirm-dialog";
 import { MediaViewerProvider } from "./components/ui/media-viewer";
 import { ColaboradorProvider } from "./lib/colaborador";
 import { msgErro } from "./lib/erro";
+import { ehConflitoAtendimento, tratarConflitoAtendimento } from "./lib/queries/atendimento";
 import { bootTheme } from "./lib/theme";
 import { toast } from "./lib/toast";
 import "@fontsource-variable/plus-jakarta-sans";
@@ -31,7 +32,16 @@ function reloadOnce() {
 }
 window.addEventListener("vite:preloadError", () => reloadOnce());
 
-const queryClient = new QueryClient({
+const queryClient: QueryClient = new QueryClient({
+  // Conversa em atendimento por outra pessoa (409 do envio/reação/edição/apagar):
+  // avisa com o nome e recarrega a conversa — o aviso de bloqueio aparece sozinho.
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      if (ehConflitoAtendimento(error)) {
+        toast.error(tratarConflitoAtendimento(queryClient, error), { id: "atendimento-conflito" });
+      }
+    },
+  }),
   queryCache: new QueryCache({
     // Sem isto, erro de carregamento parece lista vazia. Só avisa quando
     // ainda não há dado na tela, e queries com `meta.silencioso` tratam o

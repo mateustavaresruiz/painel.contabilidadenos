@@ -830,13 +830,9 @@ const ChatItem = memo(function ChatItemImpl({
           <TagsDaConversa chatId={chat.id} className="mt-1.5" />
 
           {/* Linha 3 (opcional): badges de status — cliente vinculado + instância */}
-          {(temCliente || mostraPillInstancia || chat.atendimentoStatus === "finalizado") && (
-            <div className="flex items-center gap-1 mt-1.5">
-              {chat.atendimentoStatus === "finalizado" && (
-                <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-success/15 text-success rounded-full px-1.5 py-0.5 leading-none">
-                  Finalizado
-                </span>
-              )}
+          {(temCliente || mostraPillInstancia || chat.tipo !== "group") && (
+            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+              {chat.tipo !== "group" && <ChipAtendimento chat={chat} responsavel={responsavel} />}
               {temCliente && (
                 <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-bronze/15 text-bronze rounded-full px-1.5 py-0.5 leading-none">
                   <span className="size-1 rounded-full bg-bronze" aria-hidden />
@@ -1082,4 +1078,38 @@ function formatChatTime(iso: string): string {
   const diasAtras = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
   if (diasAtras < 7) return format(date, "EEE", { locale: ptBR });
   return format(date, "dd/MM");
+}
+
+/** Estado do atendimento na linha da lista: Na fila / Em atendimento / Finalizado. */
+function ChipAtendimento({
+  chat,
+  responsavel,
+}: {
+  chat: WhatsappChat;
+  responsavel: Colaborador | undefined;
+}) {
+  if (chat.atendimentoStatus === "finalizado") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-success">
+        <span className="size-1 rounded-full bg-success" aria-hidden />
+        Finalizado
+      </span>
+    );
+  }
+  if (!chat.responsavelId) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-warning">
+        <span className="size-1 rounded-full bg-warning" aria-hidden />
+        Na fila
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex max-w-[150px] items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-primary">
+      <span className="size-1 shrink-0 rounded-full bg-primary" aria-hidden />
+      <span className="truncate">
+        Em atendimento{responsavel ? ` · ${responsavel.nome.split(" ")[0]}` : ""}
+      </span>
+    </span>
+  );
 }

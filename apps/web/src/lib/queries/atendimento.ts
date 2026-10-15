@@ -1,9 +1,12 @@
-// Atendimento (novo no painel Denos): responsável por conversa, assumir,
-// finalizar e transferir. Quem muda o responsável é a RPC
-// `transferir_atendimento`, que troca e registra numa transação só.
+// Atendimento no estilo Blip (migration 007): Na fila → Em atendimento →
+// Finalizado. Quem muda o responsável é a RPC `transferir_atendimento` (assumir,
+// tomar, transferir, devolver, reabrir) e quem finaliza é `finalizar_atendimento`;
+// as duas conferem as regras no banco e gravam o histórico. Enviar numa conversa
+// livre assume no servidor (Edge Function whatsapp), então aqui não há cálculo.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ErroDaApi } from "@/lib/api";
 import { useRealtimeInvalidate } from "@/lib/realtime";
 import { supabase } from "@/lib/supabase";
 import type { AtendimentoStatus, WhatsappChat } from "@/lib/queries/whatsapp";
@@ -117,23 +120,23 @@ export function useTransferirAtendimento() {
   });
 }
 
-/** Muda só o status (finalizar / reabrir). Escrita direta: a RLS libera a coluna. */
-export function useMudarStatusAtendimento() {
+/** Finalizar: só quem está com a conversa (ou supervisor) — a RPC confere e grava o histórico. */
+export function useFinalizarAtendimento() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { chatRowId: string; status: AtendimentoStatus }) => {
-      const agora = new Date().toISOString();
-      const { error } = await supabase
-        .from("WhatsappChat")
-        .update({ atendimentoStatus: args.status, atendimentoEm: agora, atualizadoEm: agora })
-        .eq("id", args.chatRowId);
+    mutationFn: async (args: { chatRowId: string; motivo?: string | null }) => {
+      const { error } = await supabase.rpc("finalizar_atendimento", {
+        p_chat: args.chatRowId,
+        p_por: null,
+        p_motivo: args.motivo ?? null,
+      });
       if (error) throw error;
     },
     onMutate: async (args) => {
       await qc.cancelQueries({ queryKey: ["whatsapp-chats"] });
       await qc.cancelQueries({ queryKey: ["whatsapp-chat"] });
       const snaps = patchConversa(qc, args.chatRowId, {
-        atendimentoStatus: args.status,
+        atendimentoStatus: "finalizado",
         atendimentoEm: new Date().toISOString(),
       });
       return { snaps };
@@ -143,6 +146,38 @@ export function useMudarStatusAtendimento() {
   });
 }
 
+/**
+ * 409 do servidor: a conversa está em atendimento por outra pessoa. A tela
+ * mostra um aviso amigável e recarrega a conversa (o banner de bloqueio
+ * aparece sozinho com o responsável novo).
+ */
+export function ehConflitoAtendimento(err: unknown): err is ErroDaApi {
+  return err instanceof ErroDaApi && err.status === 409 && err.dados?.motivo === "em_atendimento";
+}
+
+export function conflitoAtendimentoMsg(err: ErroDaApi): string {
+  const nome = (err.dados?.responsavel as { nome?: string } | undefined)?.nome;
+  return nome
+    ? `Esta conversa está em atendimento por ${nome}. Só ela(e) pode responder.`
+    : "Esta conversa está em atendimento por outra pessoa.";
+}
+
+export function tratarConflitoAtendimento(qc: ReturnType<typeof useQueryClient>, err: ErroDaApi) {
+  qc.invalidateQueries({ queryKey: ["whatsapp-chat"] });
+  qc.invalidateQueries({ queryKey: ["whatsapp-chats"] });
+  qc.invalidateQueries({ queryKey: ["atendimento-transferencias"] });
+  return conflitoAtendimentoMsg(err);
+}
+
+export type EventoAtendimento =
+  | "assumiu"
+  | "tomou"
+  | "transferiu"
+  | "devolveu"
+  | "finalizou"
+  | "reabriu"
+  | "fila";
+
 export type AtendimentoTransferencia = {
   id: string;
   chatId: string;
@@ -150,6 +185,8 @@ export type AtendimentoTransferencia = {
   paraId: string | null;
   porId: string | null;
   motivo: string | null;
+  /** Tipo do registro (migration 007). Linhas antigas vêm nulas. */
+  evento: EventoAtendimento | null;
   criadoEm: string;
 };
 
@@ -181,7 +218,7 @@ export function useTransferencias(chatRowId: string | undefined) {
 }
 
 export const ATENDIMENTO_LABEL: Record<AtendimentoStatus, string> = {
-  aberto: "Aberto",
+  aberto: "Na fila",
   em_atendimento: "Em atendimento",
   finalizado: "Finalizado",
 };

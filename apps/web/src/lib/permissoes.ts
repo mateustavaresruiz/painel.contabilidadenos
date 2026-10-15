@@ -14,6 +14,7 @@ export const CATALOGO_PERMISSOES: GrupoPermissoes[] = [
       { chave: "whatsapp.responder", rotulo: "Responder", descricao: "Envia mensagens, áudios e arquivos, reage e encaminha." },
       { chave: "whatsapp.assumir", rotulo: "Assumir conversa", descricao: "Fica como responsável por uma conversa sem responsável." },
       { chave: "whatsapp.transferir", rotulo: "Transferir conversa", descricao: "Passa a conversa para outra pessoa ou a devolve à fila." },
+      { chave: "whatsapp.assumir_de_outros", rotulo: "Assumir conversa de outra pessoa", descricao: "Supervisão: assume, finaliza e responde conversas que estão em atendimento por outra pessoa." },
       { chave: "whatsapp.apagar_mensagens", rotulo: "Apagar mensagens e conversas", descricao: "Apaga mensagens enviadas e limpa ou remove conversas." },
       { chave: "whatsapp.exportar", rotulo: "Exportar conversa", descricao: "Baixa a conversa em PDF ou texto." },
       { chave: "whatsapp.conexoes", rotulo: "Gerenciar números", descricao: "Conecta, desconecta, cria e apaga as conexões do WhatsApp." },

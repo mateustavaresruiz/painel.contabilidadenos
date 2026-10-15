@@ -864,6 +864,9 @@ async function handleMessage(ev: WahaWebhookEvent, ctx: Ctx) {
 
   // Prévia + não lidas numa escrita atômica, e a prévia só ANDA PRA FRENTE
   // (mensagem antiga reentregue não sobrescreve a mais nova — defeito 5).
+  // Atendimento (migration 007): a MESMA RPC devolve para a fila ("aberto", sem
+  // responsável, divisor "Voltou para a fila") a conversa FINALIZADA que recebe
+  // mensagem do cliente (!fromMe). Em atendimento, só atualiza prévia/não lidas.
   const { error: chatErr } = await supabaseAdmin.rpc("whatsapp_chat_nova_mensagem", {
     p_chat_id: chat.id,
     p_texto: snippetDe(texto, tipoFinal, payloadRico),
