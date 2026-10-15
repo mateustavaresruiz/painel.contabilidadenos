@@ -54,7 +54,7 @@ function patchConversa(
 ) {
   const listas = qc.getQueriesData<WhatsappChat[]>({ queryKey: ["whatsapp-chats"] });
   for (const [key, data] of listas) {
-    if (!data) continue;
+    if (!Array.isArray(data)) continue;
     qc.setQueryData<WhatsappChat[]>(
       key,
       data.map((c) => (c.id === chatRowId ? { ...c, ...patch } : c)),

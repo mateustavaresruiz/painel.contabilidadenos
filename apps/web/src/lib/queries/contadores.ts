@@ -15,9 +15,9 @@ import { hojeISO } from "@/lib/format";
 /** Conversas com mensagem não lida que a pessoa enxerga (a RLS decide quais). */
 export function useContadorWhatsapp(enabled: boolean) {
   // Mesmo canal (tabela + filtro) da lista de conversas: o Realtime compartilha.
-  useRealtimeInvalidate("WhatsappChat", [["whatsapp-chats", "contador"]], { column: "tenantId", value: "denos" }, enabled);
+  useRealtimeInvalidate("WhatsappChat", [["contador", "whatsapp"]], { column: "tenantId", value: "denos" }, enabled);
   return useQuery({
-    queryKey: ["whatsapp-chats", "contador"],
+    queryKey: ["contador", "whatsapp"],
     enabled,
     staleTime: 60_000,
     queryFn: async () => {
@@ -37,7 +37,7 @@ export function useContadorWhatsapp(enabled: boolean) {
 export function useContadorChamados(enabled: boolean) {
   const { euId } = useEu();
   return useQuery({
-    queryKey: ["solicitacoes", "contador", euId],
+    queryKey: ["contador", "chamados", euId],
     enabled: enabled && !!euId,
     staleTime: 60_000,
     queryFn: async () => {

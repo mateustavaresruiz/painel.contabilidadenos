@@ -748,7 +748,7 @@ function patchChatsCache(
     queryKey: ["whatsapp-chats"],
   });
   for (const [key, data] of snapshots) {
-    if (!data) continue;
+    if (!Array.isArray(data)) continue;
     qc.setQueryData<WhatsappChat[]>(
       key,
       ordenarChats(data.map((c) => (match(c) ? patch(c) : c))),
@@ -797,7 +797,7 @@ export function useMarcarChatLido(sessaoId: string | undefined) {
         queryKey: ["whatsapp-chats"],
       });
       for (const [key, data] of snapshots) {
-        if (!data) continue;
+        if (!Array.isArray(data)) continue;
         qc.setQueryData<WhatsappChat[]>(
           key,
           data.map((c) =>
@@ -991,7 +991,7 @@ export function useApagarChat(sessaoId: string | undefined) {
         queryKey: ["whatsapp-chats"],
       });
       for (const [key, data] of snapshots) {
-        if (!data) continue;
+        if (!Array.isArray(data)) continue;
         qc.setQueryData<WhatsappChat[]>(
           key,
           data.filter((c) => !(c.sessaoId === sessaoId && c.chatId === chatId)),
@@ -1038,7 +1038,7 @@ export function useApagarChatsEmLote() {
         queryKey: ["whatsapp-chats"],
       });
       for (const [key, data] of snapshots) {
-        if (!data) continue;
+        if (!Array.isArray(data)) continue;
         qc.setQueryData<WhatsappChat[]>(
           key,
           data.filter((c) => !chaves.has(`${c.sessaoId}:${c.chatId}`)),
@@ -1074,7 +1074,7 @@ export function useSairDoGrupo(sessaoId: string | undefined) {
         queryKey: ["whatsapp-chats"],
       });
       for (const [key, data] of snapshots) {
-        if (!data) continue;
+        if (!Array.isArray(data)) continue;
         qc.setQueryData<WhatsappChat[]>(
           key,
           data.filter((c) => !(c.sessaoId === sessaoId && c.chatId === chatId)),

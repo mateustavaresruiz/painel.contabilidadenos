@@ -135,7 +135,7 @@ export type SolicitacoesFiltros = {
 };
 
 export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
-  useRealtimeInvalidate("Solicitacao", [["solicitacoes"]], undefined, enabled);
+  useRealtimeInvalidate("Solicitacao", [["solicitacoes"], ["contador", "chamados"]], undefined, enabled);
   return useQuery({
     queryKey: ["solicitacoes", filtros],
     placeholderData: keepPreviousData,
@@ -200,6 +200,7 @@ export function useCriarSolicitacao() {
       qc.invalidateQueries({ queryKey: ["solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["relatorio-solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["inicio"] });
+      qc.invalidateQueries({ queryKey: ["contador", "chamados"] });
     },
   });
 }
@@ -222,7 +223,7 @@ export function useAtualizarSolicitacao() {
       await qc.cancelQueries({ queryKey: ["solicitacoes"] });
       const snaps = qc.getQueriesData<Solicitacao[]>({ queryKey: ["solicitacoes"] });
       for (const [key, data] of snaps) {
-        if (!data) continue;
+        if (!Array.isArray(data)) continue;
         qc.setQueryData<Solicitacao[]>(
           key,
           data.map((s) => (s.id === args.id ? { ...s, ...args.patch } : s)),
@@ -237,6 +238,7 @@ export function useAtualizarSolicitacao() {
       qc.invalidateQueries({ queryKey: ["solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["relatorio-solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["inicio"] });
+      qc.invalidateQueries({ queryKey: ["contador", "chamados"] });
     },
   });
 }
@@ -252,6 +254,7 @@ export function useExcluirSolicitacao() {
       qc.invalidateQueries({ queryKey: ["solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["relatorio-solicitacoes"] });
       qc.invalidateQueries({ queryKey: ["inicio"] });
+      qc.invalidateQueries({ queryKey: ["contador", "chamados"] });
     },
   });
 }

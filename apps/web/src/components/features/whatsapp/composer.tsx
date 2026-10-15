@@ -1,5 +1,5 @@
 import { Loader2, Paperclip, Send, X } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,33 @@ type Props = {
   /** Texto inicial do campo (ex.: "Parabenizar no WhatsApp" pré-preenche). */
   textoInicial?: string;
 };
+
+/** Altura máxima do campo de mensagem (~8 linhas). */
+const ALTURA_MAX = 200;
+
+/**
+ * Ajusta a altura do campo ao texto. Vazio = 1 linha (a altura mínima do CSS),
+ * sempre: é o que impede a caixa gigante ao abrir uma conversa. Com texto,
+ * mede com height auto e volta à altura atual antes de aplicar a nova, para a
+ * transição animar de px para px (a partir de auto ela não anima).
+ */
+function ajustarAltura(ta: HTMLTextAreaElement) {
+  if (!ta.value) {
+    ta.style.height = "";
+    return;
+  }
+  if (ta.clientWidth === 0) return; // escondido: medir agora daria lixo
+  const antes = ta.offsetHeight;
+  ta.style.height = "auto";
+  const alvo = Math.min(ta.scrollHeight, ALTURA_MAX);
+  if (alvo === antes) {
+    ta.style.height = alvo + "px";
+    return;
+  }
+  ta.style.height = antes + "px";
+  void ta.offsetHeight; // fixa o ponto de partida da transição
+  ta.style.height = alvo + "px";
+}
 
 export function Composer({
   sessaoId,
@@ -172,21 +199,26 @@ export function Composer({
   // O campo cresce com o texto até ~8 linhas (no adv3 ficava preso em 36 px,
   // defeito 40).
   useLayoutEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    // Mede com `auto` e volta à altura atual antes de aplicar a nova: assim a
-    // transição de height anima de px para px (de `auto` ela não anima).
-    const antes = ta.offsetHeight;
-    ta.style.height = "auto";
-    const alvo = Math.min(ta.scrollHeight, 200);
-    if (alvo === antes) {
-      ta.style.height = alvo + "px";
-      return;
-    }
-    ta.style.height = antes + "px";
-    void ta.offsetHeight; // fixa o ponto de partida da transição
-    ta.style.height = alvo + "px";
+    if (taRef.current) ajustarAltura(taRef.current);
   }, [texto, gravando]);
+
+  // A largura do campo muda sem o texto mudar (abrir/fechar o painel do
+  // cliente, trocar de conversa, a lista lateral redimensionar). Medir só na
+  // digitação deixava a caixa gigante ao abrir uma conversa: na primeira
+  // medição o campo ainda estava estreito e o texto "quebrava" em dezenas de
+  // linhas. Refaz a conta toda vez que a largura muda.
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta || typeof ResizeObserver === "undefined") return;
+    let largura = ta.clientWidth;
+    const obs = new ResizeObserver(() => {
+      if (ta.clientWidth === largura) return;
+      largura = ta.clientWidth;
+      ajustarAltura(ta);
+    });
+    obs.observe(ta);
+    return () => obs.disconnect();
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
