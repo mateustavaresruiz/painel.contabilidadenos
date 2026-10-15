@@ -191,7 +191,7 @@ export function InicioPage() {
 
 function InicioMarinho(p: Inicio) {
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-[1440px]">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 mx-auto w-full max-w-[1600px]">
       <section
         className="relative overflow-hidden rounded-card text-white shadow-card animate-rise"
         style={{ backgroundImage: "url(/login-predio.jpg)", backgroundSize: "cover", backgroundPosition: "center 40%" }}
@@ -296,7 +296,7 @@ function InicioMarinho(p: Inicio) {
 function InicioColorido(p: Inicio) {
   const tudoEmDia = !p.q.isLoading && p.atencao.every((a) => a.valor === 0);
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-[1440px]">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 mx-auto w-full max-w-[1600px]">
       <header className="relative flex flex-col gap-1.5 animate-rise">
         <MarcaDagua className="-top-10 right-0" />
         <p className="text-xs font-semibold text-[color:var(--mod-inicio)] first-letter:uppercase">{p.hoje}</p>
