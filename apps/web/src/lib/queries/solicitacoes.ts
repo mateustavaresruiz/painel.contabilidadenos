@@ -46,12 +46,41 @@ export type Solicitacao = {
   criadoEm: string;
   atualizadoEm: string;
   tipo?: { id: string; nome: string } | null;
-  cliente?: { id: string; nome: string; nomeFantasia: string | null } | null;
+  cliente?: {
+    id: string;
+    nome: string;
+    nomeFantasia: string | null;
+    telefone: string | null;
+    provisorio: boolean;
+  } | null;
   chat?: { id: string; sessaoId: string; chatId: string; nome: string | null } | null;
 };
 
 const SELECT_SOLICITACAO =
-  "*, tipo:SolicitacaoTipo(id, nome), cliente:Cliente(id, nome, nomeFantasia), chat:WhatsappChat(id, sessaoId, chatId, nome)";
+  "*, tipo:SolicitacaoTipo(id, nome), cliente:Cliente(id, nome, nomeFantasia, telefone, provisorio), chat:WhatsappChat(id, sessaoId, chatId, nome)";
+
+/**
+ * Quem pediu o chamado, para a lista: o cliente (nome + telefone) ou, sem
+ * cliente, o contato da conversa (nome + número do JID @c.us).
+ */
+export function contatoDoChamado(s: Pick<Solicitacao, "cliente" | "chat">): {
+  nome: string | null;
+  telefone: string | null;
+  provisorio: boolean;
+} {
+  if (s.cliente) {
+    return {
+      nome: s.cliente.nomeFantasia || s.cliente.nome,
+      telefone: s.cliente.telefone,
+      provisorio: !!s.cliente.provisorio,
+    };
+  }
+  if (s.chat) {
+    const numero = s.chat.chatId.endsWith("@c.us") ? s.chat.chatId.split("@")[0]! : null;
+    return { nome: s.chat.nome, telefone: numero, provisorio: false };
+  }
+  return { nome: null, telefone: null, provisorio: false };
+}
 
 // ---------------------------------------------------------------------------
 // Tipos

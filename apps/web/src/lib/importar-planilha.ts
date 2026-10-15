@@ -190,7 +190,32 @@ export function melhorAba(abas: Aba[], campos: Campo[], preferido: string): numb
 // Validação
 // ---------------------------------------------------------------------------
 
-export type ClienteExistente = { id: string; nome: string; nomeFantasia: string | null; cpfCnpj: string | null; tipo: "PF" | "PJ" };
+export type ClienteExistente = {
+  id: string;
+  nome: string;
+  nomeFantasia: string | null;
+  cpfCnpj: string | null;
+  tipo: "PF" | "PJ";
+  /** Cadastro provisório (criado pelo WhatsApp): a planilha completa em vez de duplicar. */
+  provisorio?: boolean;
+  telefoneNormalizado?: string | null;
+};
+
+/** Mesmo critério de public.normalizar_telefone (migration 001): só dígitos; 10/11 dígitos ganham o 55. */
+export function normalizarTelefone(v: string): string {
+  const d = soDigitos(v);
+  return d.length === 10 || d.length === 11 ? "55" + d : d;
+}
+
+/**
+ * Variantes do telefone normalizado tolerando o 9º dígito, como
+ * public.cliente_por_telefone: 55DD8XXXXXXX casa com 55DD98XXXXXXX e vice-versa.
+ */
+export function variantesTelefone(norm: string): string[] {
+  if (norm.length === 12) return [norm, norm.slice(0, 4) + "9" + norm.slice(4)];
+  if (norm.length === 13) return [norm, norm.slice(0, 4) + norm.slice(5)];
+  return norm ? [norm] : [];
+}
 
 export type LinhaCliente = {
   linha: number;
@@ -200,6 +225,8 @@ export type LinhaCliente = {
   erros: string[];
   acao?: "criar" | "atualizar" | "repetida";
   existenteId?: string;
+  /** O "atualizar" é de um cadastro provisório achado pelo telefone (a planilha completa). */
+  completaProvisorio?: boolean;
 };
 
 function resolverTipo(v: string, doc: string): "PF" | "PJ" | "" {
@@ -222,6 +249,27 @@ function resolverRegime(v: string): string {
 
 export function validarClientes(linhas: Array<{ linha: number; c: Record<string, string> }>, existentes: ClienteExistente[]): LinhaCliente[] {
   const porDoc = new Map(existentes.filter((e) => e.cpfCnpj).map((e) => [soDigitos(e.cpfCnpj!), e]));
+  // Provisórios (criados pelo WhatsApp, sem CPF/CNPJ) pelo telefone
+  // normalizado. Dois provisórios com o mesmo telefone = ambíguo, não casa.
+  const provPorTel = new Map<string, ClienteExistente | null>();
+  for (const e of existentes) {
+    if (!e.provisorio || e.cpfCnpj || !e.telefoneNormalizado) continue;
+    const k = e.telefoneNormalizado;
+    provPorTel.set(k, provPorTel.has(k) && provPorTel.get(k)?.id !== e.id ? null : e);
+  }
+  const provUsados = new Set<string>();
+  const acharProvisorio = (tel: string): ClienteExistente | undefined => {
+    const achados = new Set<ClienteExistente>();
+    for (const v of variantesTelefone(normalizarTelefone(tel))) {
+      if (!provPorTel.has(v)) continue;
+      const e = provPorTel.get(v);
+      if (!e) return undefined; // ambíguo
+      achados.add(e);
+    }
+    if (achados.size !== 1) return undefined;
+    const [e] = [...achados];
+    return e && !provUsados.has(e.id) ? e : undefined;
+  };
   const vistos = new Map<string, number>();
   return linhas.map(({ linha, c }) => {
     const doc = docDigitos(c.cpfCnpj ?? "");
@@ -253,8 +301,14 @@ export function validarClientes(linhas: Array<{ linha: number; c: Record<string,
     } else if (doc) vistos.set(doc, linha);
     if (!item.acao) {
       const ex = doc ? porDoc.get(doc) : undefined;
-      item.acao = ex ? "atualizar" : "criar";
-      item.existenteId = ex?.id;
+      // Documento novo (ou sem documento): o telefone pode ser de um cadastro
+      // provisório criado pelo WhatsApp. Completa-o em vez de duplicar.
+      const prov = !ex && item.dados?.telefone ? acharProvisorio(item.dados.telefone) : undefined;
+      if (prov) provUsados.add(prov.id);
+      const alvo = ex ?? prov;
+      item.acao = alvo ? "atualizar" : "criar";
+      item.existenteId = alvo?.id;
+      item.completaProvisorio = !!prov;
     }
     return item;
   });
@@ -285,6 +339,11 @@ export function criarAchador(existentes: ClienteExistente[], novos: LinhaCliente
     }
   }
   const novosPorDoc = new Map(novos.filter((n) => n.dados && n.doc && n.acao === "criar").map((n) => [n.doc, n]));
+  // Provisório que a planilha completa ganha o documento nesta importação:
+  // o sócio que aponta para esse CNPJ vai para o cadastro existente.
+  const completadosPorDoc = new Map(
+    novos.filter((n) => n.dados && n.doc && n.completaProvisorio && n.existenteId).map((n) => [n.doc, n]),
+  );
   const novosPorNome = new Map(novos.filter((n) => n.dados && n.acao === "criar").map((n) => [normalizar(n.nome), n]));
   return (busca) => {
     const d = docDigitos(busca);
@@ -293,6 +352,8 @@ export function criarAchador(existentes: ClienteExistente[], novos: LinhaCliente
       if (e) return { id: e.id, nome: e.nomeFantasia || e.nome };
       const n = novosPorDoc.get(d);
       if (n) return { docNovo: d, nome: n.nome };
+      const p = completadosPorDoc.get(d);
+      if (p) return { id: p.existenteId!, nome: p.nome };
       return null;
     }
     const k = normalizar(busca);
@@ -438,7 +499,7 @@ export async function baixarModelo(alvo: "clientes" | "certificados") {
     [],
     ["• Uma linha por registro. A primeira linha é o cabeçalho; os nomes das colunas podem mudar, a tela pergunta qual é qual."],
     alvo === "clientes"
-      ? ["• Cliente com o mesmo CPF/CNPJ de um já cadastrado é ATUALIZADO (só os campos preenchidos). A aba Sócios é opcional."]
+      ? ["• Cliente com o mesmo CPF/CNPJ de um já cadastrado é ATUALIZADO (só os campos preenchidos). Cadastro provisório criado pelo WhatsApp com o mesmo telefone é COMPLETADO. A aba Sócios é opcional."]
       : ["• O cliente precisa estar cadastrado (procuramos pelo CPF/CNPJ ou pelo nome exato). Certificado igual (cliente, tipo e validade) é pulado."],
     ["• Datas em DD/MM/AAAA. Apague as linhas de exemplo antes de enviar."],
     [],

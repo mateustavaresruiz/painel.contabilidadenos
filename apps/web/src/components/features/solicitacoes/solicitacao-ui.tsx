@@ -1,4 +1,5 @@
-import { ChevronDown, ClipboardPlus, Loader2 } from "lucide-react";
+import { ChevronDown, ClipboardPlus, Info, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { ColaboradorSelect } from "@/components/colaborador-select";
@@ -25,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { useModulos } from "@/lib/modulos";
+import { garantirClienteDaConversa } from "@/lib/queries/clientes";
 import {
   STATUS_SOLICITACAO,
   STATUS_SOLICITACAO_LABEL,
@@ -38,6 +40,8 @@ import { cn } from "@/lib/utils";
 /** Origem do chamado: a conversa (e opcionalmente a mensagem) e o cliente. */
 export type OrigemSolicitacao = {
   chatRowId?: string | null;
+  /** Conversa de grupo: não ganha cadastro provisório. */
+  grupo?: boolean;
   clienteId?: string | null;
   mensagemId?: string | null;
   descricao?: string | null;
@@ -184,6 +188,12 @@ export function NovaSolicitacaoDialog({
   const { eu } = useEu();
   const { data: tipos = [] } = useSolicitacaoTipos({ somenteAtivos: true });
   const criar = useCriarSolicitacao();
+  const qc = useQueryClient();
+  const [garantindo, setGarantindo] = useState(false);
+  const salvando = garantindo || criar.isPending;
+  // Chamado aberto da conversa sem cliente: o banco vincula pelo telefone ou
+  // cria um cadastro provisório com o nome e o número do WhatsApp.
+  const semCliente = !!origem.chatRowId && !origem.clienteId && !origem.grupo;
   const [tipoId, setTipoId] = useState<string>("");
   const [descricao, setDescricao] = useState("");
   const [responsavel, setResponsavel] = useState<string | null>(null);
@@ -203,18 +213,41 @@ export function NovaSolicitacaoDialog({
       toast.error("Escolha o tipo do chamado.");
       return;
     }
+    let clienteId = origem.clienteId ?? null;
+    let provisorio: { nome: string } | null = null;
+    if (origem.chatRowId && !clienteId) {
+      setGarantindo(true);
+      try {
+        const c = await garantirClienteDaConversa(origem.chatRowId);
+        clienteId = c?.id ?? null;
+        if (c?.provisorio) provisorio = { nome: c.nome };
+        qc.invalidateQueries({ queryKey: ["whatsapp-chats"] });
+        qc.invalidateQueries({ queryKey: ["whatsapp-chat"] });
+        qc.invalidateQueries({ queryKey: ["clientes"] });
+        qc.invalidateQueries({ queryKey: ["conversas-do-cliente"] });
+      } catch (err) {
+        toast.error("Não foi possível preparar o cadastro do contato: " + msgErro(err));
+        return;
+      } finally {
+        setGarantindo(false);
+      }
+    }
     try {
       const r = await criar.mutateAsync({
         tipoId,
         descricao,
         responsavelId: responsavel,
         prazo: prazo || null,
-        clienteId: origem.clienteId ?? null,
+        clienteId,
         chatId: origem.chatRowId ?? null,
         mensagemId: origem.mensagemId ?? null,
         criadoPorId: eu?.id ?? null,
       });
-      toast.info("Chamado aberto.");
+      toast.info(
+        provisorio
+          ? `Chamado aberto. Criamos um cadastro provisório para ${provisorio.nome}; complete depois em Clientes.`
+          : "Chamado aberto.",
+      );
       onCriada?.(r.id);
       onOpenChange(false);
     } catch (err) {
@@ -236,6 +269,12 @@ export function NovaSolicitacaoDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          {semCliente && (
+            <p className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+              <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+              Vamos criar um cadastro provisório com o nome e o número do WhatsApp.
+            </p>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="sol-tipo">Tipo</Label>
             <Select value={tipoId} onValueChange={setTipoId}>
@@ -278,11 +317,11 @@ export function NovaSolicitacaoDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={criar.isPending}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={salvando}>
             Cancelar
           </Button>
-          <Button onClick={salvar} disabled={criar.isPending}>
-            {criar.isPending ? <Loader2 className="animate-spin" /> : <ClipboardPlus />}
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? <Loader2 className="animate-spin" /> : <ClipboardPlus />}
             Abrir chamado
           </Button>
         </DialogFooter>

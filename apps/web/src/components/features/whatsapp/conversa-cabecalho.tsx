@@ -125,7 +125,7 @@ export function ConversaCabecalho(p: Props) {
   ) : null;
 
   const chamado = chat ? (
-    <SolicitacaoBotaoSeAtivo origem={{ chatRowId: chat.id, clienteId: chat.clienteId }} />
+    <SolicitacaoBotaoSeAtivo origem={{ chatRowId: chat.id, clienteId: chat.clienteId, grupo: chat.tipo === "group" }} />
   ) : null;
 
   return (

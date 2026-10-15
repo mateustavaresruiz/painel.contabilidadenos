@@ -8,6 +8,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  UserCheck,
   Users,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -22,6 +23,7 @@ import { corModulo } from "@/lib/cores-modulo";
 import { cn } from "@/lib/utils";
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
+import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { DeleteClienteButton } from "@/components/features/clientes/delete-cliente-button";
 import { ResumoFiscalCliente } from "@/components/features/serpro/serpro-painel";
 import { ConsultarSituacaoBotao, ConsultasFiscaisLista } from "@/components/features/serpro/serpro-ui";
@@ -114,6 +116,7 @@ export function ClienteDetalhePage() {
               <TipoBadge tipo={cliente.tipo} />
               {cliente.regimeTributario && <Badge variant="outline">{cliente.regimeTributario}</Badge>}
               {!cliente.ativo && <Badge variant="secondary">Inativo</Badge>}
+              {cliente.provisorio && <CadastroIncompletoBadge />}
             </div>
             <p className="text-sm text-muted-foreground">
               {[
@@ -126,7 +129,13 @@ export function ClienteDetalhePage() {
           </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {podeEditar && (
+            {podeEditar && cliente.provisorio && (
+              <Link to={`/clientes/${cliente.id}/editar`} className={buttonVariants()}>
+                <UserCheck />
+                Completar cadastro
+              </Link>
+            )}
+            {podeEditar && !cliente.provisorio && (
               <Link to={`/clientes/${cliente.id}/editar`} className={buttonVariants({ variant: "outline" })}>
                 <Pencil />
                 Editar

@@ -71,16 +71,16 @@ export function formatDataHora(input: string | null | undefined): string {
 /** CPF/CNPJ só com dígitos → com máscara. */
 export function formatDoc(doc: string | null | undefined): string {
   if (!doc) return "-";
-  const d = doc.replace(/D/g, "");
-  if (d.length === 11) return d.replace(/(d{3})(d{3})(d{3})(d{2})/, "$1.$2.$3-$4");
-  if (d.length === 14) return d.replace(/(d{2})(d{3})(d{3})(d{4})(d{2})/, "$1.$2.$3/$4-$5");
+  const d = doc.replace(/\D/g, "");
+  if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
   return doc;
 }
 
 /** Telefone BR (com ou sem 55) → (DD) 9XXXX-XXXX. */
 export function formatTelefone(tel: string | null | undefined): string {
   if (!tel) return "-";
-  let d = tel.replace(/D/g, "");
+  let d = tel.replace(/\D/g, "");
   if (d.startsWith("55") && d.length >= 12) d = d.slice(2);
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
@@ -93,7 +93,7 @@ export function formatTelefone(tel: string | null | undefined): string {
  */
 export function linkWaMe(tel: string | null | undefined, texto?: string): string | null {
   if (!tel) return null;
-  let d = tel.replace(/D/g, "");
+  let d = tel.replace(/\D/g, "");
   if (d.length === 10 || d.length === 11) d = "55" + d;
   if (d.length < 12) return null;
   return `https://wa.me/${d}${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;

@@ -17,6 +17,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
+import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import {
   NovaSolicitacaoDialog,
@@ -61,8 +62,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
-import { formatData, formatDataHora, hojeISO } from "@/lib/format";
+import { formatData, formatDataHora, formatTelefone, hojeISO } from "@/lib/format";
 import {
+  contatoDoChamado,
   STATUS_SOLICITACAO,
   useAtualizarSolicitacao,
   useExcluirSolicitacao,
@@ -71,6 +73,7 @@ import {
   useSalvarSolicitacaoTipo,
   useSolicitacaoTipos,
   useSolicitacoes,
+  type Solicitacao,
   type SolicitacaoStatus,
   type SolicitacaoTipo,
 } from "@/lib/queries/solicitacoes";
@@ -331,13 +334,7 @@ function ListaAba() {
                         </p>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {s.cliente ? (
-                          <Link to={`/clientes/${s.cliente.id}`} className="hover:underline">
-                            {s.cliente.nomeFantasia || s.cliente.nome}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                        <ClienteDoChamado s={s} />
                       </TableCell>
                       <TableCell>
                         {resp ? (
@@ -381,8 +378,14 @@ function ListaAba() {
               <ItemCard
                 key={s.id}
                 titulo={s.tipo?.nome ?? "-"}
-                subtitulo={s.cliente ? s.cliente.nomeFantasia || s.cliente.nome : "Sem cliente"}
-                selo={atrasada ? <Badge variant="destructive">atrasada</Badge> : undefined}
+                subtitulo={subtituloContato(s)}
+                selo={
+                  atrasada ? (
+                    <Badge variant="destructive">atrasada</Badge>
+                  ) : s.cliente?.provisorio ? (
+                    <CadastroIncompletoBadge />
+                  ) : undefined
+                }
                 meta={[
                   s.descricao ? { texto: s.descricao } : null,
                   { icone: CalendarDays, texto: s.prazo ? `Prazo ${formatData(s.prazo)}` : "Sem prazo", alerta: atrasada },
@@ -410,6 +413,35 @@ function ListaAba() {
       {data.length > 0 && <p className="text-xs text-muted-foreground">{data.length} chamado(s)</p>}
     </div>
   );
+}
+
+/** Coluna Cliente: nome + telefone; sem cliente, o contato da conversa. */
+function ClienteDoChamado({ s }: { s: Solicitacao }) {
+  const c = contatoDoChamado(s);
+  if (!c.nome && !c.telefone) return <span className="text-muted-foreground">-</span>;
+  const tel = c.telefone ? formatTelefone(c.telefone) : null;
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-0.5 leading-tight">
+      {s.cliente ? (
+        <Link to={`/clientes/${s.cliente.id}`} className="hover:underline">
+          {c.nome}
+        </Link>
+      ) : (
+        <span>{c.nome ?? tel}</span>
+      )}
+      {tel && (c.nome || s.cliente) && tel !== c.nome && (
+        <span className="text-xs tabular-nums text-muted-foreground">{tel}</span>
+      )}
+      {c.provisorio && <CadastroIncompletoBadge className="mt-0.5" />}
+    </div>
+  );
+}
+
+function subtituloContato(s: Solicitacao): string {
+  const c = contatoDoChamado(s);
+  const tel = c.telefone ? formatTelefone(c.telefone) : null;
+  const partes = [c.nome, tel && tel !== c.nome ? tel : null].filter(Boolean);
+  return partes.length ? partes.join(" · ") : "Sem cliente";
 }
 
 // ---------------------------------------------------------------------------

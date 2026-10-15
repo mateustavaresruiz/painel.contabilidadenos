@@ -336,15 +336,17 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   );
   const chatRowId = chat?.id;
   const chatClienteId = chat?.clienteId ?? null;
+  const chatGrupo = chat?.tipo === "group";
   const handleCriarSolicitacao = useCallback(
     (m: WhatsappMensagem) =>
       setSolicitacaoDaMsg({
         chatRowId: chatRowId ?? null,
         clienteId: chatClienteId,
+        grupo: chatGrupo,
         mensagemId: m.id,
         descricao: m.texto ?? null,
       }),
-    [chatRowId, chatClienteId],
+    [chatRowId, chatClienteId, chatGrupo],
   );
   // Trocar de chat limpa a citação pendente (não vaza pro próximo chat).
   useEffect(() => {

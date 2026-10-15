@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 
 import { ColaboradorAvatar, SemResponsavelAvatar } from "@/components/colaborador-avatar";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
+import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { VincularClienteDialog } from "@/components/features/inbox/vincular-cliente-dialog";
 import {
   NovaSolicitacaoDialog,
@@ -119,6 +120,7 @@ export function PainelConversa({
                   {cliente.nomeFantasia && cliente.nomeFantasia !== cliente.nome && (
                     <p className="text-2xs text-muted-foreground">{cliente.nome}</p>
                   )}
+                  {cliente.provisorio && <CadastroIncompletoBadge className="mt-1" />}
                 </div>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                   <dt className="text-muted-foreground">{cliente.tipo === "PJ" ? "CNPJ" : "CPF"}</dt>
@@ -222,7 +224,7 @@ export function PainelConversa({
       <NovaSolicitacaoDialog
         open={novaSolicitacao}
         onOpenChange={setNovaSolicitacao}
-        origem={{ chatRowId: chat.id, clienteId: chat.clienteId }}
+        origem={{ chatRowId: chat.id, clienteId: chat.clienteId, grupo: chat.tipo === "group" }}
       />
     </div>
   );

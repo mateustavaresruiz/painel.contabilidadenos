@@ -29,6 +29,8 @@ export type Cliente = {
   estado: string | null;
   observacoes: string | null;
   ativo: boolean;
+  /** Nasceu de uma conversa do WhatsApp (nome + número), sem e-mail nem CPF/CNPJ (migration 008). */
+  provisorio: boolean;
   criadoEm: string;
   atualizadoEm: string;
 };
@@ -46,6 +48,7 @@ export type ClienteResumo = Pick<
   | "cidade"
   | "estado"
   | "ativo"
+  | "provisorio"
   | "criadoEm"
 >;
 
@@ -55,6 +58,8 @@ export type ClientesFilters = {
   regime?: RegimeTributario | "";
   /** "ativos" (padrão), "inativos" ou "todos". */
   situacao?: "ativos" | "inativos" | "todos";
+  /** Só os cadastros provisórios (criados pelo WhatsApp, sem e-mail nem CPF/CNPJ). */
+  incompletos?: boolean;
 };
 
 export function useClientes(filters: ClientesFilters) {
@@ -66,7 +71,7 @@ export function useClientes(filters: ClientesFilters) {
       let query = supabase
         .from(TABLE)
         .select(
-          "id, tipo, nome, nomeFantasia, cpfCnpj, email, telefone, regimeTributario, cidade, estado, ativo, criadoEm",
+          "id, tipo, nome, nomeFantasia, cpfCnpj, email, telefone, regimeTributario, cidade, estado, ativo, provisorio, criadoEm",
         )
         .order("nome", { ascending: true })
         .limit(500);
@@ -75,6 +80,7 @@ export function useClientes(filters: ClientesFilters) {
       const situacao = filters.situacao ?? "ativos";
       if (situacao === "ativos") query = query.eq("ativo", true);
       if (situacao === "inativos") query = query.eq("ativo", false);
+      if (filters.incompletos) query = query.eq("provisorio", true);
       const q = filters.q?.trim();
       if (q) {
         const digitos = q.replace(/\D/g, "");
@@ -92,6 +98,47 @@ export function useClientes(filters: ClientesFilters) {
       return (data ?? []) as ClienteResumo[];
     },
   });
+}
+
+/** Quantos cadastros provisórios (incompletos) existem — o número do chip "Incompletos". */
+export function useContagemIncompletos() {
+  return useQuery({
+    queryKey: ["clientes", "incompletos"],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from(TABLE)
+        .select("id", { count: "exact", head: true })
+        .eq("provisorio", true);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
+/**
+ * Cliente da conversa, garantido (RPC `garantir_cliente_da_conversa`,
+ * migration 008): já vinculado → devolve; senão vincula pelo telefone ou cria
+ * um cadastro PROVISÓRIO com o nome e o número do WhatsApp. Grupo ou conversa
+ * sem número → null. Usado antes de gravar um chamado aberto pela conversa.
+ */
+export async function garantirClienteDaConversa(
+  chatRowId: string,
+): Promise<{ id: string; nome: string; provisorio: boolean } | null> {
+  const { data, error } = await supabase.rpc("garantir_cliente_da_conversa", { p_chat: chatRowId });
+  if (error) throw error;
+  const id = (data as string | null) ?? null;
+  if (!id) return null;
+  const { data: c } = await supabase
+    .from(TABLE)
+    .select("id, nome, nomeFantasia, provisorio")
+    .eq("id", id)
+    .maybeSingle();
+  return {
+    id,
+    nome: c ? nomeExibicao(c as Pick<Cliente, "nome" | "nomeFantasia">) : "",
+    provisorio: !!(c as { provisorio?: boolean } | null)?.provisorio,
+  };
 }
 
 /** Procura um cliente existente pelo CPF/CNPJ. */

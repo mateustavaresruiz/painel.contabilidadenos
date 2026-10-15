@@ -33,7 +33,11 @@ export function EditarClientePage() {
       <PageHeader
         icon={Pencil}
         title={`Editar ${cliente.nomeFantasia || cliente.nome}`}
-        description="Atualize os dados do cliente."
+        description={
+          cliente.provisorio
+            ? "Cadastro provisório criado pelo WhatsApp. Preencha o e-mail ou o CPF/CNPJ para completá-lo."
+            : "Atualize os dados do cliente."
+        }
         topo={
           <Link to={`/clientes/${cliente.id}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground max-lg:-my-2.5 max-lg:py-2.5">
             <ChevronLeft className="size-4" />

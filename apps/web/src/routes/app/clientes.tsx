@@ -6,7 +6,9 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { ABAS_CLIENTES, ModuloAbas } from "@/components/modulo-abas";
 import { Tooltip } from "@/components/ui/tooltip";
+import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { ImportarPlanilhaBotao } from "@/components/features/importar/importar-planilha-dialog";
+import { Chips } from "@/components/ui/chips";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +37,12 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { useSort } from "@/hooks/use-sort";
 import { formatDoc, formatTelefone } from "@/lib/format";
 import { usePermissao } from "@/lib/colaborador";
-import { nomeExibicao, useClientes, type ClienteResumo } from "@/lib/queries/clientes";
+import {
+  nomeExibicao,
+  useClientes,
+  useContagemIncompletos,
+  type ClienteResumo,
+} from "@/lib/queries/clientes";
 import { REGIMES, type RegimeTributario } from "@/lib/validations/cliente";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -53,6 +60,8 @@ export function ClientesPage() {
   const situacaoParam = params.get("situacao");
   const situacao =
     situacaoParam === "inativos" || situacaoParam === "todos" ? situacaoParam : "ativos";
+  const incompletos = params.get("cadastro") === "incompletos";
+  const { data: totalIncompletos = 0 } = useContagemIncompletos();
 
   // Busca com debounce, mas refletida na URL (link compartilhável).
   const [busca, setBusca] = useState(params.get("q") ?? "");
@@ -74,8 +83,8 @@ export function ClientesPage() {
     );
   }
 
-  const { data: clientes = [], isLoading, isPlaceholderData } = useClientes({ q, tipo, regime, situacao });
-  const filtrando = !!q || !!tipo || !!regime || situacao !== "ativos";
+  const { data: clientes = [], isLoading, isPlaceholderData } = useClientes({ q, tipo, regime, situacao, incompletos });
+  const filtrando = !!q || !!tipo || !!regime || situacao !== "ativos" || incompletos;
 
   const acessores = useMemo(
     () => ({
@@ -157,6 +166,18 @@ export function ClientesPage() {
           </Select>
         </div>
       </div>
+
+      {(totalIncompletos > 0 || incompletos) && (
+        <Chips
+          rotulo="Cadastro"
+          valor={incompletos ? "incompletos" : "todos"}
+          onChange={(v) => setParam("cadastro", v === "incompletos" ? "incompletos" : "")}
+          opcoes={[
+            { valor: "todos", rotulo: "Todos" },
+            { valor: "incompletos", rotulo: `Incompletos (${totalIncompletos})` },
+          ]}
+        />
+      )}
 
       {isLoading ? (
         <ListaResponsiva
@@ -251,7 +272,12 @@ export function ClientesPage() {
                           {c.nomeFantasia && c.nomeFantasia !== c.nome && (
                             <span className="block truncate text-2xs text-muted-foreground font-normal">{c.nome}</span>
                           )}
-                          {!c.ativo && <Badge variant="secondary" className="mt-1">Inativo</Badge>}
+                          {(!c.ativo || c.provisorio) && (
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              {!c.ativo && <Badge variant="secondary">Inativo</Badge>}
+                              {c.provisorio && <CadastroIncompletoBadge />}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </TableCell>
@@ -301,7 +327,7 @@ export function ClientesPage() {
                 </span>
               }
               subtitulo={c.telefone ? formatTelefone(c.telefone) : c.email ?? undefined}
-              selo={<TipoBadge tipo={c.tipo} />}
+              selo={c.provisorio ? <CadastroIncompletoBadge /> : <TipoBadge tipo={c.tipo} />}
               meta={[
                 c.cpfCnpj ? { texto: formatDoc(c.cpfCnpj) } : null,
                 c.regimeTributario ? { texto: c.regimeTributario } : null,

@@ -55,7 +55,7 @@ const NAO_USAR = -1;
 async function carregarClientes(): Promise<ClienteExistente[]> {
   const out: ClienteExistente[] = [];
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from("Cliente").select("id, nome, nomeFantasia, cpfCnpj, tipo").order("id").range(de, de + 999);
+    const { data, error } = await supabase.from("Cliente").select("id, nome, nomeFantasia, cpfCnpj, tipo, provisorio, telefoneNormalizado").order("id").range(de, de + 999);
     if (error) throw error;
     out.push(...((data ?? []) as ClienteExistente[]));
     if (!data || data.length < 1000) return out;
@@ -327,10 +327,12 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
         }
         for (const c of validos.filter((x) => x.acao === "atualizar")) {
           // Atualiza só o que veio preenchido: célula vazia não apaga o cadastro.
-          const { tipo: _t, ativo: _a, ...resto } = c.dados!;
-          void _t;
+          // Provisório (criado pelo WhatsApp como PF) leva também o tipo da
+          // planilha; com e-mail ou CPF/CNPJ, o gatilho tira o "provisório".
+          const { tipo, ativo: _a, ...resto } = c.dados!;
           void _a;
-          const { error } = await supabase.from("Cliente").update(semVazios(resto)).eq("id", c.existenteId!);
+          const patch = c.completaProvisorio ? { ...semVazios(resto), tipo } : semVazios(resto);
+          const { error } = await supabase.from("Cliente").update(patch).eq("id", c.existenteId!);
           if (error) r.falhas.push(`Linha ${c.linha}: ${msgErro(error)}`);
           else r.atualizados++;
           setProgresso((p) => ({ ...p, feito: p.feito + 1 }));
@@ -446,7 +448,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
               <p className="mt-2 text-sm font-medium">Clique ou arraste a planilha aqui</p>
               <p className="text-xs text-muted-foreground">
                 {alvo === "clientes"
-                  ? "Uma aba de clientes e, se quiser, uma aba de sócios. Cliente com o mesmo CPF/CNPJ é atualizado."
+                  ? "Uma aba de clientes e, se quiser, uma aba de sócios. Cliente com o mesmo CPF/CNPJ é atualizado; cadastro provisório do WhatsApp com o mesmo telefone é completado."
                   : "Cliente pelo CPF/CNPJ (ou nome exato), tipo, validade, titular, emissora e telefone para aviso."}
               </p>
             </button>
@@ -491,7 +493,13 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                   linhas={previa.clientes}
                   colunas={[["Nome", (l) => l.nome], ["CPF/CNPJ", (l) => l.doc]]}
                   status={(l) =>
-                    l.erros.length ? { texto: "Erro", tom: "destructive" } : l.acao === "atualizar" ? { texto: "Atualizar", tom: "warning" } : { texto: "Novo", tom: "success" }
+                    l.erros.length
+                      ? { texto: "Erro", tom: "destructive" }
+                      : l.completaProvisorio
+                        ? { texto: "Completar provisório", tom: "warning" }
+                        : l.acao === "atualizar"
+                          ? { texto: "Atualizar", tom: "warning" }
+                          : { texto: "Novo", tom: "success" }
                   }
                 />
                 {previa.socios.length > 0 && (

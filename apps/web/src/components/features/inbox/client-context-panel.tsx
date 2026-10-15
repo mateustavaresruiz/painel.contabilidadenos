@@ -19,6 +19,7 @@ import { toast } from "@/lib/toast";
 
 import { ColaboradorAvatar, SemResponsavelAvatar } from "@/components/colaborador-avatar";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
+import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { textoTransferencia } from "@/components/features/atendimento/atendimento-acoes";
 import {
   NovaSolicitacaoDialog,
@@ -28,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
-import { formatData, formatDataHora, formatDoc, formatTelefone } from "@/lib/format";
+import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
 import { useModulos } from "@/lib/modulos";
 import { ATENDIMENTO_LABEL, useTransferencias } from "@/lib/queries/atendimento";
 import { useCertificados } from "@/lib/queries/certificados";
@@ -170,7 +171,7 @@ export function ClientContextPanel({
         <NovaSolicitacaoDialog
           open={novaSolicitacao}
           onOpenChange={setNovaSolicitacao}
-          origem={{ chatRowId: chat.id, clienteId: chat.clienteId }}
+          origem={{ chatRowId: chat.id, clienteId: chat.clienteId, grupo: chat.tipo === "group" }}
         />
       )}
     </aside>
@@ -328,6 +329,11 @@ function ClienteVinculado({
             <p className="font-semibold text-sm leading-tight">
               {nome}
             </p>
+            {cliente.provisorio && (
+              <Link to={`/clientes/${cliente.id}/editar`} className="inline-flex" title="Completar cadastro">
+                <CadastroIncompletoBadge />
+              </Link>
+            )}
             <p className="text-2xs text-muted-foreground">
               {cliente.tipo === "PF" ? "Pessoa física" : "Pessoa jurídica"}
               {cliente.cpfCnpj ? ` · ${formatDoc(cliente.cpfCnpj)}` : ""}
@@ -346,11 +352,7 @@ function ClienteVinculado({
           <QuickAction
             icon={MessageCircle}
             label="WhatsApp"
-            href={
-              cliente.telefone
-                ? `https://wa.me/${cliente.telefone.replace(/\D/g, "")}`
-                : undefined
-            }
+            href={linkWaMe(cliente.telefone) ?? undefined}
             external
           />
           <QuickAction icon={ExternalLink} label="Cadastro" to={`/clientes/${cliente.id}`} />
