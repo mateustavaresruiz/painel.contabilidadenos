@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -469,11 +470,11 @@ function RelatorioAba() {
           <>
             <div className="space-y-1.5">
               <Label htmlFor="rel-de">De</Label>
-              <Input id="rel-de" type="date" value={custom.de} onChange={(e) => setCustom((c) => ({ ...c, de: e.target.value }))} />
+              <DatePicker id="rel-de" value={custom.de} onChange={(v) => setCustom((c) => ({ ...c, de: v }))} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rel-ate">Até</Label>
-              <Input id="rel-ate" type="date" value={custom.ate} onChange={(e) => setCustom((c) => ({ ...c, ate: e.target.value }))} />
+              <DatePicker id="rel-ate" value={custom.ate} onChange={(v) => setCustom((c) => ({ ...c, ate: v }))} />
             </div>
           </>
         )}
@@ -705,7 +706,7 @@ function TipoDialog({
 }
 
 
-/** Data do filtro com o rótulo dentro do campo (o input de data não tem placeholder). */
+/** Data do filtro, no formato do painel (dd/mm/aaaa), com o rótulo ("De"/"Até") no lugar do texto vazio. */
 function CampoData({
   rotulo,
   value,
@@ -718,17 +719,8 @@ function CampoData({
   title: string;
 }) {
   return (
-    <label className="relative block" title={title}>
-      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-        {rotulo}
-      </span>
-      <Input
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={title}
-        className={cn("pl-11", !value && "text-muted-foreground")}
-      />
-    </label>
+    <span title={title} className="block">
+      <DatePicker value={value} onChange={onChange} limpavel placeholder={rotulo} aria-label={title} />
+    </span>
   );
 }

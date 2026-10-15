@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -282,11 +283,21 @@ export function ClienteForm(props: Props) {
             error={erros.dataAbertura?.message}
             help="Aniversário da empresa."
           >
-            <Input id="dataAbertura" type="date" {...form.register("dataAbertura")} />
+            <DatePicker
+              id="dataAbertura"
+              limpavel
+              value={form.watch("dataAbertura") ?? ""}
+              onChange={(v) => form.setValue("dataAbertura", v, { shouldDirty: true, shouldValidate: true })}
+            />
           </Field>
         ) : (
           <Field label="Data de nascimento" htmlFor="dataNascimento" error={erros.dataNascimento?.message}>
-            <Input id="dataNascimento" type="date" {...form.register("dataNascimento")} />
+            <DatePicker
+              id="dataNascimento"
+              limpavel
+              value={form.watch("dataNascimento") ?? ""}
+              onChange={(v) => form.setValue("dataNascimento", v, { shouldDirty: true, shouldValidate: true })}
+            />
           </Field>
         )}
       </Section>

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -146,11 +147,11 @@ export function CertificadoDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cd-emitido">Emitido em</Label>
-            <Input id="cd-emitido" type="date" value={emitidoEm} onChange={(e) => setEmitidoEm(e.target.value)} />
+            <DatePicker id="cd-emitido" limpavel value={emitidoEm} onChange={setEmitidoEm} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cd-valido">Válido até *</Label>
-            <Input id="cd-valido" type="date" value={validoAte} onChange={(e) => setValidoAte(e.target.value)} />
+            <DatePicker id="cd-valido" value={validoAte} onChange={setValidoAte} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="cd-tel">Telefone para o aviso</Label>

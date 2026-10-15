@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -273,7 +273,7 @@ export function NovaSolicitacaoDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="sol-prazo">Prazo</Label>
-              <Input id="sol-prazo" type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+              <DatePicker id="sol-prazo" limpavel value={prazo} onChange={setPrazo} />
             </div>
           </div>
         </div>

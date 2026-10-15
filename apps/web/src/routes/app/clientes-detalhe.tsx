@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { DetalheSkeleton, ListaSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -415,7 +416,7 @@ function SocioDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="so-nasc">Data de nascimento</Label>
-            <Input id="so-nasc" type="date" value={nasc} onChange={(e) => setNasc(e.target.value)} />
+            <DatePicker id="so-nasc" limpavel value={nasc} onChange={setNasc} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="so-tel">Telefone</Label>
