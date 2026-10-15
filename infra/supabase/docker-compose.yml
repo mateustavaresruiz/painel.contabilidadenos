@@ -502,6 +502,7 @@ services:
       # Serpro: só o gateway Integra Contador (certificado e credenciais ficam nele).
       GATEWAY_URL: ${GATEWAY_URL:-}
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
+      ALTCHA_HMAC_KEY: ${ALTCHA_HMAC_KEY:-}
       # Login (function equipe): URL do painel para o link de acesso e o SMTP
       # só para dizer à tela se está configurado. A senha do SMTP NÃO vem.
       SITE_URL: ${SITE_URL:-}

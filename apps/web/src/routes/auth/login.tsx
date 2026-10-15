@@ -1,8 +1,8 @@
+import "altcha";
 import { ArrowLeft, ArrowRight, Loader2, Lock, Mail } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 
-import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,17 +35,18 @@ type Resposta =
  * painel não funciona. Desligada em Configurações > Módulos, a função responde
  * 403 "desligada" e a tela cai no fluxo normal de link + código por e-mail.
  */
-async function entrarDireto(email: string): Promise<Resposta> {
+async function entrarDireto(email: string, altcha: string): Promise<Resposta> {
   const r = await fetch(`${SUPABASE_URL}/functions/v1/entrar`, {
     method: "POST",
     headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, altcha }),
   }).catch(() => null);
   if (!r) return { tipo: "erro", mensagem: "Sem conexão com o servidor. Tente de novo." };
   const j = (await r.json().catch(() => ({}))) as { token_hash?: string; error?: string };
   if (r.ok && j.token_hash) return { tipo: "token", tokenHash: j.token_hash };
   if (r.status === 403 && /desligada/i.test(j.error ?? "")) return { tipo: "desligado" };
   if (r.status === 429) return { tipo: "erro", mensagem: "Muitas tentativas. Espere alguns minutos." };
+  if (r.status === 403 && /anti-rob/i.test(j.error ?? "")) return { tipo: "erro", mensagem: j.error ?? "Verificação anti-robô falhou." };
   if (r.status === 403) return { tipo: "erro", mensagem: "Este e-mail não tem acesso ao painel. Fale com um administrador." };
   return { tipo: "erro", mensagem: j.error ?? "Não deu para entrar agora. Tente de novo." };
 }
@@ -58,6 +59,19 @@ const MENSAGENS = [
   "O escritório inteiro no mesmo ritmo.",
 ];
 const TROCA_MS = 6000;
+
+/** Textos do widget anti-robô (ALTCHA) em português. */
+const ALTCHA_TEXTOS = JSON.stringify({
+  label: "Não sou um robô",
+  verifying: "Verificando...",
+  verified: "Verificado",
+  error: "Falhou. Tente de novo.",
+  expired: "Expirou. Tente de novo.",
+  waitAlert: "Verificando, aguarde...",
+  ariaLinkLabel: "ALTCHA",
+});
+
+type WidgetAltcha = HTMLElement & { reset: () => void; verify: () => Promise<void> };
 
 function saudacao(): string {
   const h = new Date().getHours();
@@ -87,6 +101,18 @@ const ESTILO = `
 .login-seta { transition: transform .2s cubic-bezier(.16,1,.3,1); }
 .login-botao:hover .login-seta { transform: translateX(3px); }
 .login-botao:active { transform: scale(.97); }
+.login-altcha altcha-widget {
+  --altcha-max-width: 100%;
+  --altcha-border-width: 1px;
+  --altcha-border-radius: 18px;
+  --altcha-color-base: var(--card);
+  --altcha-color-border: var(--border);
+  --altcha-color-text: var(--foreground);
+  --altcha-color-border-focus: var(--primary);
+  --altcha-color-active: var(--primary);
+  --altcha-color-error-text: var(--destructive);
+  font-size: 14px;
+}
 @media (prefers-reduced-motion: reduce) {
   .login-foto, .login-sobe, .login-msg { animation: none; }
 }
@@ -115,7 +141,7 @@ function PainelFoto() {
       {/* Véu para o texto ler bem sobre a foto (funcional, não decoração). */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-black/25" aria-hidden />
       <div className="relative z-10 flex h-full flex-col justify-between p-12">
-        <img src="/logo-branco.png" alt="NÓS Contabilidade" className="h-10 w-auto self-start" />
+        <img src="/logo-branco.png" alt="NÓS Contabilidade" className="h-14 w-auto self-start" />
         <div className="max-w-md space-y-5">
           <p key={i} className="login-msg text-title-xl font-semibold text-white">
             {MENSAGENS[i]}
@@ -150,6 +176,29 @@ export function LoginPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [espera, setEspera] = useState(0);
   const codigoRef = useRef<HTMLInputElement>(null);
+  const altchaRef = useRef<WidgetAltcha>(null);
+  const [altcha, setAltcha] = useState("");
+
+  // O widget avisa quando resolveu o desafio (prova de trabalho no navegador).
+  useEffect(() => {
+    const el = altchaRef.current;
+    if (!el) return;
+    const ouvir = (ev: Event) => {
+      const d = (ev as CustomEvent<{ state: string; payload?: string }>).detail;
+      setAltcha(d.state === "verified" && d.payload ? d.payload : "");
+    };
+    el.addEventListener("statechange", ouvir);
+    return () => el.removeEventListener("statechange", ouvir);
+  }, [etapa]);
+
+  /** Cada desafio vale uma vez: depois de tentar, pede outro. */
+  function novoDesafio() {
+    setAltcha("");
+    const el = altchaRef.current;
+    if (!el) return;
+    el.reset();
+    void el.verify();
+  }
 
   useEffect(() => {
     if (espera <= 0) return;
@@ -187,11 +236,15 @@ export function LoginPage() {
       setErro("Digite um e-mail válido.");
       return;
     }
+    if (!altcha) {
+      setErro("Aguarde a verificação anti-robô terminar.");
+      return;
+    }
     setErro(null);
     setEnviando(true);
     setEmail(alvo);
     try {
-      const r = await entrarDireto(alvo);
+      const r = await entrarDireto(alvo, altcha);
       if (r.tipo === "token") {
         const { error } = await supabase.auth.verifyOtp({ token_hash: r.tokenHash, type: "magiclink" });
         if (error) setErro("Não deu para entrar agora. Tente de novo.");
@@ -203,6 +256,7 @@ export function LoginPage() {
       }
     } finally {
       setEnviando(false);
+      novoDesafio();
     }
   }
 
@@ -231,11 +285,14 @@ export function LoginPage() {
       <style>{ESTILO}</style>
       <PainelFoto />
 
-      <main className="flex flex-col px-6 py-10 sm:px-10">
-        <div className="flex flex-1 items-center justify-center">
+      <main className="flex flex-col px-6 pb-8 pt-10 max-lg:pt-0 sm:px-10">
+        <div className="flex flex-1 items-start justify-center lg:items-center">
           <div className="w-full max-w-[380px]">
-            <div className="login-sobe mb-10 lg:hidden" style={cascata(0)}>
-              <Logo className="h-10" />
+            {/* Celular: a foto vira uma faixa no topo, com a logo em branco. */}
+            <div className="lg:hidden -mx-6 mb-9 sm:-mx-10 relative h-60 overflow-hidden rounded-b-[28px] bg-[#0b1a2b]">
+              <img src="/login-predio.jpg" alt="" aria-hidden className="login-foto absolute inset-0 h-full w-full object-cover object-[50%_35%]" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-black/20" aria-hidden />
+              <img src="/logo-branco.png" alt="NÓS Contabilidade" className="login-sobe absolute bottom-6 left-6 h-12 w-auto" style={cascata(0)} />
             </div>
 
             {etapa === "email" ? (
@@ -285,11 +342,22 @@ export function LoginPage() {
                   )}
                 </div>
 
-                <div className="login-sobe" style={cascata(3)}>
+                <div className="login-sobe login-altcha" style={cascata(3)}>
+                  <altcha-widget
+                    ref={altchaRef}
+                    challengeurl={SUPABASE_URL + "/functions/v1/entrar"}
+                    auto="onload"
+                    hidefooter
+                    hidelogo
+                    strings={ALTCHA_TEXTOS}
+                  />
+                </div>
+
+                <div className="login-sobe" style={cascata(4)}>
                   <Button
                     type="submit"
                     className="login-botao h-12 w-full rounded-full text-[15px] transition-transform"
-                    disabled={enviando || espera > 0}
+                    disabled={enviando || espera > 0 || !altcha}
                   >
                     {enviando ? <Loader2 className="animate-spin" /> : null}
                     {espera > 0 ? `Aguarde ${espera} s` : enviando ? "Entrando" : "Entrar"}

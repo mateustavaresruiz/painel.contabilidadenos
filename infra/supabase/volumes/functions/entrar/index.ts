@@ -7,7 +7,8 @@
 // Configurações > Módulos (Config 'modulos'.loginSemVerificacao). Quando o
 // SMTP estiver funcionando, DESLIGUE: o login volta a ser só por link/código.
 //
-//   POST /entrar { email } → { token_hash } que a tela troca por sessão com
+//   GET  /entrar → desafio ALTCHA (prova de trabalho; o navegador resolve)
+//   POST /entrar { email, altcha } → { token_hash } que a tela troca por sessão com
 //        verifyOtp({ token_hash, type: 'magiclink' }), o mesmo caminho do link.
 //
 // Só e-mail de Colaborador ativo e amarrado ao Auth. Freio por IP e global,
@@ -18,8 +19,10 @@ import { badRequest, errorResponse, forbidden, json, notFound } from "../_shared
 import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
 import { dentroDoLimite } from "../_shared/rate-limit.ts";
+import { createChallenge, verifySolution } from "npm:altcha-lib@2.6.0/v1";
 
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const ALTCHA_KEY = Deno.env.get("ALTCHA_HMAC_KEY") ?? "";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** A chave vale enquanto não for desligada explicitamente. */
@@ -36,7 +39,19 @@ function ipDe(req: Request): string {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return handleCors(req);
+  if (!ALTCHA_KEY) return errorResponse("Proteção anti-robô não configurada (ALTCHA_HMAC_KEY).", 503);
+
+  // Desafio novo a cada pedido; vence em 10 minutos.
+  if (req.method === "GET") {
+    const desafio = await createChallenge({
+      hmacKey: ALTCHA_KEY,
+      maxNumber: 100_000,
+      expires: new Date(Date.now() + 10 * 60_000),
+    });
+    return json(desafio, { headers: { "Cache-Control": "no-store" } });
+  }
   if (req.method !== "POST") return notFound();
+  // O desafio (GET) sai sem a chave: o widget o busca sozinho e ele não revela nada.
   if (!ANON_KEY || req.headers.get("apikey") !== ANON_KEY) return forbidden();
 
   if (!(await liberado())) {
@@ -51,6 +66,19 @@ serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 254) : "";
   if (!EMAIL_RE.test(email)) return badRequest("E-mail inválido.");
+
+  // Anti-robô: a solução tem de ser válida, no prazo e usada uma vez só.
+  const altcha = typeof body.altcha === "string" ? body.altcha.slice(0, 2000) : "";
+  if (!altcha || !(await verifySolution(altcha, ALTCHA_KEY, true).catch(() => false))) {
+    return forbidden("Verificação anti-robô falhou. Recarregue a página e tente de novo.");
+  }
+  let assinatura = "";
+  try {
+    assinatura = String(JSON.parse(atob(altcha)).signature ?? "");
+  } catch { /* payload já validado acima */ }
+  if (!(await dentroDoLimite({ action: "altcha", sujeito: assinatura, max: 1, windowSecs: 900 }))) {
+    return forbidden("Verificação anti-robô já usada. Recarregue a página.");
+  }
 
   const { data: c } = await supabaseAdmin
     .from("Colaborador")
