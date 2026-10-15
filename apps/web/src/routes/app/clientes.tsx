@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { ABAS_CLIENTES, ModuloAbas } from "@/components/modulo-abas";
 import { Tooltip } from "@/components/ui/tooltip";
+import { ImportarPlanilhaBotao } from "@/components/features/importar/importar-planilha-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,12 +95,15 @@ export function ClientesPage() {
         description="Empresas e pessoas atendidas pelo escritório."
         actions={
           podeEditar ? (
+            <div className="flex flex-wrap gap-2">
+            <ImportarPlanilhaBotao alvo="clientes" />
             <Button asChild>
               <Link to="/clientes/novo">
                 <Plus />
                 Novo cliente
               </Link>
             </Button>
+            </div>
           ) : undefined
         }
       />

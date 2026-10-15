@@ -41,6 +41,7 @@ import {
   type ConsultaFiscal,
   type SerproStatus,
 } from "@/lib/queries/denos";
+import { ROTULO_SERVICO } from "@/lib/queries/serpro";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -437,12 +438,16 @@ export function ConsultasFiscaisLista({
                   {mostrarCliente && c.cliente
                     ? `${c.cliente.nomeFantasia || c.cliente.nome} · `
                     : ""}
-                  {c.servico}
+                  {ROTULO_SERVICO[c.servico] ?? c.servico}
+                  {(c as { origem?: string }).origem === "agendamento" && (
+                    <span className="ml-1.5 text-2xs font-normal text-muted-foreground">· agendamento</span>
+                  )}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   {formatDataHora(c.criadoEm)}
                   {mostrarCliente && c.cliente?.cpfCnpj ? ` · ${formatDoc(c.cliente.cpfCnpj)}` : ""}
                   {c.resumo ? ` · ${c.resumo}` : ""}
+                  {(c as { custoEstimado?: number | null }).custoEstimado ? ` · ${formatBRL(Number((c as { custoEstimado?: number }).custoEstimado))}` : ""}
                 </p>
               </div>
               <StatusConsultaBadge status={c.status} />
@@ -455,9 +460,15 @@ export function ConsultasFiscaisLista({
                   <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{c.erro}</p>
                 )}
                 {c.resultado != null ? (
-                  <pre className="max-h-80 overflow-auto rounded-md bg-muted p-3 text-2xs leading-relaxed whitespace-pre-wrap break-all">
-                    {JSON.stringify(c.resultado, null, 2)}
-                  </pre>
+                  <>
+                    <ResultadoLegivel consulta={c} />
+                    <details>
+                      <summary className="cursor-pointer text-2xs text-muted-foreground">Resposta completa</summary>
+                      <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-2xs leading-relaxed whitespace-pre-wrap break-all">
+                        {JSON.stringify(c.resultado, null, 2)}
+                      </pre>
+                    </details>
+                  </>
                 ) : (
                   !c.erro && <p className="text-xs text-muted-foreground">Sem resultado detalhado.</p>
                 )}
@@ -470,3 +481,57 @@ export function ConsultasFiscaisLista({
   );
 }
 
+
+type MsgCaixa = { data: string; assunto: string; naoLida: boolean; importante: boolean };
+type Parcel = { numero: string; situacao: string | null; status: string; dataPedido: unknown };
+
+/** Leitura humana do resultado: caixa postal, parcelamentos e procuração. */
+function ResultadoLegivel({ consulta }: { consulta: ConsultaFiscal }) {
+  const r = (consulta.resultado ?? {}) as Record<string, unknown>;
+  if (consulta.servico === "CAIXAPOSTAL" && r.caixaPostal) {
+    const cx = r.caixaPostal as { total: number; naoLidas: number; importantes: number; mensagens: MsgCaixa[]; temMaisPaginas?: boolean };
+    return (
+      <div className="space-y-1.5">
+        <p className="text-xs">
+          {cx.total} mensagem(ns) · {cx.naoLidas} não lida(s) · <strong className={cn(cx.importantes > 0 && "text-destructive")}>{cx.importantes} importante(s)</strong>
+          {cx.temMaisPaginas ? " · só a primeira página" : ""}
+        </p>
+        <ul className="divide-y rounded-md border text-xs">
+          {cx.mensagens.map((m, i) => (
+            <li key={i} className={cn("flex gap-2 px-3 py-1.5", m.importante && "bg-destructive/5")}>
+              <span className="text-muted-foreground tabular-nums shrink-0">{m.data}</span>
+              <span className={cn("flex-1", m.naoLida && "font-medium")}>{m.assunto}</span>
+              {m.importante && <span className="text-destructive text-2xs">importante</span>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (consulta.servico === "PARCELAMENTOS" && Array.isArray(r.parcelamentos)) {
+    const ps = r.parcelamentos as Parcel[];
+    if (ps.length === 0) return <p className="text-xs text-muted-foreground">Nenhum pedido de parcelamento ({String(r.modalidade ?? "")}).</p>;
+    return (
+      <ul className="divide-y rounded-md border text-xs">
+        {ps.map((p) => (
+          <li key={p.numero} className="flex gap-2 px-3 py-1.5">
+            <span className="font-medium">Nº {p.numero}</span>
+            <span className="flex-1 text-muted-foreground">{p.situacao ?? ""}</span>
+            <span className={cn(p.status === "ATIVO" ? "text-warning" : "text-muted-foreground")}>{p.status}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (consulta.servico === "PROCURACAO" && r.procuracao) {
+    const ativa = r.procuracao === "ativa";
+    return (
+      <p className={cn("text-xs", ativa ? "text-success" : "text-destructive")}>
+        {ativa ? "Procuração vigente" : "Sem procuração vigente para o escritório"}
+        {r.validade ? ` até ${String(r.validade).split("-").reverse().join("/")}` : ""}
+        {Array.isArray(r.sistemas) && r.sistemas.length ? ` · ${r.sistemas.length} sistema(s) liberado(s)` : ""}
+      </p>
+    );
+  }
+  return null;
+}

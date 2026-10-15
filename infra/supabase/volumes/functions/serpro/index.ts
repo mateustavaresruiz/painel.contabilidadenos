@@ -29,6 +29,10 @@
 //   PGDASD   CONSULTIMADECREC14 { periodoApuracao: AAAAMM }   (Consultar)
 //   DCTFWEB  CONSRECIBO32 { categoria, anoPA, mesPA }         (Consultar)
 //   CCMEI    DADOSCCMEI122 — verbo fora da tabela do gateway: ele pede PIN
+//   CAIXAPOSTAL   MSGCONTRIBUINTE61 (Consultar) — mensagens do e-CAC, conta as importantes não lidas
+//   PARCELAMENTOS PEDIDOSPARC163 (Simples) / PEDIDOSPARC203 (MEI) (Consultar), pelo regime do cadastro
+//   PROCURACAO    OBTERPROCURACAO41 (Consultar) — o gateway preenche outorgante/outorgado
+//   (lógica em _shared/serpro-servicos.ts, compartilhada com o agendamento em crons)
 //   AVANCADO { idSistema, idServico, versaoSistema?, dados?, verbo? } — o
 //            gateway decide se executa ou pede PIN
 // Quando o gateway pede confirmação (HTTP 202), a consulta fica `pendente`
@@ -43,499 +47,24 @@ import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
 import { exigirColaborador, semPermissao, tem } from "../_shared/acesso.ts";
 import { recordError } from "../_shared/error-log.ts";
 import { enforceRateLimit, sujeitoTenant } from "../_shared/rate-limit.ts";
+import { gateway, gatewayConfigurado, type RespostaGateway } from "../_shared/serpro.ts";
 import {
-  base64ParaBytes,
-  type ConfirmacaoGateway,
-  contribuinteDe,
-  gateway,
-  gatewayConfigurado,
-  GatewayErro,
-  mensagensTexto,
-  normalizar,
-  pedidoChamada,
-  type RespostaGateway,
-  type ResultadoGateway,
-  textoDoPdf,
-} from "../_shared/serpro.ts";
-
-const BUCKET = "consultas-fiscais";
-const SERVICOS = ["SITFIS", "PGDASD", "DCTFWEB", "CCMEI", "AVANCADO"] as const;
-type Servico = (typeof SERVICOS)[number];
-
-/** Quanto o SITFIS pode esperar dentro de UMA requisição (runtime corta em 150s). */
-const ORCAMENTO_SITFIS_MS = 100_000;
-
-/** Nome legível de cada pendência que o gateway lista em `faltam`. */
-const FALTA_LEGIVEL: Record<string, string> = {
-  SERPRO_CONSUMER_KEY: "SERPRO_CONSUMER_KEY (consumer key do contrato Integra Contador)",
-  SERPRO_CONSUMER_SECRET: "SERPRO_CONSUMER_SECRET (consumer secret do contrato Integra Contador)",
-  SERPRO_CONTRATANTE_CNPJ: "SERPRO_CONTRATANTE_CNPJ (CNPJ do contratante)",
-  SERPRO_CERT_PASSWORD: "SERPRO_CERT_PASSWORD (senha do certificado A1)",
-  GATEWAY_PIN_CONFIRMACAO: "GATEWAY_PIN_CONFIRMACAO (PIN de confirmação do gateway)",
-  GATEWAY_API_KEY: "GATEWAY_API_KEY (chave do gateway)",
-};
-
-type Desfecho = {
-  status: "pendente" | "ok" | "com_pendencia" | "erro";
-  resumo: string;
-  resultado: Record<string, unknown>;
-  erro?: string | null;
-};
-
-type Consulta = {
-  id: string;
-  clienteId: string;
-  servico: string;
-  status?: string;
-  resultado: Record<string, unknown> | null;
-};
-
-type Ctx = { consulta: Consulta; contribuinte: string; operador: string; body: Record<string, unknown> };
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function mesAnterior(): { ano: string; mes: string } {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCMonth(d.getUTCMonth() - 1);
-  return { ano: String(d.getUTCFullYear()), mes: String(d.getUTCMonth() + 1).padStart(2, "0") };
-}
-
-/** "AAAAMM" do body ou o mês anterior. */
-function periodoDe(raw: unknown): { ano: string; mes: string } | null {
-  if (raw == null || raw === "") return mesAnterior();
-  const s = String(raw).replace(/\D/g, "");
-  if (!/^\d{6}$/.test(s)) return null;
-  const mes = Number(s.slice(4));
-  if (mes < 1 || mes > 12) return null;
-  return { ano: s.slice(0, 4), mes: s.slice(4) };
-}
-
-async function salvarPdf(c: Consulta, nome: string, b64: string): Promise<string | null> {
-  try {
-    const bytes = base64ParaBytes(b64);
-    const path = `${TENANT_ID}/${c.clienteId}/${c.id}-${nome.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    const { error } = await supabaseAdmin.storage
-      .from(BUCKET)
-      .upload(path, bytes, { contentType: "application/pdf", upsert: true });
-    if (error) {
-      console.warn("[serpro] upload pdf", error.message);
-      return null;
-    }
-    return path;
-  } catch (err) {
-    console.warn("[serpro] pdf inválido", err instanceof Error ? err.message : String(err));
-    return null;
-  }
-}
-
-/** Custo e rastreio que o gateway devolve — vão junto pro `resultado`. */
-function rastreio(r: ResultadoGateway): Record<string, unknown> {
-  return {
-    chamadaId: r.chamada_id ?? null,
-    serproHttp: r.serpro_http,
-    cobrado: r.cobrado ?? null,
-    custoEstimado: r.custo_estimado ?? null,
-  };
-}
-
-/** O Serpro respondeu com erro → desfecho `erro` com a mensagem dele. */
-function desfechoDeErroSerpro(r: ResultadoGateway, oQue: string): Desfecho {
-  const msgs = mensagensTexto(r);
-  return {
-    status: "erro",
-    resumo: `${oQue}: o Serpro respondeu HTTP ${r.serpro_http}${msgs ? ` — ${msgs}` : ""}`.slice(0, 1000),
-    resultado: { ...rastreio(r), mensagens: r.mensagens },
-    erro: msgs || `HTTP ${r.serpro_http}`,
-  };
-}
-
-/** Erro DO GATEWAY (chave, pausa, duplicado, limite, configuração). */
-function desfechoDeErroGateway(g: RespostaGateway, oQue: string): Desfecho {
-  const codigo = typeof g.corpo.erro === "string" ? g.corpo.erro : `HTTP ${g.http}`;
-  const msg = typeof g.corpo.mensagem === "string" ? g.corpo.mensagem : "";
-  return {
-    status: "erro",
-    resumo: `${oQue}: o gateway recusou (${codigo})${msg ? ` — ${msg}` : ""}`.slice(0, 1000),
-    resultado: { gatewayHttp: g.http, gatewayErro: codigo },
-    erro: codigo,
-  };
-}
-
-function desfechoAguardandoPin(c: ConfirmacaoGateway, extra: Record<string, unknown> = {}): Desfecho {
-  return {
-    status: "pendente",
-    resumo: `Aguardando confirmação com PIN: ${c.resumo}${c.custo_estimado ? ` (custo estimado R$ ${c.custo_estimado.toFixed(2)})` : ""}.`,
-    resultado: {
-      ...extra,
-      aguardandoPin: true,
-      confirmacao: { id: c.id, resumo: c.resumo, custoEstimado: c.custo_estimado ?? null, expiraEm: c.expira_em ?? null },
-    },
-  };
-}
-
-/** Exceção (sem resposta do gateway, ou código nosso) → desfecho `erro`. */
-function desfechoDeExcecao(err: unknown): Desfecho {
-  const msg = err instanceof Error ? err.message : String(err);
-  return {
-    status: "erro",
-    resumo: msg.slice(0, 1000),
-    resultado: err instanceof GatewayErro ? { gatewayErro: err.codigo } : {},
-    erro: msg.slice(0, 1000),
-  };
-}
-
-type Chamada =
-  | { tipo: "resultado"; r: ResultadoGateway }
-  | { tipo: "pin"; confirmacao: ConfirmacaoGateway }
-  | { tipo: "erro"; g: RespostaGateway };
-
-async function chamar(ctx: Ctx, pedido: Parameters<typeof pedidoChamada>[0]): Promise<Chamada> {
-  const g = await gateway("/v1/chamadas", { body: pedidoChamada(pedido), operador: ctx.operador });
-  if (g.http === 202 && g.corpo.confirmacao) return { tipo: "pin", confirmacao: g.corpo.confirmacao };
-  if (g.http === 200) return { tipo: "resultado", r: g.corpo as unknown as ResultadoGateway };
-  return { tipo: "erro", g };
-}
-
-// ---------------------------------------------------------------------------
-// Interpretação por serviço (o `r` vem igual de uma chamada direta ou de
-// uma confirmação com PIN)
-// ---------------------------------------------------------------------------
-
-async function interpretarPgdasd(ctx: Ctx, r: ResultadoGateway, periodo: string): Promise<Desfecho> {
-  const pa = `${periodo.slice(4)}/${periodo.slice(0, 4)}`;
-  const d = (r.dados ?? {}) as {
-    numeroDeclaracao?: string;
-    recibo?: { pdf?: string };
-    declaracao?: { pdf?: string };
-    maed?: { pdfNotificacao?: string; pdfDarf?: string };
-  };
-  if (r.ok && d.numeroDeclaracao) {
-    const pdfPath = d.recibo?.pdf ? await salvarPdf(ctx.consulta, "recibo-pgdasd.pdf", d.recibo.pdf) : null;
-    const declaracaoPath = d.declaracao?.pdf ? await salvarPdf(ctx.consulta, "declaracao-pgdasd.pdf", d.declaracao.pdf) : null;
-    const temMaed = !!(d.maed?.pdfNotificacao || d.maed?.pdfDarf);
-    return {
-      status: temMaed ? "com_pendencia" : "ok",
-      resumo: temMaed
-        ? `PGDAS-D ${pa} transmitido (nº ${d.numeroDeclaracao}) com multa por atraso (MAED).`
-        : `PGDAS-D ${pa} transmitido (nº ${d.numeroDeclaracao}).`,
-      resultado: { ...rastreio(r), periodo, numeroDeclaracao: d.numeroDeclaracao, pdfPath, declaracaoPath, maed: temMaed },
-    };
-  }
-  if (r.ok || r.serpro_http === 404) {
-    const msgs = mensagensTexto(r);
-    return {
-      status: "com_pendencia",
-      resumo: `Nenhuma declaração PGDAS-D transmitida para ${pa}.${msgs ? ` (${msgs})` : ""}`.slice(0, 1000),
-      resultado: { ...rastreio(r), periodo, mensagens: r.mensagens },
-    };
-  }
-  return desfechoDeErroSerpro(r, `PGDAS-D ${pa}`);
-}
-
-async function interpretarDctfweb(ctx: Ctx, r: ResultadoGateway, periodo: string, categoria: number): Promise<Desfecho> {
-  const pa = `${periodo.slice(4)}/${periodo.slice(0, 4)}`;
-  const pdf = r.pdfs?.[0]?.base64;
-  if (r.ok && pdf) {
-    const pdfPath = await salvarPdf(ctx.consulta, "recibo-dctfweb.pdf", pdf);
-    return {
-      status: "ok",
-      resumo: `DCTFWeb ${pa} transmitida (recibo disponível).`,
-      resultado: { ...rastreio(r), periodo, categoria, pdfPath },
-    };
-  }
-  if (r.ok || r.serpro_http === 404) {
-    const msgs = mensagensTexto(r);
-    return {
-      status: "com_pendencia",
-      resumo: `Sem recibo de DCTFWeb para ${pa} (declaração não transmitida?).${msgs ? ` (${msgs})` : ""}`.slice(0, 1000),
-      resultado: { ...rastreio(r), periodo, categoria, mensagens: r.mensagens },
-    };
-  }
-  return desfechoDeErroSerpro(r, `DCTFWeb ${pa}`);
-}
-
-function interpretarCcmei(r: ResultadoGateway): Desfecho {
-  if (!r.ok || !r.dados || typeof r.dados !== "object") return desfechoDeErroSerpro(r, "CCMEI");
-  const d = r.dados as { situacaoCadastralVigente?: string; enquadramento?: { optanteMei?: boolean } };
-  const situacao = d.situacaoCadastralVigente ?? "desconhecida";
-  const optante = d.enquadramento?.optanteMei;
-  const ok = normalizar(situacao).includes("ativa") && optante !== false;
-  return {
-    status: ok ? "ok" : "com_pendencia",
-    resumo: `MEI: situação cadastral ${situacao}${optante === false ? ", NÃO optante pelo SIMEI" : ""}.`,
-    resultado: { ...rastreio(r), dados: d },
-  };
-}
-
-async function interpretarAvancado(ctx: Ctx, r: ResultadoGateway, rotulo: string): Promise<Desfecho> {
-  if (!r.ok) return desfechoDeErroSerpro(r, rotulo);
-  const pdf = r.pdfs?.[0]?.base64;
-  const pdfPath = pdf ? await salvarPdf(ctx.consulta, "documento.pdf", pdf) : null;
-  const msgs = mensagensTexto(r);
-  return {
-    status: "ok",
-    resumo: `${rotulo}: HTTP ${r.serpro_http}${msgs ? ` — ${msgs}` : ""}`.slice(0, 1000),
-    // O base64 do PDF já está no bucket; não duplica no jsonb.
-    resultado: { ...rastreio(r), mensagens: r.mensagens, dados: pdf ? null : r.dados, pdfPath },
-  };
-}
-
-/**
- * Classifica o relatório SITFIS lendo o texto do PDF (best-effort). A Receita
- * escreve "Não foram detectadas pendências/exigibilidades suspensas" quando
- * está tudo certo, e lista "Pendência - ..." quando não.
- */
-async function diagnosticoSitfis(pdfB64: string) {
-  let texto = "";
-  try {
-    texto = await textoDoPdf(base64ParaBytes(pdfB64));
-  } catch { /* fica vazio */ }
-  const n = normalizar(texto);
-  const trechos: string[] = [];
-  for (const m of n.matchAll(/pendencia\s*-\s*[^.]{0,120}/g)) {
-    if (trechos.length < 10) trechos.push(m[0].trim());
-  }
-  if (n.includes("nao foram detectadas pendencias") && trechos.length === 0) {
-    return {
-      status: "ok" as const,
-      diagnostico: "sem_pendencias",
-      resumo: "Sem pendências na Receita Federal e na PGFN (relatório de situação fiscal).",
-      trechos,
-    };
-  }
-  if (trechos.length > 0) {
-    return {
-      status: "com_pendencia" as const,
-      diagnostico: "com_pendencias",
-      resumo: `Relatório de situação fiscal aponta pendência(s): ${trechos.slice(0, 3).join("; ")}.`.slice(0, 1000),
-      trechos,
-    };
-  }
-  // ⚠️ Não deu pra ler o diagnóstico (fonte do PDF ilegível). `ok` aqui quer
-  // dizer "relatório emitido", e o resumo diz isso com todas as letras.
-  return {
-    status: "ok" as const,
-    diagnostico: "indeterminado",
-    resumo: "Relatório de situação fiscal emitido. Não foi possível ler o diagnóstico automaticamente: abra o PDF.",
-    trechos,
-  };
-}
-
-async function interpretarRelatorioSitfis(ctx: Ctx, r: ResultadoGateway, protocolo: string): Promise<Desfecho> {
-  const pdf = r.pdfs?.[0]?.base64;
-  if (!r.ok || !pdf) return desfechoDeErroSerpro(r, "Emissão do relatório de situação fiscal");
-  const pdfPath = await salvarPdf(ctx.consulta, "situacao-fiscal.pdf", pdf);
-  const diag = await diagnosticoSitfis(pdf);
-  return {
-    status: diag.status,
-    resumo: diag.resumo,
-    resultado: {
-      ...rastreio(r),
-      protocoloRelatorio: protocolo,
-      pdfPath,
-      diagnostico: diag.diagnostico,
-      trechos: diag.trechos,
-      mensagens: r.mensagens,
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// SITFIS — relatório de situação fiscal (2 passos, assíncrono)
-// ---------------------------------------------------------------------------
-
-async function sitfisSolicitar(ctx: Ctx): Promise<{ protocolo: string; esperaMs: number } | Desfecho> {
-  const ch = await chamar(ctx, {
-    contribuinte: ctx.contribuinte,
-    idSistema: "SITFIS",
-    idServico: "SOLICITARPROTOCOLO91",
-    versaoSistema: "2.0",
-    dados: "",
-  });
-  if (ch.tipo === "erro") return desfechoDeErroGateway(ch.g, "Solicitação do relatório de situação fiscal");
-  if (ch.tipo === "pin") return desfechoAguardandoPin(ch.confirmacao);
-  if (ch.r.ok && ch.r.protocolo) return { protocolo: ch.r.protocolo, esperaMs: ch.r.tempo_espera ?? 0 };
-  return desfechoDeErroSerpro(ch.r, "Solicitação do relatório de situação fiscal");
-}
-
-/**
- * Passo 2: emite o relatório com o protocolo. "Ainda processando" (202/204)
- * espera o `tempo_espera` e tenta de novo — 🔴 cada 202 é COBRADO, então
- * nunca antes do tempo. Esgotado o orçamento, devolve `pendente` com o
- * protocolo pra rota /retomar continuar.
- */
-async function sitfisEmitir(ctx: Ctx, protocolo: string, esperaInicialMs: number, inicio: number): Promise<Desfecho> {
-  let espera = esperaInicialMs;
-  let tentativa = 0;
-  while (true) {
-    const restante = ORCAMENTO_SITFIS_MS - (Date.now() - inicio);
-    if (espera > restante) {
-      return {
-        status: "pendente",
-        resumo: "Relatório em processamento na Receita. Clique em \"Atualizar\" em instantes para buscá-lo.",
-        resultado: { protocoloRelatorio: protocolo, proximaTentativaEm: new Date(Date.now() + espera).toISOString() },
-      };
-    }
-    if (espera > 0) await sleep(espera);
-    const ch = await chamar(ctx, {
-      contribuinte: ctx.contribuinte,
-      idSistema: "SITFIS",
-      idServico: "RELATORIOSITFIS92",
-      versaoSistema: "2.0",
-      dados: { protocoloRelatorio: protocolo },
-      // Repetir depois do tempo de espera é intencional: a trava de 60 s do
-      // gateway é pra clique duplo, não pra este laço.
-      repetir: tentativa > 0,
-    });
-    tentativa++;
-    if (ch.tipo === "pin") return desfechoAguardandoPin(ch.confirmacao, { protocoloRelatorio: protocolo });
-    if (ch.tipo === "erro") {
-      // 409 DUPLICADA no /retomar: alguém acabou de pedir o mesmo relatório.
-      if (ch.g.http === 409) {
-        return {
-          status: "pendente",
-          resumo: "O relatório acabou de ser pedido. Aguarde um minuto e clique em \"Atualizar\".",
-          resultado: { protocoloRelatorio: protocolo },
-        };
-      }
-      return desfechoDeErroGateway(ch.g, "Emissão do relatório de situação fiscal");
-    }
-    if (ch.r.ok && ch.r.processando && !ch.r.pdfs?.length) {
-      espera = Math.max(ch.r.tempo_espera ?? 5_000, 2_000);
-      continue;
-    }
-    return interpretarRelatorioSitfis(ctx, ch.r, protocolo);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Demais serviços (síncronos, ou PIN)
-// ---------------------------------------------------------------------------
-
-async function rodarServico(ctx: Ctx, servico: Servico): Promise<Desfecho> {
-  const { body } = ctx;
-  if (servico === "SITFIS") {
-    const inicio = Date.now();
-    const sol = await sitfisSolicitar(ctx);
-    return "status" in sol ? sol : sitfisEmitir(ctx, sol.protocolo, sol.esperaMs, inicio);
-  }
-
-  if (servico === "PGDASD") {
-    const pa = periodoDe(body.periodo);
-    if (!pa) return { status: "erro", resumo: "Período inválido (use AAAAMM).", resultado: {}, erro: "periodo" };
-    const periodo = `${pa.ano}${pa.mes}`;
-    const ch = await chamar(ctx, {
-      contribuinte: ctx.contribuinte,
-      idSistema: "PGDASD",
-      idServico: "CONSULTIMADECREC14",
-      dados: { periodoApuracao: periodo },
-    });
-    if (ch.tipo === "erro") return desfechoDeErroGateway(ch.g, "PGDAS-D");
-    if (ch.tipo === "pin") return desfechoAguardandoPin(ch.confirmacao, { periodo });
-    return interpretarPgdasd(ctx, ch.r, periodo);
-  }
-
-  if (servico === "DCTFWEB") {
-    const pa = periodoDe(body.periodo);
-    if (!pa) return { status: "erro", resumo: "Período inválido (use AAAAMM).", resultado: {}, erro: "periodo" };
-    const categoria = Number(body.categoria ?? 40) || 40; // 40 = GERAL_MENSAL
-    const periodo = `${pa.ano}${pa.mes}`;
-    const ch = await chamar(ctx, {
-      contribuinte: ctx.contribuinte,
-      idSistema: "DCTFWEB",
-      idServico: "CONSRECIBO32",
-      dados: { categoria, anoPA: pa.ano, mesPA: pa.mes },
-    });
-    if (ch.tipo === "erro") return desfechoDeErroGateway(ch.g, "DCTFWeb");
-    if (ch.tipo === "pin") return desfechoAguardandoPin(ch.confirmacao, { periodo, categoria });
-    return interpretarDctfweb(ctx, ch.r, periodo, categoria);
-  }
-
-  if (servico === "CCMEI") {
-    // DADOSCCMEI122 não está na tabela de verbos do gateway: informamos
-    // Consultar, e por ser serviço "desconhecido" o gateway pede PIN.
-    const ch = await chamar(ctx, {
-      contribuinte: ctx.contribuinte,
-      idSistema: "CCMEI",
-      idServico: "DADOSCCMEI122",
-      versaoSistema: "1.0",
-      dados: "",
-      verbo: "Consultar",
-    });
-    if (ch.tipo === "erro") return desfechoDeErroGateway(ch.g, "CCMEI");
-    if (ch.tipo === "pin") return desfechoAguardandoPin(ch.confirmacao);
-    return interpretarCcmei(ch.r);
-  }
-
-  // AVANCADO
-  const idSistema = String(body.idSistema ?? "").trim().toUpperCase();
-  const idServico = String(body.idServico ?? "").trim().toUpperCase();
-  if (!idSistema || !idServico) {
-    return { status: "erro", resumo: "idSistema e idServico obrigatórios.", resultado: {}, erro: "ids" };
-  }
-  const ch = await chamar(ctx, {
-    contribuinte: ctx.contribuinte,
-    idSistema,
-    idServico,
-    versaoSistema: body.versaoSistema ? String(body.versaoSistema) : undefined,
-    dados: body.dados ?? "",
-    verbo: body.verbo ? String(body.verbo) : undefined,
-  });
-  const rotulo = `${idSistema}/${idServico}`;
-  if (ch.tipo === "erro") return desfechoDeErroGateway(ch.g, rotulo);
-  if (ch.tipo === "pin") return desfechoAguardandoPin(ch.confirmacao, { idSistema, idServico });
-  return interpretarAvancado(ctx, ch.r, rotulo);
-}
-
-/** Resultado de uma confirmação com PIN → desfecho do serviço da consulta. */
-function desfechoDaConfirmacao(ctx: Ctx, c: ConfirmacaoGateway): Desfecho | Promise<Desfecho> {
-  const r = c.resultado;
-  if (!r || c.status === "falhou" || (r as { erro?: string }).erro) {
-    const msg = (r as { erro?: string } | undefined)?.erro ?? mensagensTexto(r) ?? "";
-    return { status: "erro", resumo: `A confirmação falhou: ${msg || c.status}`.slice(0, 1000), resultado: { confirmacao: { id: c.id, status: c.status } }, erro: msg || c.status };
-  }
-  const anterior = ctx.consulta.resultado ?? {};
-  const servico = ctx.consulta.servico as Servico;
-  if (servico === "PGDASD") return interpretarPgdasd(ctx, r, String(anterior.periodo ?? `${mesAnterior().ano}${mesAnterior().mes}`));
-  if (servico === "DCTFWEB") {
-    return interpretarDctfweb(ctx, r, String(anterior.periodo ?? ""), Number(anterior.categoria ?? 40));
-  }
-  if (servico === "CCMEI") return interpretarCcmei(r);
-  if (servico === "SITFIS") {
-    const protocolo = String(anterior.protocoloRelatorio ?? r.protocolo ?? "");
-    if (r.protocolo && !r.pdfs?.length) {
-      // Confirmou a SOLICITAÇÃO: segue pro relatório.
-      return sitfisEmitir(ctx, r.protocolo, r.tempo_espera ?? 0, Date.now());
-    }
-    return interpretarRelatorioSitfis(ctx, r, protocolo);
-  }
-  return interpretarAvancado(ctx, r, `${anterior.idSistema ?? "?"}/${anterior.idServico ?? "?"}`);
-}
-
-async function gravarDesfecho(consultaId: string, d: Desfecho): Promise<Record<string, unknown>> {
-  const { data, error } = await supabaseAdmin
-    .from("ConsultaFiscal")
-    .update({ status: d.status, resumo: d.resumo.slice(0, 2000), resultado: d.resultado, erro: d.erro ?? null })
-    .eq("id", consultaId)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-async function carregarConsulta(id: string) {
-  const { data, error } = await supabaseAdmin
-    .from("ConsultaFiscal")
-    .select('id, "clienteId", servico, status, resultado, cliente:Cliente("cpfCnpj")')
-    .eq("tenantId", TENANT_ID)
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  const cli = (Array.isArray(data.cliente) ? data.cliente[0] : data.cliente) as { cpfCnpj: string | null } | null;
-  return { consulta: data as unknown as Consulta, contribuinte: contribuinteDe(cli?.cpfCnpj) };
-}
+  BUCKET,
+  carregarConsulta,
+  type ClienteConsulta,
+  contribuinteParaServico,
+  type Ctx,
+  type Desfecho,
+  desfechoDaConfirmacao,
+  desfechoDeErroGateway,
+  desfechoDeExcecao,
+  executarConsulta,
+  FALTA_LEGIVEL,
+  gravarDesfecho,
+  type Servico,
+  SERVICOS,
+  sitfisEmitir,
+} from "../_shared/serpro-servicos.ts";
 
 // ===========================================================================
 // Handler
@@ -746,7 +275,7 @@ serve(async (req) => {
       } else {
         desfecho = desfechoDeErroGateway(g, "Confirmação");
       }
-      const linha = await gravarDesfecho(c.consulta.id, desfecho);
+      const linha = await gravarDesfecho(c.consulta.id, desfecho, c.consulta.servico);
       return json({ consulta: linha }, { status: desfecho.status === "erro" ? 424 : 200 });
     }
 
@@ -771,7 +300,7 @@ serve(async (req) => {
       } catch (err) {
         desfecho = desfechoDeExcecao(err);
       }
-      return json({ consulta: await gravarDesfecho(c.consulta.id, desfecho) });
+      return json({ consulta: await gravarDesfecho(c.consulta.id, desfecho, c.consulta.servico) });
     }
 
     // POST /serpro/consultar { clienteId, servico, ... }
@@ -784,40 +313,24 @@ serve(async (req) => {
 
       const { data: cli, error: cliErr } = await supabaseAdmin
         .from("Cliente")
-        .select('id, nome, "cpfCnpj", ativo')
+        .select('id, nome, "cpfCnpj", ativo, "regimeTributario"')
         .eq("tenantId", TENANT_ID)
         .eq("id", clienteId)
         .maybeSingle();
       if (cliErr) throw cliErr;
       if (!cli) return notFound("Cliente não encontrado");
-      if (cli.ativo === false) return badRequest("Cliente inativo: reative o cadastro para consultar o Serpro.");
-      const contribuinte = contribuinteDe(cli.cpfCnpj);
-      if (!contribuinte) return badRequest("Cliente sem CPF/CNPJ válido no cadastro.");
-      if ((servico === "DCTFWEB" || servico === "PGDASD" || servico === "CCMEI") && contribuinte.length !== 14) {
-        return badRequest(`${servico} só se aplica a CNPJ.`);
-      }
+      const val = contribuinteParaServico(cli as ClienteConsulta, servico);
+      if ("recusa" in val) return badRequest(val.recusa);
 
-      const { data: consulta, error: insErr } = await supabaseAdmin
-        .from("ConsultaFiscal")
-        .insert({ tenantId: TENANT_ID, clienteId, servico, status: "pendente", porId: colaborador.id })
-        .select('id, "clienteId", servico, resultado')
-        .single();
-      if (insErr || !consulta) throw insErr ?? new Error("Falha ao registrar a consulta");
-
-      let desfecho: Desfecho;
-      try {
-        desfecho = await rodarServico({ consulta: consulta as Consulta, contribuinte, operador, body }, servico);
-      } catch (err) {
-        desfecho = desfechoDeExcecao(err);
-        if (!(err instanceof GatewayErro)) {
-          await recordError({
-            origem: "serpro",
-            mensagem: `consultar ${servico}: ${desfecho.resumo}`,
-            stack: err instanceof Error ? err.stack : null,
-          });
-        }
-      }
-      const linha = await gravarDesfecho(consulta.id, desfecho);
+      const { linha, desfecho } = await executarConsulta({
+        cliente: cli as ClienteConsulta,
+        contribuinte: val.contribuinte,
+        servico,
+        body,
+        operador,
+        porId: colaborador.id,
+        origem: "manual",
+      });
       return json({ consulta: linha }, { status: desfecho.status === "erro" ? 424 : 200 });
     }
 

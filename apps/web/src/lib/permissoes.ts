@@ -51,6 +51,7 @@ export const CATALOGO_PERMISSOES: GrupoPermissoes[] = [
     permissoes: [
       { chave: "serpro.consultar", rotulo: "Consultar", descricao: "Faz consultas ao Serpro e baixa os relatórios." },
       { chave: "serpro.confirmar_pin", rotulo: "Confirmar com PIN", descricao: "Confirma serviços do Serpro que pedem PIN (podem ter custo)." },
+      { chave: "serpro.agendar", rotulo: "Agendar consultas", descricao: "Liga, desliga e muda os agendamentos automáticos do Serpro (cada consulta é cobrada)." },
     ],
   },
   {

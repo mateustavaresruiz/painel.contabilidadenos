@@ -131,7 +131,11 @@ export function useConsultarSerpro() {
   return useMutation({
     mutationFn: (args: { clienteId: string; servico: string }) =>
       api<unknown>("/serpro/consultar", { method: "POST", body: args }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["consultas-fiscais"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["consultas-fiscais"] });
+      qc.invalidateQueries({ queryKey: ["serpro-resumo"] });
+      qc.invalidateQueries({ queryKey: ["serpro-custos"] });
+    },
   });
 }
 
@@ -141,7 +145,11 @@ export function useRetomarConsulta() {
   return useMutation({
     mutationFn: (id: string) =>
       api<unknown>(`/serpro/consultas/${encodeURIComponent(id)}/retomar`, { method: "POST", body: {} }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["consultas-fiscais"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["consultas-fiscais"] });
+      qc.invalidateQueries({ queryKey: ["serpro-resumo"] });
+      qc.invalidateQueries({ queryKey: ["serpro-custos"] });
+    },
   });
 }
 
@@ -154,7 +162,11 @@ export function useConfirmarConsulta() {
         method: "POST",
         body: { pin: args.pin },
       }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["consultas-fiscais"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["consultas-fiscais"] });
+      qc.invalidateQueries({ queryKey: ["serpro-resumo"] });
+      qc.invalidateQueries({ queryKey: ["serpro-custos"] });
+    },
   });
 }
 
@@ -166,7 +178,11 @@ export function useCancelarConsulta() {
         method: "POST",
         body: {},
       }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["consultas-fiscais"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["consultas-fiscais"] });
+      qc.invalidateQueries({ queryKey: ["serpro-resumo"] });
+      qc.invalidateQueries({ queryKey: ["serpro-custos"] });
+    },
   });
 }
 

@@ -36,6 +36,7 @@
     "recharts": "^3.8.1",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76"
   },
   "devDependencies": {

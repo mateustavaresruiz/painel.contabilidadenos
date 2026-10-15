@@ -10,7 +10,9 @@
 //   POST /crons/whatsapp-fotos-pendentes  ← a cada hora: fotos que faltam
 //   POST /crons/certificados-avisos       ← diário 09:00 (SP): aviso de vencimento
 //   POST /crons/certificados-avisos?dryRun=1 ← o que SERIA enviado, sem enviar
-//        (este aceita também o JWT de um colaborador logado, pra tela mostrar a prévia)
+//   POST /crons/serpro-agendado          ← a cada 10 min (08h-19h50 SP): ciclos do AgendamentoSerpro
+//        (ver crons/serpro-agendado.ts)
+//        (o de cima, certificados-avisos?dryRun=1, aceita também o JWT de um colaborador logado, pra tela mostrar a prévia)
 //
 // A purga do WhatsappEventoLog / RateLimit / ErrorLog é SQL puro no pg_cron
 // (migration 003) — não precisa de function.
@@ -25,6 +27,7 @@ import { ensureChatPicture, ensureContatoPicture } from "../_shared/whatsapp-ava
 import { exigirColaborador, timingSafeEqual } from "../_shared/acesso.ts";
 import { enviarTexto } from "../_shared/whatsapp-envio.ts";
 import { onlyDigits } from "../_shared/phone-utils.ts";
+import { serproAgendado } from "./serpro-agendado.ts";
 
 function checkCronSecret(req: Request): boolean {
   const got = req.headers.get("x-cron-secret") ?? "";
@@ -48,6 +51,10 @@ serve(async (req) => {
       permissao: ["certificados.configurar_avisos", "certificados.ver"],
     });
     if (eu instanceof Response) return eu;
+  }
+
+  if (action === "serpro-agendado") {
+    return json(await serproAgendado());
   }
 
   // ---------------- whatsapp-fotos-pendentes ----------------

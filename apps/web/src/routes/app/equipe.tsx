@@ -576,6 +576,13 @@ function CargoForm({ cargo, somenteLeitura, onClose }: { cargo: Cargo | null; so
                   </label>
                 ))}
               </div>
+              {g.modulo === "Equipe" && (
+                <p className="border-t px-4 py-2.5 text-2xs text-warning bg-warning/5 rounded-b-card">
+                  As permissões de Equipe são para administradores: quem tem estas permissões vê
+                  e-mails e cargos de todos e pode convidar ou desativar pessoas. Para transferir
+                  conversas e atribuir chamados ninguém precisa delas.
+                </p>
+              )}
             </fieldset>
           );
         })}

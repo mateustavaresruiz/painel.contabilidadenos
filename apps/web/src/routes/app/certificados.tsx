@@ -17,6 +17,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
+import { ImportarPlanilhaBotao } from "@/components/features/importar/importar-planilha-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -121,10 +122,13 @@ export function CertificadosPage() {
         description="Validade dos certificados dos clientes e aviso automático pelo WhatsApp."
         actions={
           podeEditar ? (
-            <Button onClick={() => setEditando("novo")}>
-              <Plus />
-              Novo certificado
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <ImportarPlanilhaBotao alvo="certificados" />
+              <Button onClick={() => setEditando("novo")}>
+                <Plus />
+                Novo certificado
+              </Button>
+            </div>
           ) : undefined
         }
       />

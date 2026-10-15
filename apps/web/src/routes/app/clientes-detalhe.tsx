@@ -20,6 +20,7 @@ import { corModulo } from "@/lib/cores-modulo";
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
 import { DeleteClienteButton } from "@/components/features/clientes/delete-cliente-button";
+import { ResumoFiscalCliente } from "@/components/features/serpro/serpro-painel";
 import { ConsultarSituacaoBotao, ConsultasFiscaisLista } from "@/components/features/serpro/serpro-ui";
 import {
   NovaSolicitacaoDialog,
@@ -178,6 +179,7 @@ export function ClienteDetalhePage() {
             </p>
             <ConsultarSituacaoBotao clienteId={cliente.id} />
           </div>
+          <ResumoFiscalCliente clienteId={cliente.id} />
           <ConsultasFiscaisLista clienteId={cliente.id} />
         </TabsContent>
       </Tabs>
