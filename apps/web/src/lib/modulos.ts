@@ -136,8 +136,11 @@ export function useEhAdmin(): boolean {
 export type Marca = { nome: string; logoUrl: string | null; logoPath: string | null };
 
 export function useMarca() {
+  // Sem sessão (tela de entrada) a RLS recusa: nem pergunta, usa a logo NÓS.
+  const { sessao } = useEu();
   return useQuery({
     queryKey: ["config", "marca"],
+    enabled: !!sessao,
     queryFn: async (): Promise<Marca> => {
       const [t, c] = await Promise.all([
         supabase.from("Tenant").select("nome").eq("id", "denos").maybeSingle(),

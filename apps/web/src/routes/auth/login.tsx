@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BadgeCheck, ClipboardList, Loader2, MessageCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Lock, Mail } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEu } from "@/lib/colaborador";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 /** Espera para pedir outro e-mail (o Auth também recusa antes de 60 s). */
 const ESPERA_REENVIO_S = 60;
@@ -49,11 +50,92 @@ async function entrarDireto(email: string): Promise<Resposta> {
   return { tipo: "erro", mensagem: j.error ?? "Não deu para entrar agora. Tente de novo." };
 }
 
-const DESTAQUES = [
-  { icone: MessageCircle, texto: "WhatsApp da equipe com responsável e transferência" },
-  { icone: ClipboardList, texto: "Chamados abertos direto da conversa" },
-  { icone: BadgeCheck, texto: "Certificados e pendências fiscais sob controle" },
+/** Mensagens que se revezam sobre a foto. Curtas, sem prometer recurso. */
+const MENSAGENS = [
+  "Organização é o que transforma números em tranquilidade.",
+  "Cada cliente bem atendido começa por aqui.",
+  "Menos papel, mais conversa.",
+  "O escritório inteiro no mesmo ritmo.",
 ];
+const TROCA_MS = 6000;
+
+function saudacao(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Bom dia";
+  if (h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
+/** Atraso em cascata para a entrada dos blocos. */
+const cascata = (n: number) => ({ animationDelay: `${120 + n * 70}ms` });
+
+/**
+ * Efeitos desta tela (só ela usa, por isso não estão no index.css).
+ * Tudo para com prefers-reduced-motion.
+ */
+const ESTILO = `
+@keyframes login-zoom { from { transform: scale(1.08); } to { transform: scale(1); } }
+@keyframes login-sobe { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes login-msg {
+  0% { opacity: 0; transform: translateY(8px); }
+  10%, 88% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+.login-foto { animation: login-zoom 24s cubic-bezier(.16,1,.3,1) both; }
+.login-sobe { animation: login-sobe .6s cubic-bezier(.16,1,.3,1) both; }
+.login-msg { animation: login-msg ${TROCA_MS}ms ease-in-out both; }
+.login-seta { transition: transform .2s cubic-bezier(.16,1,.3,1); }
+.login-botao:hover .login-seta { transform: translateX(3px); }
+.login-botao:active { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) {
+  .login-foto, .login-sobe, .login-msg { animation: none; }
+}
+`;
+
+function useMensagem(): number {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((n) => (n + 1) % MENSAGENS.length), TROCA_MS);
+    return () => clearInterval(t);
+  }, []);
+  return i;
+}
+
+/** Metade esquerda: foto do prédio, logo em branco e mensagem que se reveza. */
+function PainelFoto() {
+  const i = useMensagem();
+  return (
+    <aside className="relative hidden lg:block overflow-hidden bg-[#0b1a2b]">
+      <img
+        src="/login-predio.jpg"
+        alt=""
+        aria-hidden
+        className="login-foto absolute inset-0 h-full w-full object-cover"
+      />
+      {/* Véu para o texto ler bem sobre a foto (funcional, não decoração). */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-black/25" aria-hidden />
+      <div className="relative z-10 flex h-full flex-col justify-between p-12">
+        <img src="/logo-branco.png" alt="NÓS Contabilidade" className="h-10 w-auto self-start" />
+        <div className="max-w-md space-y-5">
+          <p key={i} className="login-msg text-title-xl font-semibold text-white">
+            {MENSAGENS[i]}
+          </p>
+          <div className="flex gap-1.5" aria-hidden>
+            {MENSAGENS.map((m, n) => (
+              <span
+                key={m}
+                className={cn(
+                  "h-[3px] rounded-full transition-all duration-500",
+                  n === i ? "w-8 bg-white" : "w-3 bg-white/40",
+                )}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 export function LoginPage() {
   usePageTitle("Entrar");
@@ -145,132 +227,151 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh grid lg:grid-cols-[1.05fr_1fr] bg-background">
-      {/* Lado da marca (só no desktop) */}
-      <aside className="hidden lg:flex flex-col justify-between bg-muted px-14 py-12 border-r border-border">
-        <Logo className="h-11" />
-        <div className="max-w-md space-y-8 animate-fade-up">
-          <h2 className="text-title-xl text-foreground">
-            O escritório inteiro
-            <br />
-            num lugar só.
-          </h2>
-          <ul className="space-y-4">
-            {DESTAQUES.map(({ icone: Icone, texto }) => (
-              <li key={texto} className="flex items-center gap-3 text-[15px] text-muted-foreground">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-card border border-border">
-                  <Icone className="size-4 text-primary" strokeWidth={1.5} />
-                </span>
-                {texto}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <p className="text-2xs text-muted-foreground">NÓS Contabilidade · Painel interno</p>
-      </aside>
+    <div className="min-h-dvh grid lg:grid-cols-[1.1fr_1fr] bg-background">
+      <style>{ESTILO}</style>
+      <PainelFoto />
 
-      {/* Formulário */}
-      <main className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-[360px] space-y-8 animate-fade-up">
-          <Logo className="h-11 lg:hidden" />
+      <main className="flex flex-col px-6 py-10 sm:px-10">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-[380px]">
+            <div className="login-sobe mb-10 lg:hidden" style={cascata(0)}>
+              <Logo className="h-10" />
+            </div>
 
-          {etapa === "email" ? (
-            <form onSubmit={entrar} className="space-y-6" noValidate>
-              <div className="space-y-2">
-                <h1 className="text-title-lg">Entrar</h1>
-                <p className="text-[15px] text-muted-foreground">Use o e-mail cadastrado pela sua equipe.</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="login-email">E-mail</Label>
-                <Input
-                  id="login-email"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  autoFocus
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (erro) setErro(null);
-                  }}
-                  placeholder="voce@contabilidadenos.com.br"
-                  className="h-11 text-[15px]"
-                  aria-invalid={!!erro}
-                  aria-describedby={erro ? "login-erro" : undefined}
-                />
-                {erro && (
-                  <p id="login-erro" role="alert" className="text-sm text-destructive">
-                    {erro}
+            {etapa === "email" ? (
+              <form onSubmit={entrar} className="space-y-7" noValidate>
+                <div className="space-y-2">
+                  <p className="login-sobe text-[15px] text-muted-foreground" style={cascata(0)}>
+                    {saudacao()}
                   </p>
-                )}
-              </div>
-              <Button type="submit" className="w-full h-11 text-[15px]" disabled={enviando || espera > 0}>
-                {enviando ? (
-                  <Loader2 className="animate-spin" />
-                ) : espera > 0 ? null : (
-                  <ArrowRight />
-                )}
-                {espera > 0 ? `Aguarde ${espera} s` : enviando ? "Entrando" : "Entrar"}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={verificar} className="space-y-6" noValidate>
-              <div className="space-y-2">
-                <h1 className="text-title-lg">Confira seu e-mail</h1>
-                <p className="text-[15px] text-muted-foreground">
-                  Se <span className="text-foreground font-semibold">{email}</span> tiver acesso, enviamos um link e um
-                  código. Vale por 15 minutos.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="login-codigo">Código de 6 números</Label>
-                <Input
-                  id="login-codigo"
-                  ref={codigoRef}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={codigo}
-                  onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000"
-                  className="h-12 text-center text-title-md tracking-[0.5em] tabular-nums"
-                />
-                {erro && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {erro}
+                  <h1 className="login-sobe text-title-xl" style={cascata(1)}>
+                    Entrar no painel
+                  </h1>
+                </div>
+
+                <div className="login-sobe space-y-2" style={cascata(2)}>
+                  <Label htmlFor="login-email">E-mail</Label>
+                  <div className="relative">
+                    <Mail
+                      className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground"
+                      strokeWidth={1.5}
+                      aria-hidden
+                    />
+                    <Input
+                      id="login-email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      autoFocus
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (erro) setErro(null);
+                      }}
+                      placeholder="voce@contabilidadenos.com.br"
+                      className={cn(
+                        "h-12 rounded-full pl-11 pr-4 text-[15px] transition-shadow",
+                        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:border-primary",
+                        erro && "border-destructive focus-visible:ring-destructive/15 focus-visible:border-destructive",
+                      )}
+                      aria-invalid={!!erro}
+                      aria-describedby={erro ? "login-erro" : undefined}
+                    />
+                  </div>
+                  {erro && (
+                    <p id="login-erro" role="alert" className="login-sobe pl-4 text-sm text-destructive">
+                      {erro}
+                    </p>
+                  )}
+                </div>
+
+                <div className="login-sobe" style={cascata(3)}>
+                  <Button
+                    type="submit"
+                    className="login-botao h-12 w-full rounded-full text-[15px] transition-transform"
+                    disabled={enviando || espera > 0}
+                  >
+                    {enviando ? <Loader2 className="animate-spin" /> : null}
+                    {espera > 0 ? `Aguarde ${espera} s` : enviando ? "Entrando" : "Entrar"}
+                    {!enviando && espera === 0 && <ArrowRight className="login-seta" />}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={verificar} className="space-y-7" noValidate>
+                <div className="space-y-2">
+                  <h1 className="login-sobe text-title-xl" style={cascata(0)}>
+                    Confira seu e-mail
+                  </h1>
+                  <p className="login-sobe text-[15px] text-muted-foreground" style={cascata(1)}>
+                    Se <span className="font-semibold text-foreground">{email}</span> tiver acesso, enviamos um link e
+                    um código. Vale por 15 minutos.
                   </p>
-                )}
-              </div>
-              <Button type="submit" className="w-full h-11 text-[15px]" disabled={verificando}>
-                {verificando && <Loader2 className="animate-spin" />}
-                Entrar
-              </Button>
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setEtapa("email");
-                    setErro(null);
-                  }}
-                >
-                  <ArrowLeft />
-                  Outro e-mail
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={espera > 0 || enviando}
-                  onClick={() => void pedirPorEmail(email)}
-                >
-                  {espera > 0 ? `Reenviar em ${espera} s` : "Reenviar"}
-                </Button>
-              </div>
-            </form>
-          )}
+                </div>
+                <div className="login-sobe space-y-2" style={cascata(2)}>
+                  <Label htmlFor="login-codigo">Código de 6 números</Label>
+                  <Input
+                    id="login-codigo"
+                    ref={codigoRef}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={codigo}
+                    onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="000000"
+                    className="h-14 rounded-[18px] text-center text-title-md tracking-[0.5em] tabular-nums focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15"
+                  />
+                  {erro && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {erro}
+                    </p>
+                  )}
+                </div>
+                <div className="login-sobe space-y-3" style={cascata(3)}>
+                  <Button
+                    type="submit"
+                    className="login-botao h-12 w-full rounded-full text-[15px] transition-transform"
+                    disabled={verificando}
+                  >
+                    {verificando && <Loader2 className="animate-spin" />}
+                    Entrar
+                  </Button>
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEtapa("email");
+                        setErro(null);
+                      }}
+                    >
+                      <ArrowLeft />
+                      Outro e-mail
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={espera > 0 || enviando}
+                      onClick={() => void pedirPorEmail(email)}
+                    >
+                      {espera > 0 ? `Reenviar em ${espera} s` : "Reenviar"}
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
+
+        <p
+          className="login-sobe flex items-center justify-center gap-1.5 text-2xs text-muted-foreground"
+          style={cascata(5)}
+        >
+          <Lock className="size-3" strokeWidth={1.5} aria-hidden />
+          Acesso restrito à equipe da NÓS Contabilidade
+        </p>
       </main>
     </div>
   );
