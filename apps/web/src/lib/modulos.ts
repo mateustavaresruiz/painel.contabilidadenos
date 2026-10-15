@@ -16,7 +16,8 @@ export type ModuloChave =
   | "certificadosAvisos"
   | "aniversarioParabens"
   | "chamadoNaConversa"
-  | "transferenciaAtendimento";
+  | "transferenciaAtendimento"
+  | "loginSemVerificacao";
 
 export type Modulos = Record<ModuloChave, boolean>;
 
@@ -31,6 +32,7 @@ export const MODULOS_PADRAO: Modulos = {
   aniversarioParabens: true,
   chamadoNaConversa: true,
   transferenciaAtendimento: true,
+  loginSemVerificacao: true,
 };
 
 /** Módulos principais (cada um tem página e item no menu). */
@@ -68,6 +70,12 @@ export const SUBFUNCOES: { chave: ModuloChave; pai: ModuloChave; nome: string; d
     pai: "whatsapp",
     nome: "Transferência de atendimento",
     descricao: "Passar a conversa para outra pessoa da equipe.",
+  },
+  {
+    chave: "loginSemVerificacao",
+    pai: "equipe",
+    nome: "Entrar só com o e-mail (provisório)",
+    descricao: "Entra sem conferir a caixa de entrada. Quem souber o e-mail de alguém da equipe entra como ele. Desligue quando o e-mail do painel estiver funcionando.",
   },
 ];
 
