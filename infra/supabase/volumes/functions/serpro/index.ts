@@ -457,7 +457,7 @@ serve(async (req) => {
         return json({ ok: true, mensagem: "Autenticação no Serpro OK (certificado e credenciais aceitos)." });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return json({ ok: false, error: msg }, { status: 502 });
+        return json({ ok: false, error: msg }, { status: 424 });
       }
     }
 
@@ -573,7 +573,7 @@ serve(async (req) => {
         }
       }
       const linha = await gravarDesfecho(consulta.id, desfecho);
-      return json({ consulta: linha }, { status: desfecho.status === "erro" ? 502 : 200 });
+      return json({ consulta: linha }, { status: desfecho.status === "erro" ? 424 : 200 });
     }
 
     return notFound(`Rota ${req.method} /${sub.join("/")} não encontrada`);

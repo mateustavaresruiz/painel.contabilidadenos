@@ -27,6 +27,14 @@ export const notFound = (m = "Não encontrado") => errorResponse(m, 404);
 export const conflict = (m: string) => errorResponse(m, 409);
 export const internalError = (m = "Erro interno") => errorResponse(m, 500);
 export const notImplemented = (m: string) => errorResponse(m, 501);
-export const badGateway = (m: string) => errorResponse(m, 502);
+/**
+ * Falha do serviço de fora (WAHA, Serpro): 424 Failed Dependency.
+ *
+ * 🔴 NÃO 502/504. O proxy do Easypanel troca o corpo de toda resposta 502 pela
+ * página HTML "Service is not reachable", e a tela perdia o `{ error }` (e o
+ * `id` da mensagem que falhou). Conferido no deploy de 14/10/2026.
+ */
+export const STATUS_DEPENDENCIA = 424;
+export const badGateway = (m: string) => errorResponse(m, STATUS_DEPENDENCIA);
 export const serviceUnavailable = (m: string) => errorResponse(m, 503);
-export const gatewayTimeout = (m: string) => errorResponse(m, 504);
+export const gatewayTimeout = (m: string) => errorResponse(m, STATUS_DEPENDENCIA);

@@ -1520,7 +1520,7 @@ serve(async (req) => {
       if (!r.ok) {
         // `id` volta junto: a tela troca a fantasma pela linha real (ack -1)
         // e mostra "não enviada" com o botão de reenviar (defeito 33).
-        return json({ error: `Falha ao enviar: ${r.erro}`, id: r.mensagemId }, { status: 502 });
+        return json({ error: `Falha ao enviar: ${r.erro}`, id: r.mensagemId }, { status: 424 });
       }
       return json({ id: r.mensagemId, wamId: r.wamId });
     }
@@ -1645,10 +1645,10 @@ serve(async (req) => {
       }
       const enviados = resultados.filter((r) => r.ok).length;
       // Resultado parcial SEMPRE volta (no adv3 as falhas sumiam): 200 com a
-      // lista; 502 só quando nenhum destino recebeu.
+      // lista; 424 só quando nenhum destino recebeu.
       return json(
         { ok: enviados > 0, enviados, falhas: resultados.length - enviados, resultados },
-        { status: enviados > 0 ? 200 : 502 },
+        { status: enviados > 0 ? 200 : 424 },
       );
     }
 
@@ -1772,7 +1772,7 @@ serve(async (req) => {
       } catch (err) {
         await marcarFalha(provisoriaId);
         const msg = err instanceof Error ? err.message : String(err);
-        return json({ error: `Falha ao enviar mídia: ${msg}`, id: provisoriaId }, { status: 502 });
+        return json({ error: `Falha ao enviar mídia: ${msg}`, id: provisoriaId }, { status: 424 });
       }
     }
 
@@ -1819,7 +1819,7 @@ serve(async (req) => {
           wamId: msgRow.wamId,
           msgType: msgRow.tipo,
         });
-        if (!media.mediaPath) return json({ ok: false, error: "Mídia indisponível no WAHA" }, { status: 502 });
+        if (!media.mediaPath) return json({ ok: false, error: "Mídia indisponível no WAHA" }, { status: 424 });
         await supabaseAdmin
           .from("WhatsappMensagem")
           .update({
