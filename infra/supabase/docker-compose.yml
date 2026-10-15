@@ -462,6 +462,22 @@ services:
       SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       # TODO: Allow configuring VERIFY_JWT per function.
       VERIFY_JWT: "${FUNCTIONS_VERIFY_JWT}"
+      # Painel Denos: as functions só veem o que estiver listado aqui.
+      # Valores no env do serviço `supabase` no Easypanel (nunca no repo).
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      WAHA_BASE_URL: ${WAHA_BASE_URL:-}
+      WAHA_API_KEY: ${WAHA_API_KEY:-}
+      WAHA_WEBHOOK_SECRET: ${WAHA_WEBHOOK_SECRET:-}
+      SERPRO_CONSUMER_KEY: ${SERPRO_CONSUMER_KEY:-}
+      SERPRO_CONSUMER_SECRET: ${SERPRO_CONSUMER_SECRET:-}
+      SERPRO_CERT_PEM: ${SERPRO_CERT_PEM:-}
+      SERPRO_KEY_PEM: ${SERPRO_KEY_PEM:-}
+      SERPRO_CERT_PFX_BASE64: ${SERPRO_CERT_PFX_BASE64:-}
+      SERPRO_CERT_SENHA: ${SERPRO_CERT_SENHA:-}
+      SERPRO_CONTRATANTE_CNPJ: ${SERPRO_CONTRATANTE_CNPJ:-}
+      SERPRO_AUTOR_CNPJ: ${SERPRO_AUTOR_CNPJ:-}
     command:
       [
         "start",
