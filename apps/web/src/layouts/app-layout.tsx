@@ -13,7 +13,7 @@ import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
 import { useAplicarEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
 import { corModulo } from "@/lib/cores-modulo";
-import { useMarca, useModulos } from "@/lib/modulos";
+import { useModulos } from "@/lib/modulos";
 import { useTheme } from "@/lib/use-theme";
 import { cn } from "@/lib/utils";
 import { preCarregar } from "@/routes/paginas";
