@@ -173,21 +173,6 @@ export function AppLayout() {
       </Sheet>
 
       <main id="main-content" className="flex-1 min-h-0 min-w-0 flex flex-col [view-transition-name:conteudo]">
-        {/* Barra de topo do desktop: busca global (Ctrl+K) e a conta. */}
-        <div className="hidden lg:flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/80 px-6 barra-fixa">
-          <button
-            type="button"
-            onClick={abrirBusca}
-            className="flex h-9 w-full max-w-md items-center gap-2.5 rounded-full border border-border bg-background px-3.5 text-sm text-muted-foreground transition-[border-color,box-shadow] duration-150 hover:border-primary/40 hover:shadow-card"
-          >
-            <Search className="size-4" />
-            <span className="flex-1 text-left">Buscar página, cliente ou conversa</span>
-            <kbd className="rounded-md border border-border bg-card px-1.5 py-0.5 font-sans text-2xs">Ctrl K</kbd>
-          </button>
-          <div className="ml-auto">
-            <EuBotao compacto comNome />
-          </div>
-        </div>
         <div
           key={location.pathname}
           className={cn(
@@ -279,6 +264,9 @@ function Sidebar({
         {pode(NAV_CONFIGURACOES.permissao) && (tem("configuracoes.gerenciar") || ativo("whatsapp")) && (
           <ItemNav item={configuracoes} onNavigate={onNavigate} recolhida={recolhida} />
         )}
+        {/* Conta (avatar, nome, cargo; menu com tema e Sair). Na gaveta do celular
+            ela já está no cabeçalho. Busca: só pelo atalho Ctrl+K no desktop. */}
+        {!onNavigate && <EuBotao naSidebar recolhida={recolhida} />}
       </div>
     </div>
   );
