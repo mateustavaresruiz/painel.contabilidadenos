@@ -179,6 +179,8 @@ html[data-estilo="B"] {
     font-size: 15px;
     line-height: 1.47;
     letter-spacing: 0;
+    /* A Plus Jakarta Sans tem o espaço entre palavras estreito demais. */
+    word-spacing: 0.12em;
   }
   h1,
   h2,
