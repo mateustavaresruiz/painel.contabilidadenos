@@ -179,17 +179,16 @@ function Sidebar({
   onNavigate,
   recolhida = false,
   alternar,
-  estilo,
+  estilo: _estilo,
 }: {
   onNavigate?: () => void;
   recolhida?: boolean;
   alternar?: () => void;
   estilo: Estilo;
 }) {
-  const branca = estilo === "A";
+  const branca = false; // menu sempre branco; logo azul
   const { ativo } = useModulos();
   const { tem } = useEu();
-  const { data: marca } = useMarca();
   const pode = (ps?: string[]) => !ps || ps.some((p) => tem(p));
   // Módulo desligado em Configurações some do menu; item sem permissão também.
   const itens = NAV_APP.filter((i) => (!i.modulo || ativo(i.modulo)) && pode(i.permissao)).map((i) =>
@@ -214,7 +213,6 @@ function Sidebar({
           ) : (
             <span className="flex min-w-0 flex-col">
               <Logo className="h-12" branca={branca} />
-              <span className="mt-1 text-2xs text-sidebar-muted truncate">{marca?.nome ?? "Painel interno"}</span>
             </span>
           )}
         </NavLink>
@@ -294,7 +292,7 @@ function ItemNav({
           "group relative flex h-10 items-center gap-2.5 rounded-lg px-1.5 text-xs transition-[color,background-color] duration-150",
           recolhida && "justify-center",
           isActive
-            ? "bg-sidebar-active text-sidebar-foreground font-semibold [html[data-estilo=B]_&]:texto-mod"
+            ? "bg-sidebar-active text-primary font-semibold [html[data-estilo=B]_&]:texto-mod"
             : "text-sidebar-foreground/85 hover:bg-sidebar-hover hover:text-sidebar-foreground",
         )
       }
