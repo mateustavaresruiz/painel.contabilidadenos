@@ -174,8 +174,18 @@ export function Composer({
   useLayoutEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
+    // Mede com `auto` e volta à altura atual antes de aplicar a nova: assim a
+    // transição de height anima de px para px (de `auto` ela não anima).
+    const antes = ta.offsetHeight;
     ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+    const alvo = Math.min(ta.scrollHeight, 200);
+    if (alvo === antes) {
+      ta.style.height = alvo + "px";
+      return;
+    }
+    ta.style.height = antes + "px";
+    void ta.offsetHeight; // fixa o ponto de partida da transição
+    ta.style.height = alvo + "px";
   }, [texto, gravando]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -282,7 +292,9 @@ export function Composer({
                 arquivo ? "Remova o anexo pra escrever" : "Mensagem…"
               }
               rows={1}
-              className={cn("flex-1 min-h-9 max-h-[200px] resize-none text-base md:text-sm")}
+              className={cn(
+                "flex-1 min-h-9 max-h-[200px] resize-none text-base md:text-sm transition-[height] duration-150 ease-out motion-reduce:transition-none",
+              )}
               onKeyDown={(e) => {
                 // !isComposing: não envia no meio de uma composição de IME /
                 // autocorreção (o Enter que confirma o candidato disparava

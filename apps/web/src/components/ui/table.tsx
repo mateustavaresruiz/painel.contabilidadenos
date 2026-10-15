@@ -12,7 +12,10 @@ import { cn } from "@/lib/utils";
 
 export const Table = forwardRef<HTMLTableElement, HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto rounded-[inherit]">
+    // Em tela larga (xl) a tabela cabe: `clip` em vez de scroll deixa o
+    // cabeçalho grudar no topo da página ao rolar (sticky precisa que nenhum
+    // ancestral seja contêiner de rolagem). Abaixo disso, rola de lado.
+    <div className="relative w-full overflow-x-auto xl:overflow-x-clip rounded-[inherit]">
       <table
         ref={ref}
         className={cn("w-full caption-bottom text-sm", className)}
@@ -29,7 +32,14 @@ export const TableHeader = forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("bg-muted [&_tr]:border-b [&_tr]:border-border [&_tr]:hover:bg-transparent", className)}
+    className={cn(
+      "[&_tr]:border-b [&_tr]:border-border [&_tr]:hover:bg-transparent",
+      // Cabeçalho fixo: cada <th> gruda no topo com o fundo parchment. Os
+      // cantos acompanham o raio do cartão (18px menos a borda).
+      "[&_th]:sticky [&_th]:top-0 [&_th]:z-[2] [&_th]:bg-muted",
+      "[&_tr:first-child>th:first-child]:rounded-tl-[17px] [&_tr:first-child>th:last-child]:rounded-tr-[17px]",
+      className,
+    )}
     {...props}
   />
 ));
@@ -41,7 +51,10 @@ export const TableBody = forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn("[&_tr:last-child]:border-0", className)}
+    className={cn(
+      "[&_tr:last-child]:border-0 [&_tr:last-child>td:first-child]:rounded-bl-[17px] [&_tr:last-child>td:last-child]:rounded-br-[17px]",
+      className,
+    )}
     {...props}
   />
 ));
@@ -69,7 +82,7 @@ export const TableRow = forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-divider transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      "border-b border-divider transition-colors duration-150 hover:bg-muted/60 data-[state=selected]:bg-muted",
       className,
     )}
     {...props}
@@ -95,7 +108,7 @@ export const TableHead = forwardRef<
       numeric && "text-right",
       // No header o fundo é o do <thead> (bg-muted/30 sobre o card), não o
       // bg-card puro — senão a célula fixa fica de uma cor e o resto de outra.
-      fixa && "sticky left-0 z-10 bg-[color-mix(in_srgb,var(--muted)_30%,var(--card))]",
+      fixa && "sticky left-0 z-10",
       className,
     )}
     {...props}

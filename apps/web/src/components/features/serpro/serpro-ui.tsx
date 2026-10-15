@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ListaSkeleton } from "@/components/ui/skeleton";
 import { api, ErroDaApi } from "@/lib/api";
 import { usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
@@ -103,11 +104,11 @@ export function SerproStatusCard() {
 
   return (
     <Card>
-      <CardContent className="p-5 space-y-4">
+      <CardContent className="p-6 space-y-4">
         <div className="flex items-start gap-3">
           <div
             className={cn(
-              "size-10 rounded-xl grid place-items-center shrink-0",
+              "size-10 rounded-pearl grid place-items-center shrink-0",
               data?.configurado ? "bg-success/10 text-success" : "bg-warning/10 text-warning",
             )}
           >
@@ -120,7 +121,7 @@ export function SerproStatusCard() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base">
+            <h2 className="text-title-md">
               {isLoading
                 ? "Verificando a integração…"
                 : data?.configurado
@@ -409,14 +410,12 @@ export function ConsultasFiscaisLista({
 
   if (isLoading) {
     return (
-      <div className="py-8 grid place-items-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-      </div>
+      <ListaSkeleton linhas={3} />
     );
   }
   if (data.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
         Nenhuma consulta feita ainda.
       </p>
     );

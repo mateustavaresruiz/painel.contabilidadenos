@@ -1,4 +1,4 @@
-import { lazy, type ComponentType, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AuthGate, PermissaoGate } from "@/components/auth-gate";
@@ -7,24 +7,22 @@ import { AppLayout } from "@/layouts/app-layout";
 import type { ModuloChave } from "@/lib/modulos";
 import { AuthCallbackPage } from "@/routes/auth/callback";
 import { LoginPage } from "@/routes/auth/login";
-
-// Cada página em chunk próprio: o WhatsApp (o maior) não pesa no Início.
-function pagina<T>(imp: () => Promise<T>, nome: keyof T) {
-  return lazy(() => imp().then((m) => ({ default: m[nome] as unknown as ComponentType })));
-}
-
-const InicioPage = pagina(() => import("@/routes/app/inicio"), "InicioPage");
-const ChatPage = pagina(() => import("@/routes/app/chat"), "ChatPage");
-const ChamadosPage = pagina(() => import("@/routes/app/chamados"), "ChamadosPage");
-const ClientesPage = pagina(() => import("@/routes/app/clientes"), "ClientesPage");
-const NovoClientePage = pagina(() => import("@/routes/app/clientes-novo"), "NovoClientePage");
-const EditarClientePage = pagina(() => import("@/routes/app/clientes-editar"), "EditarClientePage");
-const ClienteDetalhePage = pagina(() => import("@/routes/app/clientes-detalhe"), "ClienteDetalhePage");
-const AniversariosPage = pagina(() => import("@/routes/app/aniversarios"), "AniversariosPage");
-const CertificadosPage = pagina(() => import("@/routes/app/certificados"), "CertificadosPage");
-const PendenciasFiscaisPage = pagina(() => import("@/routes/app/pendencias-fiscais"), "PendenciasFiscaisPage");
-const EquipePage = pagina(() => import("@/routes/app/equipe"), "EquipePage");
-const ConfiguracoesPage = pagina(() => import("@/routes/app/configuracoes"), "ConfiguracoesPage");
+// Cada página em chunk próprio (o WhatsApp, o maior, não pesa no Início), com
+// pré-carga no hover do menu: ver routes/paginas.ts.
+import {
+  AniversariosPage,
+  CertificadosPage,
+  ChamadosPage,
+  ChatPage,
+  ClienteDetalhePage,
+  ClientesPage,
+  ConfiguracoesPage,
+  EditarClientePage,
+  EquipePage,
+  InicioPage,
+  NovoClientePage,
+  PendenciasFiscaisPage,
+} from "@/routes/paginas";
 
 /** Módulo ligado + permissão do cargo. */
 function Pagina({

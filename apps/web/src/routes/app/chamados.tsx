@@ -50,6 +50,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ListaSkeleton, Skeleton, SkeletonTableRow } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -164,7 +165,7 @@ function ListaAba() {
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const { data: tipos = [] } = useSolicitacaoTipos();
-  const { data = [], isLoading } = useSolicitacoes({
+  const { data = [], isLoading, isPlaceholderData } = useSolicitacoes({
     status,
     tipoId: tipoId || undefined,
     responsavelId: responsavel || undefined,
@@ -175,10 +176,19 @@ function ListaAba() {
   const atualizar = useAtualizarSolicitacao();
   const excluir = useExcluirSolicitacao();
   const mapa = useColaboradoresMap();
+  const filtrando = status !== "abertas" || !!tipoId || !!responsavel || !!clienteId || !!de || !!ate;
+  function limparFiltros() {
+    setStatus("abertas");
+    setTipoId("");
+    setResponsavel("");
+    setClienteId(null);
+    setDe("");
+    setAte("");
+  }
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 rounded-xl border bg-card p-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 rounded-card border bg-card p-3 lg:grid-cols-3 2xl:grid-cols-6">
         <Select value={status || TODOS} onValueChange={(v) => setStatus(v === TODOS ? "" : (v as SolicitacaoStatus | "abertas"))}>
           <SelectTrigger aria-label="Status">
             <SelectValue />
@@ -223,23 +233,42 @@ function ListaAba() {
           </SelectContent>
         </Select>
         <ClienteSelect value={clienteId} onChange={setClienteId} permitirTodos />
-        <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} aria-label="De" title="Criadas a partir de" />
-        <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} aria-label="Até" title="Criadas até" />
+        <CampoData rotulo="De" value={de} onChange={setDe} title="Criadas a partir de" />
+        <CampoData rotulo="Até" value={ate} onChange={setAte} title="Criadas até" />
       </div>
 
       {isLoading ? (
-        <div className="py-10 grid place-items-center">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
+        <Card aria-busy="true">
+          <Table>
+            <TableBody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonTableRow key={i} cols={5} />
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       ) : data.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Nenhum chamado"
-          description="Abra pelo botão “Abrir chamado” no topo de uma conversa, ou pelo menu de uma mensagem."
-        />
+        filtrando ? (
+          <EmptyState
+            icon={ClipboardList}
+            title="Nenhum chamado com estes filtros"
+            description="Mude os filtros ou limpe para ver os chamados em aberto."
+            action={
+              <Button variant="outline" onClick={limparFiltros}>
+                Limpar filtros
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={ClipboardList}
+            title="Nenhum chamado em aberto"
+            description="Abra pelo botão Abrir chamado no topo de uma conversa, ou pelo menu de uma mensagem."
+          />
+        )
       ) : (
-        <Card>
-          <div className="overflow-x-auto">
+        <Card className={cn("transition-opacity duration-150", isPlaceholderData && "opacity-60")}>
+          <div>
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -409,24 +438,22 @@ function RelatorioAba() {
       </div>
 
       {isLoading ? (
-        <div className="py-10 grid place-items-center">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
+        <Skeleton className="h-80 w-full rounded-card" />
       ) : comPedido.length === 0 ? (
         <EmptyState icon={BarChart3} title="Nada no período" description="Nenhum chamado aberto entre essas datas." />
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
           <Card>
             <CardContent className="p-5">
-              <h2 className="text-base mb-1">Mais pedidos</h2>
+              <h2 className="text-title-md mb-1">Mais pedidos</h2>
               <p className="text-xs text-muted-foreground mb-4">Tipos de chamado por quantidade no período.</p>
-              <Suspense fallback={<div className="h-72 grid place-items-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>}>
+              <Suspense fallback={<Skeleton className="h-72 w-full" />}>
                 <GraficoRelatorio linhas={comPedido} />
               </Suspense>
             </CardContent>
           </Card>
           <Card>
-            <div className="overflow-x-auto">
+            <div>
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -494,7 +521,7 @@ function TiposAba() {
         </Button>
       </div>
       {isLoading ? (
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <ListaSkeleton linhas={4} />
       ) : (
         <ul className="divide-y rounded-lg border bg-card">
           {tipos.map((t, i) => (
@@ -631,3 +658,31 @@ function TipoDialog({
   );
 }
 
+
+/** Data do filtro com o rótulo dentro do campo (o input de data não tem placeholder). */
+function CampoData({
+  rotulo,
+  value,
+  onChange,
+  title,
+}: {
+  rotulo: string;
+  value: string;
+  onChange: (v: string) => void;
+  title: string;
+}) {
+  return (
+    <label className="relative block" title={title}>
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+        {rotulo}
+      </span>
+      <Input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={title}
+        className={cn("pl-11", !value && "text-muted-foreground")}
+      />
+    </label>
+  );
+}

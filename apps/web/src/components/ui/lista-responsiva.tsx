@@ -79,7 +79,7 @@ export function ListaResponsiva({
         ) : null}
         <ul className="space-y-2">{children}</ul>
       </div>
-      <div className={cn(CORTE_TABELA[corte], "overflow-hidden", classeTabela)}>
+      <div className={cn(CORTE_TABELA[corte], "rounded-card border border-border bg-card", classeTabela)}>
         {tabela}
       </div>
     </div>

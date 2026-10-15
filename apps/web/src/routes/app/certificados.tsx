@@ -41,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { ListaSkeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { ErroDaApi } from "@/lib/api";
 import { msgErro } from "@/lib/erro";
@@ -128,7 +129,7 @@ export function CertificadosPage() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {(
           [
             ["vencido", "Vencidos", "destructive"],
@@ -141,12 +142,13 @@ export function CertificadosPage() {
             type="button"
             onClick={() => setStatus(status === k ? TODOS : k)}
             className={cn(
-              "rounded-xl border bg-card p-4 text-left transition-colors hover:bg-accent/40",
-              status === k && "ring-2 ring-primary/40",
+              "rounded-card border bg-card p-3 sm:p-5 text-left transition-[background-color,box-shadow,transform] duration-150 ease-brand hover:bg-accent/40 active:scale-[.98]",
+              status === k && "border-transparent shadow-[inset_0_0_0_2px_var(--primary-focus)]",
             )}
+            aria-pressed={status === k}
           >
-            <p className="text-title-lg font-semibold tabular-nums">{contagem[k]}</p>
-            <Badge variant={variante} className="mt-1.5">{label}</Badge>
+            <p className="text-title-lg sm:text-title-xl font-semibold tabular-nums">{contagem[k]}</p>
+            <Badge variant={variante} className="mt-1.5 whitespace-normal text-left">{label}</Badge>
           </button>
         ))}
       </div>
@@ -190,9 +192,7 @@ export function CertificadosPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-10 grid place-items-center">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
+        <ListaSkeleton linhas={5} />
       ) : filtrados.length === 0 ? (
         <EmptyState
           icon={BadgeCheck}
@@ -205,7 +205,7 @@ export function CertificadosPage() {
         />
       ) : (
         <Card>
-          <div className="overflow-x-auto">
+          <div>
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">

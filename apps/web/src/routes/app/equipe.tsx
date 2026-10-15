@@ -208,84 +208,86 @@ function AbaPessoas({
       {data.length === 0 ? (
         <EmptyState icon={UsersRound} title="Ninguém na equipe" description="Use Convidar para liberar o acesso de alguém." />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {data.map((c) => (
-            <li key={c.id} className={cn("rounded-card border bg-card p-4 flex items-start gap-3", !c.ativo && "opacity-60")}>
-              <ColaboradorAvatar nome={c.nome} cor={c.cor} size="md" />
-              <div className="flex-1 min-w-0 space-y-0.5">
-                <p className="text-sm font-semibold truncate">
-                  {c.nome}
-                  {c.id === euId && (
-                    <Badge variant="secondary" className="ml-2">
-                      você
-                    </Badge>
-                  )}
-                  {!c.ativo && (
-                    <Badge variant="outline" className="ml-2">
-                      inativo
-                    </Badge>
-                  )}
-                </p>
-                {c.cargo && <p className="text-xs text-muted-foreground">{c.cargo}</p>}
-                {c.email && (
-                  <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                    <Mail className="size-3 shrink-0" />
-                    <span className="truncate">{c.email}</span>
+            <li key={c.id} className={cn("rounded-card border bg-card flex flex-col transition-opacity", !c.ativo && "opacity-60")}>
+              <div className="flex items-start gap-3 p-5 pb-4">
+                <ColaboradorAvatar nome={c.nome} cor={c.cor} size="md" />
+                <div className="flex-1 min-w-0">
+                  <p className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-semibold truncate">{c.nome}</span>
+                    {c.id === euId && <Badge variant="secondary">você</Badge>}
+                    {!c.ativo && <Badge variant="outline">inativo</Badge>}
                   </p>
-                )}
-                {c.telefone && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Phone className="size-3" />
-                    {formatTelefone(c.telefone)}
-                  </p>
-                )}
+                  {c.cargo && <p className="text-xs text-muted-foreground">{c.cargo}</p>}
+                  {c.email && (
+                    <p className="mt-1 text-2xs text-muted-foreground flex items-center gap-1.5 min-w-0">
+                      <Mail className="size-3 shrink-0" />
+                      <span className="truncate" title={c.email}>{c.email}</span>
+                    </p>
+                  )}
+                  {c.telefone && (
+                    <p className="text-2xs text-muted-foreground flex items-center gap-1.5">
+                      <Phone className="size-3 shrink-0" />
+                      {formatTelefone(c.telefone)}
+                    </p>
+                  )}
+                </div>
                 {gerenciar && (
-                  <div className="flex flex-wrap gap-1 pt-2 -ml-2">
-                    {c.ativo && c.email && (
-                      <Button size="sm" variant="ghost" onClick={() => void linkDeAcesso(c)} disabled={gerarLink.isPending}>
-                        <Link2 />
-                        Gerar link de acesso
-                      </Button>
-                    )}
-                    {c.ativo && c.email && email?.configurado && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={enviarAcesso.isPending}
-                        onClick={() =>
-                          enviarAcesso.mutate(c.id, {
-                            onSuccess: () => toast.success(`Acesso enviado para ${c.email}.`),
-                            onError: (e) => toast.error(msgErro(e)),
-                          })
-                        }
-                      >
-                        <Mail />
-                        Enviar acesso
-                      </Button>
-                    )}
-                    {c.id !== euId && (
-                      <Button size="sm" variant="ghost" onClick={() => void alternarAtivo(c)} disabled={atualizar.isPending}>
-                        {c.ativo ? "Desativar" : "Reativar"}
-                      </Button>
-                    )}
+                  <div className="flex items-center gap-0.5 -mr-2 -mt-1.5 shrink-0">
+                    <Button size="icon" variant="ghost" onClick={() => setEditando(c)} aria-label="Editar" title="Editar">
+                      <Pencil />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => void remover(c)}
+                      disabled={c.id === euId}
+                      title={c.id === euId ? "Você não pode excluir a si mesmo" : "Excluir"}
+                      aria-label="Excluir"
+                    >
+                      <Trash2 />
+                    </Button>
                   </div>
                 )}
               </div>
               {gerenciar && (
-                <div className="flex flex-col gap-0.5">
-                  <Button size="icon" variant="ghost" onClick={() => setEditando(c)} aria-label="Editar">
-                    <Pencil />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => void remover(c)}
-                    disabled={c.id === euId}
-                    title={c.id === euId ? "Você não pode excluir a si mesmo" : "Excluir"}
-                    aria-label="Excluir"
-                  >
-                    <Trash2 />
-                  </Button>
+                <div className="mt-auto flex flex-wrap items-center gap-1 border-t border-divider px-3 py-2">
+                  {c.ativo && c.email && (
+                    <Button size="sm" variant="ghost" onClick={() => void linkDeAcesso(c)} disabled={gerarLink.isPending}>
+                      <Link2 />
+                      Gerar link de acesso
+                    </Button>
+                  )}
+                  {c.ativo && c.email && email?.configurado && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={enviarAcesso.isPending && enviarAcesso.variables === c.id}
+                      disabled={enviarAcesso.isPending}
+                      onClick={() =>
+                        enviarAcesso.mutate(c.id, {
+                          onSuccess: () => toast.success(`Acesso enviado para ${c.email}.`),
+                          onError: (e) => toast.error(msgErro(e)),
+                        })
+                      }
+                    >
+                      <Mail />
+                      Enviar acesso
+                    </Button>
+                  )}
+                  {c.id !== euId && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={cn("ml-auto", c.ativo && "text-destructive hover:bg-destructive/5")}
+                      onClick={() => void alternarAtivo(c)}
+                      loading={atualizar.isPending && atualizar.variables?.id === c.id}
+                      disabled={atualizar.isPending}
+                    >
+                      {c.ativo ? "Desativar" : "Reativar"}
+                    </Button>
+                  )}
                 </div>
               )}
             </li>

@@ -50,7 +50,7 @@ export function PageHeader({
         {iconePlano ? (
           <Icon className="size-14 shrink-0" />
         ) : (
-          <Icon className="size-7 shrink-0 text-muted-foreground" />
+          <Icon className="hidden sm:block size-7 shrink-0 text-muted-foreground" />
         )}
         <div className="flex-1 min-w-0 space-y-0.5">
           <h1 className="text-title-lg font-semibold truncate">

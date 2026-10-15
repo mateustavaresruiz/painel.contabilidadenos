@@ -33,6 +33,7 @@ import { formatDoc, formatTelefone } from "@/lib/format";
 import { usePermissao } from "@/lib/colaborador";
 import { nomeExibicao, useClientes, type ClienteResumo } from "@/lib/queries/clientes";
 import { REGIMES, type RegimeTributario } from "@/lib/validations/cliente";
+import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 const TODOS = "__todos__";
@@ -51,7 +52,7 @@ export function ClientesPage() {
 
   // Busca com debounce, mas refletida na URL (link compartilhável).
   const [busca, setBusca] = useState(params.get("q") ?? "");
-  const q = useDebounced(busca, 300);
+  const q = useDebounced(busca, 200);
   useEffect(() => {
     setParam("q", q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,7 +70,7 @@ export function ClientesPage() {
     );
   }
 
-  const { data: clientes = [], isLoading } = useClientes({ q, tipo, regime, situacao });
+  const { data: clientes = [], isLoading, isPlaceholderData } = useClientes({ q, tipo, regime, situacao });
   const filtrando = !!q || !!tipo || !!regime || situacao !== "ativos";
 
   const acessores = useMemo(
@@ -169,7 +170,22 @@ export function ClientesPage() {
         </ListaResponsiva>
       ) : clientes.length === 0 ? (
         filtrando ? (
-          <EmptyState icon={SearchX} title="Nenhum cliente encontrado" description="Ajuste a busca ou os filtros." />
+          <EmptyState
+            icon={SearchX}
+            title="Nenhum cliente encontrado"
+            description="Ajuste a busca ou os filtros."
+            action={
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBusca("");
+                  setParams(new URLSearchParams(), { replace: true });
+                }}
+              >
+                Limpar filtros
+              </Button>
+            }
+          />
         ) : (
           <EmptyState
             icon={Users}
@@ -190,6 +206,8 @@ export function ClientesPage() {
       ) : (
         <ListaResponsiva
           corte="lg"
+          // Lista anterior fica na tela (esmaecida) enquanto a busca nova chega.
+          className={cn("transition-opacity duration-150", isPlaceholderData && "opacity-60")}
           tabela={
             <Table>
               <TableHeader>

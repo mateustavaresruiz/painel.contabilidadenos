@@ -16,7 +16,8 @@ export const TabsList = forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-full border border-border bg-card p-1 text-muted-foreground",
+      // max-w-full + rolagem: no celular as abas rolam de lado em vez de cortar.
+      "inline-flex h-9 max-w-full items-center justify-start overflow-x-auto scrollbar-none rounded-full border border-border bg-card p-1 text-muted-foreground",
       className,
     )}
     {...props}
@@ -31,7 +32,7 @@ export const TabsTrigger = forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-full px-3.5 py-1 text-xs transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-semibold",
+      "inline-flex h-7 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs transition-[color,background-color,transform] duration-150 active:scale-[.97] [&_svg]:size-3.5 disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-semibold",
       className,
     )}
     {...props}
@@ -46,7 +47,7 @@ export const TabsContent = forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-2",
+      "mt-2 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-150",
       className,
     )}
     {...props}

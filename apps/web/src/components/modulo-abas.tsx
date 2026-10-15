@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils";
 /** Abas de navegação dentro de um módulo (ex.: Clientes · Lista | Aniversários). */
 export function ModuloAbas({ abas }: { abas: { to: string; label: string; end?: boolean }[] }) {
   return (
-    <nav className="inline-flex rounded-full bg-muted p-1" aria-label="Seções do módulo">
+    // Mesma pílula das abas (components/ui/tabs.tsx): um padrão de aba só no painel.
+    <nav
+      className="inline-flex h-9 max-w-full items-center overflow-x-auto scrollbar-none rounded-full border border-border bg-card p-1"
+      aria-label="Seções do módulo"
+    >
       {abas.map((a) => (
         <NavLink
           key={a.to}
@@ -13,8 +17,8 @@ export function ModuloAbas({ abas }: { abas: { to: string; label: string; end?: 
           end={a.end}
           className={({ isActive }) =>
             cn(
-              "rounded-full px-4 py-1.5 text-sm transition-colors",
-              isActive ? "bg-card text-foreground font-semibold" : "text-muted-foreground hover:text-foreground",
+              "inline-flex h-7 shrink-0 items-center rounded-full px-3.5 text-xs whitespace-nowrap transition-[color,background-color,transform] duration-150 active:scale-[.97]",
+              isActive ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground",
             )
           }
         >

@@ -1,4 +1,4 @@
-import { Landmark } from "lucide-react";
+import { Landmark, Search } from "lucide-react";
 import { useState } from "react";
 
 import { ClienteSelect } from "@/components/features/clientes/cliente-select";
@@ -8,6 +8,7 @@ import {
   SerproStatusCard,
 } from "@/components/features/serpro/serpro-ui";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -27,8 +28,8 @@ export function PendenciasFiscaisPage() {
       <SerproStatusCard />
 
       <Card>
-        <CardContent className="p-5 space-y-3">
-          <h2 className="text-base">Consultar situação fiscal</h2>
+        <CardContent className="p-6 space-y-3">
+          <h2 className="text-title-md">Consultar situação fiscal</h2>
           <p className="text-sm text-muted-foreground">
             Escolha o cliente e consulte o relatório de situação fiscal (SITFIS). O resultado fica
             registrado no histórico abaixo e na ficha do cliente.
@@ -41,14 +42,18 @@ export function PendenciasFiscaisPage() {
             {clienteId ? (
               <ConsultarSituacaoBotao clienteId={clienteId} size="default" />
             ) : (
-              <p className="text-xs text-muted-foreground pb-2">Escolha um cliente para consultar.</p>
+              // Mesmo botão, desabilitado: o lugar da ação não muda quando escolhe o cliente.
+              <Button variant="outline" disabled title="Escolha um cliente para consultar">
+                <Search />
+                Consultar situação fiscal
+              </Button>
             )}
           </div>
         </CardContent>
       </Card>
 
       <section className="space-y-3">
-        <h2 className="text-base">{clienteId ? "Histórico do cliente" : "Últimas consultas"}</h2>
+        <h2 className="text-title-md">{clienteId ? "Histórico do cliente" : "Últimas consultas"}</h2>
         <ConsultasFiscaisLista clienteId={clienteId ?? undefined} mostrarCliente={!clienteId} />
       </section>
     </div>

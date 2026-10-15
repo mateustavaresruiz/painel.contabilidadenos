@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DetalheSkeleton } from "@/components/ui/skeleton";
+import { DetalheSkeleton, ListaSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
@@ -270,9 +270,9 @@ function SociosAba({ clienteId }: { clienteId: string }) {
         </Button>
       </div>
       {isLoading ? (
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <ListaSkeleton linhas={3} />
       ) : socios.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
           <Users className="size-5 mx-auto mb-2 opacity-60" />
           Nenhum sócio cadastrado.
         </p>
@@ -452,9 +452,9 @@ function CertificadosAba({ clienteId }: { clienteId: string }) {
         </Button>
       </div>
       {isLoading ? (
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <ListaSkeleton linhas={3} />
       ) : data.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
           <BadgeCheck className="size-5 mx-auto mb-2 opacity-60" />
           Nenhum certificado cadastrado.
         </p>
@@ -520,9 +520,9 @@ function SolicitacoesAba({ clienteId }: { clienteId: string }) {
         </Button>
       </div>
       {isLoading ? (
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <ListaSkeleton linhas={3} />
       ) : data.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
           <ClipboardList className="size-5 mx-auto mb-2 opacity-60" />
           Nenhum chamado deste cliente.
         </p>
@@ -579,10 +579,10 @@ function ConversasAba({ clienteId, telefone }: { clienteId: string; telefone: st
     },
   });
   const mapa = useColaboradoresMap();
-  if (isLoading) return <Loader2 className="size-5 animate-spin text-muted-foreground" />;
+  if (isLoading) return <ListaSkeleton linhas={3} />;
   if (data.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
         <MessageSquare className="size-5 mx-auto mb-2 opacity-60" />
         Nenhuma conversa vinculada.{" "}
         {telefone ? "Quando o contato escrever, vincule a conversa pelo painel lateral do Atendimento." : "Cadastre o telefone para facilitar o vínculo."}

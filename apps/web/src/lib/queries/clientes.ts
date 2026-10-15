@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { nullificarVazios, orIlike } from "@/lib/queries/helpers";
 import { supabase } from "@/lib/supabase";
@@ -60,6 +60,8 @@ export type ClientesFilters = {
 export function useClientes(filters: ClientesFilters) {
   return useQuery({
     queryKey: ["clientes", "lista", filters],
+    // Trocar filtro ou busca mantém a lista anterior até a nova chegar.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       let query = supabase
         .from(TABLE)

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 //  ghost       = só texto (ações de ícone em listas)
 //  destructive = ação que apaga: texto em vermelho, sem preenchimento
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-normal transition-[color,background-color,transform,opacity] duration-150 ease-brand active:scale-95 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-normal relative transition-[color,background-color,border-color,transform,opacity] duration-150 ease-brand active:scale-[.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -61,9 +61,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {isLoading ? (
+          // Spinner por cima do conteúdo invisível: o botão não muda de
+          // largura enquanto espera (nada pula na linha).
           <>
-            <Loader2 className="animate-spin" />
-            {children}
+            <span className="invisible inline-flex items-center gap-2">{children}</span>
+            <span className="absolute inset-0 grid place-items-center">
+              <Loader2 className="animate-spin" />
+            </span>
           </>
         ) : (
           children

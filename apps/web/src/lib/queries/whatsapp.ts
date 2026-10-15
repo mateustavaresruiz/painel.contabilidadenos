@@ -12,6 +12,7 @@
 
 import {
   keepPreviousData,
+  type QueryClient,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -1132,6 +1133,39 @@ export async function abrirConversaPorTelefone(sessaoId: string, telefone: strin
 
 const PAGE_SIZE = 50;
 
+/** Uma página de mensagens (mais nova primeiro). Serve à query e à pré-carga. */
+async function buscarPaginaMensagens(sessaoId: string, chatId: string, pageParam: number) {
+  const from = pageParam * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+  const { data, error } = await supabase
+    .from("WhatsappMensagem")
+    // Join no User pra exibir avatar+nome do membro que enviou
+    // ("enviadoPor" só vem preenchido em mensagens fromMe
+    // enviadas pelo nosso app — recebidas e antigas ficam null).
+    .select(
+      "*, enviadoPor:Colaborador!WhatsappMensagem_enviadoPorUserId_fkey(id, nome, cor)",
+    )
+    .eq("sessaoId", sessaoId)
+    .eq("chatId", chatId)
+    .order("timestamp", { ascending: false })
+    .range(from, to);
+  if (error) throw error;
+  return (data ?? []) as WhatsappMensagem[];
+}
+
+/**
+ * Pré-carrega a primeira página de mensagens de uma conversa (hover na lista):
+ * ao clicar, a conversa já abre com as mensagens, sem skeleton.
+ */
+export function preCarregarMensagens(qc: QueryClient, sessaoId: string, chatId: string) {
+  return qc.prefetchInfiniteQuery({
+    queryKey: ["whatsapp-mensagens", sessaoId, chatId],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => buscarPaginaMensagens(sessaoId, chatId, pageParam as number),
+    staleTime: 30_000,
+  });
+}
+
 export function useMensagens(
   sessaoId: string | undefined,
   chatId: string | undefined,
@@ -1155,24 +1189,7 @@ export function useMensagens(
     queryKey: ["whatsapp-mensagens", sessaoId ?? "", chatId ?? ""],
     enabled: !!sessaoId && !!chatId,
     initialPageParam: 0,
-    queryFn: async ({ pageParam }) => {
-      const from = (pageParam as number) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      const { data, error } = await supabase
-        .from("WhatsappMensagem")
-        // Join no User pra exibir avatar+nome do membro que enviou
-        // ("enviadoPor" só vem preenchido em mensagens fromMe
-        // enviadas pelo nosso app — recebidas e antigas ficam null).
-        .select(
-          "*, enviadoPor:Colaborador!WhatsappMensagem_enviadoPorUserId_fkey(id, nome, cor)",
-        )
-        .eq("sessaoId", sessaoId!)
-        .eq("chatId", chatId!)
-        .order("timestamp", { ascending: false })
-        .range(from, to);
-      if (error) throw error;
-      return (data ?? []) as WhatsappMensagem[];
-    },
+    queryFn: ({ pageParam }) => buscarPaginaMensagens(sessaoId!, chatId!, pageParam as number),
     getNextPageParam: (lastPage, allPages) => {
       if (lastPage.length < PAGE_SIZE) return undefined;
       return allPages.length;

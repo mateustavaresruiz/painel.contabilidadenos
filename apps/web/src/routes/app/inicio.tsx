@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { EstadoBadge } from "@/components/features/configuracoes/estado-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Chips } from "@/components/ui/chips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEu, usePermissao } from "@/lib/colaborador";
@@ -62,7 +63,7 @@ export function InicioPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="eyebrow">
             {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
           </p>
@@ -70,25 +71,9 @@ export function InicioPage() {
             {saudacao}, {eu?.nome.split(" ")[0]}
           </h1>
         </div>
-        {verNumeros && <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Período">
-          {PERIODOS.map((p) => (
-            <button
-              key={p.valor}
-              type="button"
-              role="radio"
-              aria-checked={periodo === p.valor}
-              onClick={() => escolher(p.valor)}
-              className={cn(
-                "rounded-full px-3.5 py-1.5 text-xs transition-colors bg-card",
-                periodo === p.valor
-                  ? "border-2 border-[var(--primary-focus)] text-foreground font-semibold px-[13px] py-[5px]"
-                  : "border border-border text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {p.rotulo}
-            </button>
-          ))}
-        </div>}
+        {verNumeros && (
+          <Chips opcoes={PERIODOS} valor={periodo} onChange={escolher} rotulo="Período" className="sm:justify-end" />
+        )}
       </header>
 
       {verSaude && <FaixaSaude />}
@@ -187,7 +172,7 @@ function Numero({
     </>
   );
   return to ? (
-    <Link to={to} className="block rounded-md -m-2 p-2 hover:bg-accent/50 transition-colors">
+    <Link to={to} className="block rounded-pearl -m-2 p-2 transition-[background-color,transform] duration-150 hover:bg-accent/60 active:scale-[.98]">
       {corpo}
     </Link>
   ) : (
@@ -196,7 +181,12 @@ function Numero({
 }
 
 function Vazio({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-muted-foreground py-4">{children}</p>;
+  // Vazio com a forma do bloco (parchment dentro do cartão), não texto solto.
+  return (
+    <p className="rounded-pearl bg-background px-4 py-6 text-center text-xs text-muted-foreground [text-wrap:pretty]">
+      {children}
+    </p>
+  );
 }
 
 function SkeletonGrafico({ altura = "h-40" }: { altura?: string }) {

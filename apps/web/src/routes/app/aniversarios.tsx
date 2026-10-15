@@ -7,7 +7,9 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Chips } from "@/components/ui/chips";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -75,31 +77,20 @@ export function AniversariosPage() {
       <ModuloAbas abas={ABAS_CLIENTES} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border bg-card p-0.5">
-          {(
-            [
-              ["hoje", `Hoje${hoje ? ` (${hoje})` : ""}`],
-              ["7", "Próximos 7 dias"],
-              ["30", "Próximos 30 dias"],
-              ["mes", "Por mês"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setPeriodo(id)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                periodo === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <Chips
+          rotulo="Período"
+          valor={periodo}
+          onChange={setPeriodo}
+          opcoes={[
+            { valor: "hoje", rotulo: `Hoje${hoje ? ` (${hoje})` : ""}` },
+            { valor: "7", rotulo: "Próximos 7 dias" },
+            { valor: "30", rotulo: "Próximos 30 dias" },
+            { valor: "mes", rotulo: "Por mês" },
+          ]}
+        />
         {periodo === "mes" && (
           <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
-            <SelectTrigger className="w-[150px]" aria-label="Mês">
+            <SelectTrigger className="h-8 w-[150px] rounded-full px-3.5 text-xs md:text-xs" aria-label="Mês">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -112,7 +103,7 @@ export function AniversariosPage() {
           </Select>
         )}
         <Select value={origem} onValueChange={(v) => setOrigem(v as Origem)}>
-          <SelectTrigger className="w-[170px]" aria-label="Quem">
+          <SelectTrigger className="h-8 w-auto min-w-[200px] rounded-full px-3.5 text-xs md:text-xs" aria-label="Quem">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -125,8 +116,17 @@ export function AniversariosPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-12 grid place-items-center">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-card border bg-card p-5 flex items-start gap-3">
+              <Skeleton className="size-11 rounded-pearl" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-5 w-1/2 rounded-full" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : ordenada.length === 0 ? (
         <EmptyState
@@ -139,7 +139,7 @@ export function AniversariosPage() {
           }
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {ordenada.map((a) => (
             <AniversarioCard key={`${a.origem}:${a.socioId ?? a.clienteId}`} a={a} />
           ))}
@@ -154,11 +154,11 @@ function AniversarioCard({ a }: { a: AniversarioCalculado }) {
   const ehHoje = a.diasAte === 0;
   return (
     <Card className={cn(ehHoje && "border-bronze/50 bg-bronze/5")}>
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-5 space-y-3">
         <div className="flex items-start gap-3">
           <div
             className={cn(
-              "size-11 rounded-xl grid place-items-center shrink-0 text-center leading-none",
+              "size-11 rounded-pearl grid place-items-center shrink-0 text-center leading-none",
               ehHoje ? "bg-bronze text-bronze-foreground" : "bg-primary/10 text-primary",
             )}
           >

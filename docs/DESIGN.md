@@ -85,3 +85,22 @@ celular).
 - Ícones: uma família só, traço 1.5.
 - Sem travessão (—) em texto de interface.
 - Estados de carregando (skeleton com a forma final), vazio (como popular) e erro em toda lista.
+
+## Movimento
+Curto e discreto; tudo respeita `prefers-reduced-motion` (index.css zera as animações).
+- **Troca de página**: pelo menu, View Transition só no conteúdo (sai 120ms, entra opacidade
+  + 4px em 180ms); sem suporte, ou por link dentro da página, a classe `animate-page-enter`.
+  O chunk da página é pré-carregado no hover/foco do item e no tempo ocioso (`routes/paginas.ts`).
+- **Pressionar**: botão, chip, aba e item clicável `scale(.97)`.
+- **Diálogo, popover, select**: fade + `scale(.98)`, 150ms. Sem deslize.
+- **Carregando**: skeleton com a forma final (`components/ui/skeleton.tsx`), nunca spinner
+  solto no meio da página. Botão esperando: `loading` (spinner por cima, largura não muda).
+- **Lista que refaz com filtro/busca**: mantém a anterior esmaecida (`keepPreviousData`).
+- **Menu lateral**: recolhível no desktop (só ícones, lembrado no navegador, Ctrl/⌘+B).
+
+## Padrões de tela
+- Cabeçalho: `PageHeader` (título 28/600, descrição curta, ação principal à direita).
+- Abas: uma pílula só (`TabsList` e `ModuloAbas` com o mesmo visual).
+- Filtros de período/estado: `Chips` (selecionado = anel de 2px no azul de foco).
+- Barra de filtros: cartão com campos de 40px; data com o rótulo dentro do campo.
+- Vazio: `EmptyState` com a próxima ação (ex.: "Limpar filtros" quando há filtro).

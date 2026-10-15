@@ -1,7 +1,7 @@
 // Certificados digitais dos clientes, histórico de avisos e configuração do
 // aviso automático por WhatsApp (o envio em si é do cron no servidor).
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import { parsePgDate } from "@/lib/format";
@@ -71,6 +71,7 @@ const SELECT = "*, cliente:Cliente(id, nome, nomeFantasia, telefone)";
 export function useCertificados(filtros?: { clienteId?: string }) {
   return useQuery({
     queryKey: ["certificados", filtros ?? {}],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       let q = supabase
         .from("CertificadoDigital")

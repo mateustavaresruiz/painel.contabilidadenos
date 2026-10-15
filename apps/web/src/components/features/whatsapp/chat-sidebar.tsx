@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -34,6 +35,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
+import { ConversasSkeleton } from "@/components/ui/skeleton";
 import { useDebounced } from "@/hooks/use-debounced";
 import {
   ColaboradorAvatar,
@@ -49,6 +51,7 @@ import {
   mediaSignedUrl,
   useApagarChat,
   useApagarChatsEmLote,
+  preCarregarMensagens,
   useArquivarChat,
   useFixarChat,
   useLimparChat,
@@ -107,7 +110,7 @@ export function ChatSidebar({
   const [filtroResp, setFiltroResp] = useState<FiltroResponsavel>("todas");
   // 300ms é o sweet spot: rápido o bastante pra parecer responsivo,
   // longo o bastante pra não disparar query a cada tecla.
-  const buscaDebounced = useDebounced(busca, 300);
+  const buscaDebounced = useDebounced(busca, 200);
 
   // Traduz chip → filtros pro hook
   const filtros = useMemo(() => {
@@ -432,9 +435,7 @@ function ListaConversas({
       className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
     >
       {isLoading ? (
-        <div className="flex items-center justify-center h-32">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
+        <ConversasSkeleton />
       ) : chats.length === 0 ? (
         <EmptyState busca={busca} filtro={filtro} />
       ) : (
@@ -615,6 +616,22 @@ const ChatItem = memo(function ChatItemImpl({
     }
     onSelecionar(chat.sessaoId, chat.chatId);
   }, [modoSelecao, onToggleSelecao, onSelecionar, chat.sessaoId, chat.chatId]);
+  // Pré-carga das mensagens com intenção de hover (120 ms parado em cima):
+  // passar o mouse pela lista não dispara uma enxurrada de requests, mas a
+  // conversa em que a pessoa vai clicar já abre pronta, sem skeleton.
+  const qc = useQueryClient();
+  const hoverRef = useRef<number | null>(null);
+  const aoEntrar = useCallback(() => {
+    if (modoSelecao) return;
+    hoverRef.current = window.setTimeout(() => {
+      void preCarregarMensagens(qc, chat.sessaoId, chat.chatId);
+    }, 120);
+  }, [qc, modoSelecao, chat.sessaoId, chat.chatId]);
+  const aoSair = useCallback(() => {
+    if (hoverRef.current) window.clearTimeout(hoverRef.current);
+    hoverRef.current = null;
+  }, []);
+  useEffect(() => aoSair, [aoSair]);
   // Fallback do nome quando o grupo ainda não teve o subject capturado
   // pelo refresh-profile — mostra um sufixo do chatId pra diferenciar
   // grupos distintos. Usa os ÚLTIMOS 5 dígitos (não os primeiros)
@@ -734,6 +751,8 @@ const ChatItem = memo(function ChatItemImpl({
         role="button"
         tabIndex={0}
         onClick={onClick}
+        onPointerEnter={aoEntrar}
+        onPointerLeave={aoSair}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();

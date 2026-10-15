@@ -1,7 +1,7 @@
 // Chamados (novo no painel Denos): pedidos que o cliente faz pelo
 // WhatsApp (nota fiscal, guia, certidão…), registrados a partir da conversa.
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useRealtimeInvalidate } from "@/lib/realtime";
 import { supabase } from "@/lib/supabase";
@@ -138,6 +138,7 @@ export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
   useRealtimeInvalidate("Solicitacao", [["solicitacoes"]], undefined, enabled);
   return useQuery({
     queryKey: ["solicitacoes", filtros],
+    placeholderData: keepPreviousData,
     enabled,
     queryFn: async () => {
       let q = supabase

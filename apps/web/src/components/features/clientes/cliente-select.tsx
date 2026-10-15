@@ -49,7 +49,7 @@ export function ClienteSelect({
         <button
           type="button"
           className={cn(
-            "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm",
+            "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-base md:text-sm transition-colors hover:border-foreground/20",
             "disabled:opacity-60 disabled:cursor-not-allowed",
           )}
         >

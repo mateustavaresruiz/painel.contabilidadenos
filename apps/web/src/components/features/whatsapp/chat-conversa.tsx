@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { openMediaViewer } from "@/components/ui/media-viewer";
+import { MensagensSkeleton } from "@/components/ui/skeleton";
 import { ConversaTagsBotao } from "@/components/features/whatsapp/conversa-tags";
 import {
   AtendimentoAcoes,
@@ -949,9 +950,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
         )}
       >
         {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
+          <MensagensSkeleton />
         ) : isError && mensagens.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted-foreground">
             <AlertCircle className="size-5 text-destructive" />

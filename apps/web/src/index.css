@@ -228,6 +228,55 @@
   animation: route-fade 0.15s ease-out both;
 }
 
+/* Entrada de página: opacidade + 4px, 180ms. `backwards` (e não `both`):
+   depois de terminar não sobra transform no contêiner, que viraria o bloco
+   de referência de todo `position: fixed` lá dentro. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-page-enter {
+  animation: page-enter 180ms var(--ease-brand) backwards;
+}
+/* Navegação pelo menu com View Transition: a transição já anima o conteúdo. */
+html[data-vt] .animate-page-enter {
+  animation: none;
+}
+
+/* View Transitions (layouts/app-layout.tsx). O menu troca na hora; só o
+   conteúdo (view-transition-name: conteudo) faz o crossfade. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(conteudo) {
+  animation-duration: 0s;
+}
+::view-transition-old(conteudo) {
+  animation: route-fade 120ms ease-out reverse both;
+}
+::view-transition-new(conteudo) {
+  animation: page-enter 180ms var(--ease-brand) both;
+}
+
+/* Item novo que chega numa lista (mensagem, linha): sobe 4px e aparece. */
+@keyframes item-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-item-enter {
+  animation: item-enter 160ms var(--ease-brand) backwards;
+}
+
+/* Brilho do skeleton: um passe lento de claro sobre a forma final. */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.animate-skeleton {
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -241,8 +290,14 @@
     animation-duration: 1s !important;
     animation-iteration-count: infinite !important;
   }
-  .animate-pulse {
+  .animate-pulse,
+  .animate-skeleton {
     animation-duration: 2s !important;
     animation-iteration-count: infinite !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
