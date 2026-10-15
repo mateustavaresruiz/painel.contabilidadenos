@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import {
   BadgeCheck,
   BellRing,
@@ -21,6 +22,7 @@ import { ImportarPlanilhaBotao } from "@/components/features/importar/importar-p
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ItemCard, ListaResponsiva } from "@/components/ui/lista-responsiva";
 import { Card, CardContent } from "@/components/ui/card";
 import { confirmar } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -115,7 +117,7 @@ export function CertificadosPage() {
   }, [data]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <PageContainer>
       <PageHeader
         icon={BadgeCheck}
         title="Certificados digitais"
@@ -208,8 +210,9 @@ export function CertificadosPage() {
           }
         />
       ) : (
-        <Card>
-          <div>
+        <ListaResponsiva
+          corte="xl"
+          tabela={
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -238,8 +241,22 @@ export function CertificadosPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
-        </Card>
+          }
+        >
+          {filtrados.map((c) => (
+            <CardCertificado
+              key={c.id}
+              c={c}
+              aberto={historico === c.id}
+              onHistorico={() => setHistorico(historico === c.id ? null : c.id)}
+              onEditar={podeEditar ? () => setEditando(c) : undefined}
+              onExcluir={async () => {
+                if (!(await confirmar({ titulo: "Excluir certificado?", descricao: "O histórico de avisos vai junto.", confirmLabel: "Excluir", destructive: true }))) return;
+                excluir.mutate(c.id, { onError: (e) => toast.error(msgErro(e)) });
+              }}
+            />
+          ))}
+        </ListaResponsiva>
       )}
 
       {podeAvisos && <ConfigAvisos />}
@@ -255,7 +272,50 @@ export function CertificadosPage() {
         certificado={editando === "novo" ? null : editando}
         clienteIdFixo={editando === "novo" && novoPara !== "1" ? novoPara : null}
       />
-    </div>
+    </PageContainer>
+  );
+}
+
+/** O mesmo registro da linha da tabela, em card (celular). */
+function CardCertificado({ c, aberto, onHistorico, onEditar, onExcluir }: Parameters<typeof FragmentLinha>[0]) {
+  return (
+    <>
+      <ItemCard
+        titulo={c.cliente ? c.cliente.nomeFantasia || c.cliente.nome : "-"}
+        subtitulo={[c.tipo, c.titular, c.emissora].filter(Boolean).join(" · ")}
+        selo={<CertificadoStatusBadge validoAte={c.validoAte} />}
+        meta={[
+          { texto: `Válido até ${formatData(c.validoAte)}` },
+          {
+            icone: c.avisarWhatsapp ? BellRing : undefined,
+            texto: c.avisarWhatsapp ? formatTelefone(c.telefoneAviso || c.cliente?.telefone) : "Aviso desligado",
+          },
+        ]}
+        acoes={
+          <>
+            <Button size="sm" variant="ghost" onClick={onHistorico} aria-expanded={aberto} className="mr-auto">
+              <History />
+              Histórico
+            </Button>
+            {onEditar && (
+              <>
+                <Button size="icon" variant="ghost" onClick={onEditar} title="Editar" aria-label="Editar">
+                  <Pencil />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={onExcluir} title="Excluir" aria-label="Excluir">
+                  <Trash2 />
+                </Button>
+              </>
+            )}
+          </>
+        }
+      />
+      {aberto && (
+        <li className="col-span-full rounded-xl border border-border/60 bg-muted/40 p-3">
+          <HistoricoAvisos certificadoId={c.id} />
+        </li>
+      )}
+    </>
   );
 }
 
@@ -443,7 +503,7 @@ function ConfigAvisos() {
       </button>
       {aberto && (
         <CardContent className="px-5 pb-5 pt-0 space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="cfg-marcos">Marcos (dias antes do vencimento)</Label>
               <Input id="cfg-marcos" value={marcos} onChange={(e) => setMarcos(e.target.value)} placeholder="30, 15, 7, 1, 0" />

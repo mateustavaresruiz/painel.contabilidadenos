@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import {
   BadgeCheck,
   ChevronLeft,
@@ -16,7 +17,9 @@ import { useQuery } from "@tanstack/react-query";
 import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { MarcaDagua } from "@/components/marca-hexagono";
+import { FAIXA_TOPO } from "@/components/page-header";
 import { corModulo } from "@/lib/cores-modulo";
+import { cn } from "@/lib/utils";
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
 import { DeleteClienteButton } from "@/components/features/clientes/delete-cliente-button";
@@ -79,25 +82,25 @@ export function ClienteDetalhePage() {
   if (!id) return <Navigate to="/clientes" replace />;
   if (isLoading) return <DetalheSkeleton />;
   if (error) {
-    return <div className="p-8 text-sm text-destructive">Erro ao carregar: {msgErro(error)}</div>;
+    return <PageContainer className="text-sm text-destructive">Erro ao carregar: {msgErro(error)}</PageContainer>;
   }
   if (!cliente) {
     return (
-      <div className="p-8 space-y-3">
+      <PageContainer className="space-y-3">
         <p className="text-sm text-muted-foreground">Cliente não encontrado.</p>
         <Link to="/clientes" className="text-sm underline">
           Voltar para Clientes
         </Link>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <header className="relative -mx-4 -mt-4 overflow-hidden border-b border-border/70 px-4 pb-5 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 space-y-3" style={corModulo("clientes")}>
+    <PageContainer>
+      <header className={cn(FAIXA_TOPO, "space-y-3")} style={corModulo("clientes")}>
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,transparent_55%,color-mix(in_srgb,var(--mc)_7%,transparent))]" />
         <MarcaDagua />
-        <Link to="/clientes" className="relative inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link to="/clientes" className="relative inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-lg:-my-2.5 max-lg:py-2.5">
           <ChevronLeft className="size-4" />
           Clientes
         </Link>
@@ -183,7 +186,7 @@ export function ClienteDetalhePage() {
           <ConsultasFiscaisLista clienteId={cliente.id} />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -208,7 +211,7 @@ function DadosAba({ cliente }: { cliente: Cliente }) {
     .filter(Boolean)
     .join(" · ");
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
         <CardContent className="p-5">
           <h2 className="eyebrow mb-2">Cadastro</h2>
@@ -236,7 +239,7 @@ function DadosAba({ cliente }: { cliente: Cliente }) {
                 <span className="inline-flex items-center gap-2">
                   {formatTelefone(cliente.telefone)}
                   {wa && (
-                    <a href={wa} target="_blank" rel="noreferrer" className="text-xs text-primary underline">
+                    <a href={wa} target="_blank" rel="noreferrer" className="text-xs text-primary underline max-lg:py-3">
                       wa.me
                     </a>
                   )}
@@ -401,7 +404,7 @@ function SocioDialog({
           <DialogTitle>{socio ? "Editar sócio" : "Novo sócio"}</DialogTitle>
           <DialogDescription>Quadro societário da empresa.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="so-nome">Nome *</Label>
             <Input id="so-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />

@@ -36,7 +36,7 @@ export function Chips<T extends string>({
             aria-checked={ativo}
             onClick={() => onChange(o.valor)}
             className={cn(
-              "h-8 shrink-0 whitespace-nowrap rounded-full border bg-card px-3.5 text-xs",
+              "h-8 max-lg:h-10 shrink-0 whitespace-nowrap rounded-full border bg-card px-3.5 text-xs",
               "transition-[color,box-shadow,border-color,transform] duration-150 ease-brand active:scale-[.97]",
               ativo
                 ? "border-transparent font-semibold text-foreground shadow-[inset_0_0_0_2px_var(--primary-focus)]"

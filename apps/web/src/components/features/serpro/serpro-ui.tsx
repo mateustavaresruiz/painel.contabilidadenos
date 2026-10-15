@@ -105,8 +105,8 @@ export function SerproStatusCard() {
 
   return (
     <Card>
-      <CardContent className="p-6 space-y-4">
-        <div className="flex items-start gap-3">
+      <CardContent className="p-4 sm:p-6 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
           <div
             className={cn(
               "size-10 rounded-pearl grid place-items-center shrink-0",
@@ -121,7 +121,7 @@ export function SerproStatusCard() {
               <AlertTriangle className="size-5" />
             )}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 max-sm:order-last max-sm:basis-full sm:flex-1">
             <h2 className="text-title-md">
               {isLoading
                 ? "Verificando a integração…"
@@ -145,7 +145,7 @@ export function SerproStatusCard() {
             <span className="hidden sm:inline">Verificar</span>
           </Button>
         </div>
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {REQUISITOS.map((r) => {
             const st = situacaoRequisito(data, r);
             const Icon = st === "ok" ? CheckCircle2 : st === "falta" ? XCircle : CircleDashed;

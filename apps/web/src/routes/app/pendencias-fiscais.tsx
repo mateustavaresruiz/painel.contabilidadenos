@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import { Landmark } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -27,7 +28,7 @@ export function PendenciasFiscaisPage() {
   const veAgenda = useAlgumaPermissao(["serpro.agendar", "serpro.consultar"]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <PageContainer>
       <PageHeader
         icon={Landmark}
         title="Pendências fiscais"
@@ -74,6 +75,6 @@ export function PendenciasFiscaisPage() {
           <CustosSerpro />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

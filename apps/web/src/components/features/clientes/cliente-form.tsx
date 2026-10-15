@@ -388,7 +388,7 @@ export function ClienteForm(props: Props) {
             <button
               type="button"
               onClick={() => setCepConfirmado(true)}
-              className="mt-1.5 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              className="mt-1.5 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground max-lg:-my-3 max-lg:py-3"
             >
               Não tenho o CEP, preencher manualmente
             </button>

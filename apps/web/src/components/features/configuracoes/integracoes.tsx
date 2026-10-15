@@ -34,7 +34,7 @@ const STATUS_SESSAO: Record<string, { rotulo: string; estado: Estado }> = {
 export function ConfigIntegracoes() {
   const { ativo } = useModulos();
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <CardBanco />
       <CardEmail />
       {ativo("whatsapp") && <CardWhatsapp />}
@@ -65,7 +65,7 @@ function CardIntegracao({
 }) {
   return (
     <Card className={className}>
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="p-4 sm:p-6 space-y-4">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -90,8 +90,8 @@ function CardIntegracao({
 function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 text-sm">
-      <dt className="text-muted-foreground">{rotulo}</dt>
-      <dd className="text-right min-w-0 break-words">{children}</dd>
+      <dt className="shrink-0 text-muted-foreground">{rotulo}</dt>
+      <dd className="text-right min-w-0 [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
@@ -125,7 +125,7 @@ function CardBanco() {
           </dl>
           <details className="text-sm">
             <summary className="cursor-pointer text-primary text-xs">Tabelas e migrações</summary>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <ul className="space-y-1 text-xs">
                 {Object.entries(d.tabelas).map(([t, n]) => (
                   <li key={t} className="flex justify-between gap-2">

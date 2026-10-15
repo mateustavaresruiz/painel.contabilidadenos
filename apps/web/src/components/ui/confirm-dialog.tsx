@@ -50,7 +50,7 @@ export function ConfirmDialogProvider() {
 
   return (
     <Dialog open={!!state} onOpenChange={(o) => { if (!o) fechar(false); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-sm:top-auto max-sm:bottom-0 max-sm:h-auto max-sm:rounded-t-2xl max-sm:border-t">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {state?.destructive ? (

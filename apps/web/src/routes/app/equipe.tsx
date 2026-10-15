@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import {
   Copy,
   KeyRound,
@@ -64,7 +65,7 @@ export function EquipePage() {
   const [novoCargo, setNovoCargo] = useState(false);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <PageContainer>
       <PageHeader
         icon={UsersRound}
         title="Equipe"
@@ -105,7 +106,7 @@ export function EquipePage() {
           <AbaCargos gerenciar={gerenciar} novo={novoCargo} setNovo={setNovoCargo} />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -194,7 +195,7 @@ function AbaPessoas({
 
   if (isLoading) {
     return (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-24 rounded-card" />
         ))}
@@ -208,7 +209,7 @@ function AbaPessoas({
       {data.length === 0 ? (
         <EmptyState icon={UsersRound} title="Ninguém na equipe" description="Use Convidar para liberar o acesso de alguém." />
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {data.map((c) => (
             <li key={c.id} className={cn("rounded-card border bg-card flex flex-col transition-opacity", !c.ativo && "opacity-60")}>
               <div className="flex items-start gap-3 p-5 pb-4">
@@ -399,7 +400,7 @@ function AbaCargos({ gerenciar, novo, setNovo }: { gerenciar: boolean; novo: boo
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cargos.map((c) => {
           const qtd = porCargo.get(c.id) ?? 0;
           const total = c.sistema ? TODAS_PERMISSOES.length : c.permissoes.length;
@@ -523,7 +524,7 @@ function CargoForm({ cargo, somenteLeitura, onClose }: { cargo: Cargo | null; so
 
   return (
     <form onSubmit={enviar} className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="cargo-nome">Nome</Label>
           <Input id="cargo-nome" value={nome} onChange={(e) => setNome(e.target.value)} disabled={somenteLeitura} />

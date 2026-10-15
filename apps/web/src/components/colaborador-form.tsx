@@ -90,7 +90,7 @@ export function ColaboradorForm({
           <Input id="col-nome" autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Ana Souza" />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor="col-email">
             E-mail de acesso <span className="text-destructive">*</span>

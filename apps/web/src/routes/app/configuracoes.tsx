@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import { Lock, Settings } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -36,7 +37,7 @@ export function ConfiguracoesPage() {
 
   if (!aba) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8">
+      <PageContainer>
         <EmptyState
           icon={Lock}
           title="Sem acesso"
@@ -47,12 +48,12 @@ export function ConfiguracoesPage() {
             </Button>
           }
         />
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <PageContainer>
       <PageHeader
         icon={Settings}
         title="Configurações"
@@ -93,6 +94,6 @@ export function ConfiguracoesPage() {
           <ConfigSistema />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

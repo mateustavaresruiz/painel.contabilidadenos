@@ -18,7 +18,7 @@ export const Switch = forwardRef<HTMLButtonElement, Props>(
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none",
+        "relative inline-flex h-6 w-10 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-[''] items-center rounded-full transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none",
         checked ? "bg-primary" : "bg-foreground/20",
         className,
       )}

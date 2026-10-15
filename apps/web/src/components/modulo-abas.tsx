@@ -7,7 +7,7 @@ export function ModuloAbas({ abas }: { abas: { to: string; label: string; end?: 
   return (
     // Mesma pílula das abas (components/ui/tabs.tsx): um padrão de aba só no painel.
     <nav
-      className="inline-flex h-9 max-w-full items-center overflow-x-auto scrollbar-none rounded-full border border-border bg-card p-1"
+      className="inline-flex h-9 max-lg:h-11 max-w-full items-center overflow-x-auto scrollbar-none rounded-full border border-border bg-card p-1"
       aria-label="Seções do módulo"
     >
       {abas.map((a) => (
@@ -17,7 +17,7 @@ export function ModuloAbas({ abas }: { abas: { to: string; label: string; end?: 
           end={a.end}
           className={({ isActive }) =>
             cn(
-              "inline-flex h-7 shrink-0 items-center rounded-full px-3.5 text-xs whitespace-nowrap transition-[color,background-color,transform] duration-150 active:scale-[.97]",
+              "inline-flex h-7 max-lg:h-9 shrink-0 items-center rounded-full px-3.5 text-xs whitespace-nowrap transition-[color,background-color,transform] duration-150 active:scale-[.97]",
               isActive ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground",
             )
           }

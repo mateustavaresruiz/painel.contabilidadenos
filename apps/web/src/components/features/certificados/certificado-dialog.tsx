@@ -107,7 +107,7 @@ export function CertificadoDialog({
             Certificados.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2 max-h-[65vh] overflow-y-auto px-0.5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-h-[65vh] overflow-y-auto px-0.5">
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Cliente *</Label>
             <ClienteSelect value={clienteId} onChange={setClienteId} disabled={!!clienteIdFixo && !certificado} />

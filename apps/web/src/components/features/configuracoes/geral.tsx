@@ -51,7 +51,7 @@ export function ConfigGeral() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           <div>
             <h2 className="text-title-md">Escritório</h2>
             <p className="text-sm text-muted-foreground mt-1">Nome que aparece no menu e nos relatórios.</p>
@@ -70,7 +70,7 @@ export function ConfigGeral() {
       </Card>
 
       <Card>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           <div>
             <h2 className="text-title-md">Logo</h2>
             <p className="text-sm text-muted-foreground mt-1">
@@ -104,7 +104,7 @@ export function ConfigGeral() {
       </Card>
 
       <Card>
-        <CardContent className="p-6 space-y-3">
+        <CardContent className="p-4 sm:p-6 space-y-3">
           <div>
             <h2 className="text-title-md">Ajustes dos módulos</h2>
             <p className="text-sm text-muted-foreground mt-1">Ficam na página de cada módulo.</p>

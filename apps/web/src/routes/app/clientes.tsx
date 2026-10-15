@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import { Building2, ChevronRight, MapPin, Pencil, Plus, Search, SearchX, User, Users } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -88,7 +89,7 @@ export function ClientesPage() {
   const { rows, sort, toggle } = useSort(clientes, acessores);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <PageContainer>
       <PageHeader
         icon={Users}
         title="Clientes"
@@ -159,7 +160,7 @@ export function ClientesPage() {
 
       {isLoading ? (
         <ListaResponsiva
-          corte="lg"
+          corte="xl"
           tabela={
             <Table>
               <TableBody>
@@ -211,7 +212,7 @@ export function ClientesPage() {
         )
       ) : (
         <ListaResponsiva
-          corte="lg"
+          corte="xl"
           // Lista anterior fica na tela (esmaecida) enquanto a busca nova chega.
           className={cn("transition-opacity duration-150", isPlaceholderData && "opacity-60")}
           tabela={
@@ -317,7 +318,7 @@ export function ClientesPage() {
           {clientes.length >= 500 ? " (mostrando os 500 primeiros, refine a busca)" : ""}
         </p>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

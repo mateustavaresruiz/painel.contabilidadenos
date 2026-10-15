@@ -281,7 +281,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh grid lg:grid-cols-[1.1fr_1fr] bg-background">
+    <div className="min-h-dvh grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] bg-background">
       <style>{ESTILO}</style>
       <PainelFoto />
 

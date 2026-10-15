@@ -20,7 +20,7 @@ export const SelectTrigger = forwardRef<
     ref={ref}
     className={cn(
       // gap + chevron shrink-0: texto longo trunca antes da seta, sem encostar.
-      "flex h-10 w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-card px-3 py-2 text-base md:text-sm transition-colors hover:border-foreground/20 data-[placeholder]:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&>span]:text-left",
+      "flex h-10 max-sm:h-11 w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-card px-3 py-2 text-base md:text-sm transition-colors hover:border-foreground/20 data-[placeholder]:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&>span]:text-left",
       className,
     )}
     {...props}

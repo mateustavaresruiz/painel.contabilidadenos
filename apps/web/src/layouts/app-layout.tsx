@@ -126,9 +126,9 @@ export function AppLayout() {
   const telaCheia = location.pathname === "/whatsapp" || location.pathname === "/whatsapp/";
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
+    <div className="flex h-dvh flex-col overflow-hidden lg:flex-row">
       {/* Barra de topo: só no celular. Soma o entalhe do iPhone. */}
-      <header className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border barra-fixa px-4 pt-safe-t h-[calc(4rem+env(safe-area-inset-top))] shrink-0">
+      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border barra-fixa px-4 pt-safe-t h-[calc(4rem+env(safe-area-inset-top))] shrink-0">
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
@@ -140,12 +140,22 @@ export function AppLayout() {
         <Link to="/" className="inline-flex h-11">
           <Logo className="h-11" />
         </Link>
-        <EuBotao compacto />
+        <div className="-mr-1.5 flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={abrirBusca}
+            className="grid place-items-center size-11 rounded-full text-muted-foreground transition-[background-color,transform] duration-150 hover:bg-accent/60 active:scale-[.97]"
+            aria-label="Buscar"
+          >
+            <Search className="size-5" />
+          </button>
+          <EuBotao compacto />
+        </div>
       </header>
 
       <aside
         className={cn(
-          "hidden md:flex shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex-col min-h-0 overflow-hidden",
+          "hidden lg:flex shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex-col min-h-0 overflow-hidden",
           "transition-[width] duration-200 ease-brand motion-reduce:transition-none",
           recolhida ? "w-[72px]" : "w-[264px]",
         )}
@@ -155,7 +165,7 @@ export function AppLayout() {
       </aside>
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="left" showCloseButton overlayClassName="md:hidden" className="md:hidden pl-safe-l bg-sidebar text-sidebar-foreground border-sidebar-border">
+        <SheetContent side="left" showCloseButton overlayClassName="lg:hidden" className="lg:hidden pl-safe-l bg-sidebar text-sidebar-foreground border-sidebar-border">
           <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
           <SheetDescription className="sr-only">Páginas do painel.</SheetDescription>
           <Sidebar onNavigate={() => setDrawerOpen(false)} estilo={estilo} />
@@ -164,7 +174,7 @@ export function AppLayout() {
 
       <main id="main-content" className="flex-1 min-h-0 min-w-0 flex flex-col [view-transition-name:conteudo]">
         {/* Barra de topo do desktop: busca global (Ctrl+K) e a conta. */}
-        <div className="hidden md:flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/80 px-6 barra-fixa">
+        <div className="hidden lg:flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/80 px-6 barra-fixa">
           <button
             type="button"
             onClick={abrirBusca}
@@ -182,7 +192,7 @@ export function AppLayout() {
           key={location.pathname}
           className={cn(
             "flex-1 min-h-0 animate-page-enter",
-            telaCheia ? "overflow-hidden flex flex-col" : "overflow-auto overscroll-contain",
+            telaCheia ? "overflow-hidden flex flex-col" : "overflow-auto overscroll-contain [container-type:inline-size]",
           )}
         >
           <Suspense fallback={telaCheia ? null : <PaginaSkeleton />}>
@@ -400,7 +410,7 @@ function EuBotao({ compacto, recolhida, naSidebar, comNome }: { compacto?: boole
           className={cn(
             "flex items-center gap-3 rounded-md text-left transition-[background-color,transform] duration-150 active:scale-[.98]",
             naSidebar ? "hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover" : "hover:bg-accent/70 data-[state=open]:bg-accent/70",
-            compacto && comNome ? "py-1 pl-1 pr-3 rounded-full gap-2.5" : compacto ? "p-1 -mr-1 rounded-full" : recolhida ? "w-full justify-center py-1.5" : "w-full px-2 py-1.5",
+            compacto && comNome ? "py-1 pl-1 pr-3 rounded-full gap-2.5" : compacto ? "p-1 -mr-1 rounded-full max-lg:size-11 max-lg:justify-center max-lg:p-0 max-lg:mr-0" : recolhida ? "w-full justify-center py-1.5" : "w-full px-2 py-1.5",
           )}
           aria-label="Sua conta"
         >

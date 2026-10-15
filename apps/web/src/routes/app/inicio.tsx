@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import {
   ArrowRight,
   BadgeCheck,
@@ -191,7 +192,7 @@ export function InicioPage() {
 
 function InicioMarinho(p: Inicio) {
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 mx-auto w-full max-w-[1600px]">
+    <PageContainer className="lg:space-y-8">
       <section
         className="relative overflow-hidden rounded-card text-white shadow-card animate-rise"
         style={{ backgroundImage: "url(/login-predio.jpg)", backgroundSize: "cover", backgroundPosition: "center 40%" }}
@@ -285,7 +286,7 @@ function InicioMarinho(p: Inicio) {
         </Conteudo>
       )}
       {!p.verNumeros && <SemNumeros />}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -296,7 +297,7 @@ function InicioMarinho(p: Inicio) {
 function InicioColorido(p: Inicio) {
   const tudoEmDia = !p.q.isLoading && p.atencao.every((a) => a.valor === 0);
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 mx-auto w-full max-w-[1600px]">
+    <PageContainer className="lg:space-y-8">
       <header className="relative flex flex-col gap-1.5 animate-rise">
         <MarcaDagua className="-top-10 right-0" />
         <p className="text-xs font-semibold text-[color:var(--mod-inicio)] first-letter:uppercase">{p.hoje}</p>
@@ -386,7 +387,7 @@ function InicioColorido(p: Inicio) {
         </Conteudo>
       )}
       {!p.verNumeros && <SemNumeros colorido />}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -493,7 +494,7 @@ function CartaoResumo({
         </span>
         <h3 className="text-title-sm font-bold flex-1 min-w-0 truncate">{titulo}</h3>
         {link && (
-          <Link to={link.to} className="texto-mod shrink-0 text-xs font-semibold inline-flex items-center gap-1 hover:underline underline-offset-4">
+          <Link to={link.to} className="texto-mod shrink-0 text-xs font-semibold inline-flex items-center gap-1 max-lg:min-h-11 max-lg:-my-3 max-lg:px-2 max-lg:-mr-2 hover:underline underline-offset-4">
             {link.texto}
             <ArrowRight className="size-3.5" />
           </Link>
@@ -528,7 +529,7 @@ function Resumos({ p, variante }: { p: Inicio; variante: Estilo }) {
       <h2 className="text-title-md font-bold animate-rise" style={passo(8)}>
         Como foi a semana
       </h2>
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3 lg:items-start">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3 lg:items-start">
         {semana.length > 0 && (
           <CartaoResumo titulo="Últimos 7 dias" cor="inicio" icon={MessagesSquare} variante={variante} style={passo(9)} className="lg:col-span-2">
             <div className={cn("grid gap-3 grid-cols-2", semana.length === 3 && "sm:grid-cols-3")}>

@@ -1,7 +1,9 @@
+import { PageContainer } from "@/components/page-container";
 import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  CalendarDays,
   ClipboardList,
   Loader2,
   MessageSquare,
@@ -9,6 +11,7 @@ import {
   Plus,
   Tags,
   Trash2,
+  UserRound,
 } from "lucide-react";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -24,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { confirmar } from "@/components/ui/confirm-dialog";
+import { ItemCard, ListaResponsiva } from "@/components/ui/lista-responsiva";
 import {
   Dialog,
   DialogContent,
@@ -93,7 +97,7 @@ export function ChamadosPage() {
   const [nova, setNova] = useState(() => podeCriar && params.get("novo") === "1");
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <PageContainer>
       <PageHeader
         icon={ClipboardList}
         title="Chamados"
@@ -150,7 +154,7 @@ export function ChamadosPage() {
         </TabsContent>
       </Tabs>
       <NovaSolicitacaoDialog open={nova} onOpenChange={setNova} origem={{}} />
-    </div>
+    </PageContainer>
   );
 }
 
@@ -178,6 +182,32 @@ function ListaAba() {
   const excluir = useExcluirSolicitacao();
   const mapa = useColaboradoresMap();
   const filtrando = status !== "abertas" || !!tipoId || !!responsavel || !!clienteId || !!de || !!ate;
+  // Botões da linha: os mesmos na tabela (desktop) e no card (celular).
+  const acoesDe = (s: (typeof data)[number]) => (
+    <>
+            {s.chat && (
+              <Button asChild size="icon" variant="ghost" title="Abrir conversa">
+                <Link
+                  to={`/whatsapp?instancia=${encodeURIComponent(s.chat.sessaoId)}&chat=${encodeURIComponent(s.chat.chatId)}`}
+                >
+                  <MessageSquare />
+                </Link>
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              title="Excluir"
+              onClick={async () => {
+                if (!(await confirmar({ titulo: "Excluir chamado?", descricao: "Some também do relatório.", confirmLabel: "Excluir", destructive: true })))
+                  return;
+                excluir.mutate(s.id, { onError: (e) => toast.error(msgErro(e)) });
+              }}
+            >
+              <Trash2 />
+            </Button>
+    </>
+  );
   function limparFiltros() {
     setStatus("abertas");
     setTipoId("");
@@ -268,8 +298,10 @@ function ListaAba() {
           />
         )
       ) : (
-        <Card className={cn("transition-opacity duration-150", isPlaceholderData && "opacity-60")}>
-          <div>
+        <ListaResponsiva
+          corte="xl"
+          className={cn("transition-opacity duration-150", isPlaceholderData && "opacity-60")}
+          tabela={
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -330,27 +362,7 @@ function ListaAba() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-0.5">
-                          {s.chat && (
-                            <Button asChild size="icon" variant="ghost" title="Abrir conversa">
-                              <Link
-                                to={`/whatsapp?instancia=${encodeURIComponent(s.chat.sessaoId)}&chat=${encodeURIComponent(s.chat.chatId)}`}
-                              >
-                                <MessageSquare />
-                              </Link>
-                            </Button>
-                          )}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            title="Excluir"
-                            onClick={async () => {
-                              if (!(await confirmar({ titulo: "Excluir chamado?", descricao: "Some também do relatório.", confirmLabel: "Excluir", destructive: true })))
-                                return;
-                              excluir.mutate(s.id, { onError: (e) => toast.error(msgErro(e)) });
-                            }}
-                          >
-                            <Trash2 />
-                          </Button>
+                          {acoesDe(s)}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -358,8 +370,41 @@ function ListaAba() {
                 })}
               </TableBody>
             </Table>
-          </div>
-        </Card>
+          }
+        >
+          {data.map((s) => {
+            const resp = s.responsavelId ? mapa.get(s.responsavelId) : undefined;
+            const atrasada =
+              !!s.prazo && s.prazo < hojeISO() && (s.status === "aberta" || s.status === "em_andamento");
+            return (
+              <ItemCard
+                key={s.id}
+                titulo={s.tipo?.nome ?? "-"}
+                subtitulo={s.cliente ? s.cliente.nomeFantasia || s.cliente.nome : "Sem cliente"}
+                selo={atrasada ? <Badge variant="destructive">atrasada</Badge> : undefined}
+                meta={[
+                  s.descricao ? { texto: s.descricao } : null,
+                  { icone: CalendarDays, texto: s.prazo ? `Prazo ${formatData(s.prazo)}` : "Sem prazo", alerta: atrasada },
+                  resp ? { icone: UserRound, texto: resp.nome.split(" ")[0] } : null,
+                  { texto: formatDataHora(s.criadoEm) },
+                ]}
+                acoes={
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <StatusSolicitacaoSelect
+                          value={s.status}
+                          onChange={(st) =>
+                            atualizar.mutate({ id: s.id, patch: { status: st } }, { onError: (e) => toast.error(msgErro(e)) })
+                          }
+                        />
+                    </div>
+                    {acoesDe(s)}
+                  </>
+                }
+              />
+            );
+          })}
+        </ListaResponsiva>
       )}
       {data.length > 0 && <p className="text-xs text-muted-foreground">{data.length} chamado(s)</p>}
     </div>
@@ -443,7 +488,7 @@ function RelatorioAba() {
       ) : comPedido.length === 0 ? (
         <EmptyState icon={BarChart3} title="Nada no período" description="Nenhum chamado aberto entre essas datas." />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
           <Card>
             <CardContent className="p-5">
               <h2 className="text-title-md mb-1">Mais pedidos</h2>
@@ -512,7 +557,7 @@ function TiposAba() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Os tipos ativos aparecem no botão “Abrir chamado” da conversa, nesta ordem.
         </p>
@@ -526,13 +571,13 @@ function TiposAba() {
       ) : (
         <ul className="divide-y rounded-lg border bg-card">
           {tipos.map((t, i) => (
-            <li key={t.id} className={cn("flex items-center gap-2 px-4 py-2.5", !t.ativo && "opacity-60")}>
+            <li key={t.id} className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2.5 sm:flex-nowrap", !t.ativo && "opacity-60")}>
               <span className="w-10 text-2xs tabular-nums text-muted-foreground">{t.ordem}</span>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 max-sm:basis-[calc(100%-3rem)]">
                 <p className="text-sm font-medium truncate">{t.nome}</p>
                 {t.descricao && <p className="text-xs text-muted-foreground truncate">{t.descricao}</p>}
               </div>
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground max-sm:ml-12 max-sm:mr-auto max-sm:min-h-11">
                 <input
                   type="checkbox"
                   checked={t.ativo}

@@ -33,9 +33,9 @@ export function ConfigSistema() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           <h2 className="text-title-md">Versão</h2>
-          <dl className="grid gap-3 sm:grid-cols-3 text-sm">
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
             <div>
               <dt className="text-xs text-muted-foreground">Commit publicado</dt>
               <dd className="font-mono">{__APP_COMMIT__}</dd>
@@ -53,7 +53,7 @@ export function ConfigSistema() {
       </Card>
 
       <Card>
-        <CardContent className="p-6 space-y-3">
+        <CardContent className="p-4 sm:p-6 space-y-3">
           <h2 className="text-title-md">Ferramentas</h2>
           <ul className="divide-y divide-divider">
             {LINKS.map((l) => (
@@ -86,7 +86,7 @@ function ErrosRecentes() {
   const { data = [], isLoading, error, refetch, isFetching } = useErrosRecentes();
   return (
     <Card>
-      <CardContent className="p-6 space-y-3">
+      <CardContent className="p-4 sm:p-6 space-y-3">
         <div className="flex items-center gap-3">
           <div className="flex-1">
             <h2 className="text-title-md">Log de erros</h2>

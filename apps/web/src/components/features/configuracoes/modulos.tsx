@@ -34,7 +34,7 @@ export function ConfigModulos() {
   if (carregando) {
     return (
       <Card>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full" />
           ))}
@@ -46,7 +46,7 @@ export function ConfigModulos() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <h2 className="text-title-md">Módulos</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Desligar esconde o módulo do menu para toda a equipe. Nada é apagado: ligar de novo traz tudo de volta.
@@ -68,7 +68,7 @@ export function ConfigModulos() {
       </Card>
 
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <h2 className="text-title-md">Funções</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Partes de um módulo. Com o módulo desligado, a função fica desligada junto.

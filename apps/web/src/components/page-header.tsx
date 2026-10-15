@@ -38,6 +38,16 @@ export function corDoCaminho(pathname: string): CorModulo {
 }
 
 /**
+ * Faixa do topo da página (cabeçalho padrão e cabeçalhos próprios, como o do
+ * cliente). Vai de borda a borda da área de conteúdo mesmo quando o
+ * PageContainer limita a 1600px: no desktop sangra max(0, 50cqw - 800px) para
+ * cada lado e devolve o mesmo valor no padding, alinhando o texto ao conteúdo.
+ * `cqw` mede a área rolável do AppLayout (container-type: inline-size).
+ */
+export const FAIXA_TOPO =
+  "relative -mx-4 -mt-4 overflow-hidden border-b border-border/70 px-4 pb-5 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mt-8 lg:pt-8 lg:mx-[calc(-2rem_-_max(0px,50cqw_-_800px))] lg:px-[calc(2rem_+_max(0px,50cqw_-_800px))]";
+
+/**
  * Cabeçalho padrão de toda página do painel: quadrado do ícone na cor do
  * módulo, título 28/700, descrição de uma linha, ação principal à direita e o
  * hexágono da marca bem apagado no canto. No celular empilha.
@@ -47,7 +57,7 @@ export function PageHeader({ icon: Icon, title, description, actions, cor, topo,
   const c = cor ?? corDoCaminho(pathname);
   return (
     <header
-      className="relative -mx-4 -mt-4 overflow-hidden border-b border-border/70 px-4 pb-5 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8"
+      className={FAIXA_TOPO}
       style={corModulo(c)}
     >
       <div

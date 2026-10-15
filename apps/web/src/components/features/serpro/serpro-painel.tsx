@@ -133,7 +133,7 @@ export function PainelResumoSerpro() {
             {visiveis.slice(0, 500).map((l) => (
               <tr key={l.cliente.id} className="hover:bg-accent/30">
                 <td className="px-3 py-2">
-                  <Link to={`/clientes/${l.cliente.id}?tab=fiscal`} className="font-medium hover:underline">
+                  <Link to={`/clientes/${l.cliente.id}?tab=fiscal`} className="font-medium hover:underline max-lg:py-3">
                     {nomeDe(l)}
                   </Link>
                   <p className="text-2xs text-muted-foreground">{formatDoc(l.cliente.cpfCnpj) || "sem CPF/CNPJ"}</p>
@@ -193,9 +193,9 @@ export function ConsultarServicoCard({ clienteId, setClienteId }: { clienteId: s
   }
   return (
     <Card>
-      <CardContent className="p-6 space-y-3">
+      <CardContent className="p-4 sm:p-6 space-y-3">
         <h2 className="text-title-md">Consultar um cliente</h2>
-        <div className="grid gap-3 sm:grid-cols-[1fr_16rem_auto] sm:items-end">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_16rem_auto] sm:items-end">
           <div className="space-y-1.5">
             <Label>Cliente</Label>
             <ClienteSelect value={clienteId} onChange={setClienteId} />
@@ -314,7 +314,7 @@ export function ProcuracoesPainel() {
         {visiveis.slice(0, 500).map((l) => (
           <li key={l.cliente.id} className="flex items-center gap-3 px-4 py-2.5">
             <div className="min-w-0 flex-1">
-              <Link to={`/clientes/${l.cliente.id}?tab=fiscal`} className="text-sm font-medium hover:underline">
+              <Link to={`/clientes/${l.cliente.id}?tab=fiscal`} className="text-sm font-medium hover:underline max-lg:py-3">
                 {nomeDe(l)}
               </Link>
               <p className="truncate text-2xs text-muted-foreground">
@@ -374,7 +374,7 @@ function CartaoAgendamento({ ag, elegiveis }: { ag: AgendamentoSerpro; elegiveis
           </div>
           <Switch checked={ag.ativo} onCheckedChange={(v) => void gravar(v)} disabled={!pode || salvar.isPending} aria-label="Ligado" />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor={`dia-${ag.id}`}>Dia do mês</Label>
             <select
@@ -479,7 +479,7 @@ export function AgendamentosSerpro() {
       <p className="text-sm">
         Custo estimado do que está ligado: <strong>{formatBRL(totalMes)}/mês</strong>
       </p>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {data.map((a) => (
           <CartaoAgendamento key={`${a.id}-${a.diaMes}-${a.todosAtivos}-${a.clienteIds.join()}`} ag={a} elegiveis={elegiveis(a.servico)} />
         ))}
@@ -504,7 +504,7 @@ export function CustosSerpro() {
         situação fiscal é Emitir). Quando o gateway informa o custo, vale o dele. A fatura do Serpro é a que vale: com mais
         volume a faixa cai para todas as chamadas do mês.
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <Wallet className="size-5 text-muted-foreground" />
@@ -527,7 +527,7 @@ export function CustosSerpro() {
           </CardContent>
         </Card>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">Este mês, por serviço</h3>
           <ul className="divide-y rounded-card border bg-card text-sm">
@@ -576,7 +576,7 @@ export function ResumoFiscalCliente({ clienteId }: { clienteId: string }) {
         <span className="text-sm font-semibold">Situação</span>
         <Badge variant={SITUACAO[situacao].tom}>{SITUACAO[situacao].rotulo}</Badge>
       </div>
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {(["SITFIS", "CAIXAPOSTAL", "PARCELAMENTOS", "PROCURACAO"] as const).map((s) => {
           const u = m.get(s);
           return (

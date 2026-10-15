@@ -17,7 +17,7 @@ export const TabsList = forwardRef<
     ref={ref}
     className={cn(
       // max-w-full + rolagem: no celular as abas rolam de lado em vez de cortar.
-      "inline-flex h-9 max-w-full items-center justify-start overflow-x-auto scrollbar-none rounded-full border border-border bg-card p-1 text-muted-foreground",
+      "inline-flex h-9 max-lg:h-11 max-w-full items-center justify-start overflow-x-auto scrollbar-none rounded-full border border-border bg-card p-1 text-muted-foreground",
       className,
     )}
     {...props}
@@ -32,7 +32,7 @@ export const TabsTrigger = forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex h-7 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs transition-[color,background-color,transform] duration-150 active:scale-[.97] [&_svg]:size-3.5 disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-semibold",
+      "inline-flex h-7 max-lg:h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs transition-[color,background-color,transform] duration-150 active:scale-[.97] [&_svg]:size-3.5 disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-semibold",
       className,
     )}
     {...props}

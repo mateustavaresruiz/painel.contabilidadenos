@@ -161,7 +161,7 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
 
   return (
     <Dialog open={aberto} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="top-[12vh] translate-y-0 data-[state=open]:slide-in-from-top-2 max-w-xl gap-0 overflow-hidden p-0">
+      <DialogContent showCloseButton={false} className="top-[12vh] translate-y-0 data-[state=open]:slide-in-from-top-2 max-w-xl gap-0 overflow-hidden p-0 max-sm:p-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:grid-rows-[auto_1fr]">
         <DialogTitle className="sr-only">Buscar no painel</DialogTitle>
         <DialogDescription className="sr-only">Páginas, clientes e conversas.</DialogDescription>
         <div className="flex items-center gap-3 border-b border-border px-4">
@@ -180,8 +180,11 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
             aria-activedescendant={itens[sel] ? `bg-${itens[sel]!.id}` : undefined}
           />
           <kbd className="hidden rounded-md border border-border px-1.5 py-0.5 text-2xs text-muted-foreground sm:inline">Esc</kbd>
+          <button type="button" onClick={() => onOpenChange(false)} className="-mr-2 h-11 shrink-0 px-2 text-sm font-semibold text-primary sm:hidden">
+            Cancelar
+          </button>
         </div>
-        <div ref={listaRef} id="busca-global-lista" role="listbox" className="max-h-[min(60vh,420px)] overflow-y-auto p-2">
+        <div ref={listaRef} id="busca-global-lista" role="listbox" className="max-h-[min(60vh,420px)] overflow-y-auto p-2 max-sm:max-h-none max-sm:min-h-0">
           {itens.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
               {carregando ? "Procurando…" : buscar ? `Nada encontrado para "${termo.trim()}".` : "Digite pelo menos 2 letras para buscar clientes e conversas."}
@@ -203,7 +206,7 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
                     onMouseMove={() => setSel(idx)}
                     onClick={() => ir(i)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2 max-sm:min-h-11 text-left text-sm transition-colors",
                       idx === sel ? "bg-primary/10 text-primary" : "hover:bg-accent",
                     )}
                   >

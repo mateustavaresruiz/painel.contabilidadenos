@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import { Building2, Loader2, MessageCircle, PartyPopper, User, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -67,7 +68,7 @@ export function AniversariosPage() {
   const hoje = data.filter((a) => a.diasAte === 0).length;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <PageContainer>
       <PageHeader
         icon={Users}
         title="Clientes"
@@ -116,7 +117,7 @@ export function AniversariosPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-card border bg-card p-5 flex items-start gap-3">
               <Skeleton className="size-11 rounded-pearl" />
@@ -139,13 +140,13 @@ export function AniversariosPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {ordenada.map((a) => (
             <AniversarioCard key={`${a.origem}:${a.socioId ?? a.clienteId}`} a={a} />
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -179,7 +180,7 @@ function AniversarioCard({ a }: { a: AniversarioCalculado }) {
                 </Link>
               </p>
             ) : (
-              <Link to={`/clientes/${a.clienteId}`} className="text-xs text-muted-foreground hover:underline truncate block">
+              <Link to={`/clientes/${a.clienteId}`} className="text-xs text-muted-foreground hover:underline truncate block max-lg:-my-3 max-lg:py-3">
                 Ver cadastro
               </Link>
             )}

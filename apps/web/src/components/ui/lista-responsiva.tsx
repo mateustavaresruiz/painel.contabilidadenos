@@ -24,18 +24,21 @@ import { cn } from "@/lib/utils";
  * no mesmo lugar.
  */
 
-/** Até qual largura mostrar cards. Tabela de 6+ colunas quer `lg`. */
-type Corte = "md" | "lg";
+/** Até qual largura mostrar cards. Tabela de 6+ colunas quer `lg`; com
+    ações na última coluna e o menu lateral aberto (1024 = ~760px úteis), `xl`. */
+type Corte = "md" | "lg" | "xl";
 
 /* Classes completas em literal: o Tailwind varre o texto do arquivo e não
    resolve `md:${x}` montado em runtime. */
 const CORTE_CARDS: Record<Corte, string> = {
   md: "md:hidden",
   lg: "lg:hidden",
+  xl: "xl:hidden",
 };
 const CORTE_TABELA: Record<Corte, string> = {
   md: "hidden md:block",
   lg: "hidden lg:block",
+  xl: "hidden xl:block",
 };
 
 export function ListaResponsiva({
@@ -77,7 +80,8 @@ export function ListaResponsiva({
             Selecionar todos
           </label>
         ) : null}
-        <ul className="space-y-2">{children}</ul>
+        {/* Com corte xl os cards também aparecem no tablet/notebook: duas colunas a partir de md. */}
+        <ul className={corte === "xl" ? "grid grid-cols-1 gap-2 md:grid-cols-2" : "space-y-2"}>{children}</ul>
       </div>
       <div className={cn(CORTE_TABELA[corte], "rounded-card border border-border bg-card", classeTabela)}>
         {tabela}
