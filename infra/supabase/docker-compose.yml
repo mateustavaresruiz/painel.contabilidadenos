@@ -171,6 +171,35 @@ services:
       GOTRUE_MAILER_URLPATHS_RECOVERY: ${MAILER_URLPATHS_RECOVERY}
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
 
+      # Painel Denos: login sem senha (link + código de 6 dígitos). Ver docs/LOGIN.md.
+      # Código e link valem 15 min. Os modelos de e-mail (português) são
+      # servidos pelo próprio painel em /email/*.html.
+      GOTRUE_MAILER_OTP_EXP: ${MAILER_OTP_EXP:-900}
+      GOTRUE_MAILER_OTP_LENGTH: ${MAILER_OTP_LENGTH:-6}
+      GOTRUE_SMTP_MAX_FREQUENCY: ${SMTP_MAX_FREQUENCY:-60s}
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: ${MAILER_TEMPLATES_MAGIC_LINK:-}
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: ${MAILER_TEMPLATES_CONFIRMATION:-}
+      GOTRUE_MAILER_TEMPLATES_INVITE: ${MAILER_TEMPLATES_INVITE:-}
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: ${MAILER_TEMPLATES_EMAIL_CHANGE:-}
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: ${MAILER_SUBJECTS_MAGIC_LINK:-Seu acesso ao Painel Denos}
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: ${MAILER_SUBJECTS_CONFIRMATION:-Seu acesso ao Painel Denos}
+      GOTRUE_MAILER_SUBJECTS_INVITE: ${MAILER_SUBJECTS_INVITE:-Você foi convidado para o Painel Denos}
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: ${MAILER_SUBJECTS_EMAIL_CHANGE:-Confirme seu novo e-mail no Painel Denos}
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: ${MAILER_SUBJECTS_RECOVERY:-Seu acesso ao Painel Denos}
+
+      # Freios do Auth. Sem GOTRUE_RATE_LIMIT_HEADER, o GoTrue conta pelo IP
+      # de quem conecta nele, que é o gateway: os limites "por IP" viram
+      # limites do painel inteiro (bom contra força bruta; com ~10 pessoas não
+      # aperta ninguém). E-mails: por hora, no total. OTP/verify/refresh: por
+      # 5 minutos.
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${RATE_LIMIT_EMAIL_SENT:-30}
+      GOTRUE_RATE_LIMIT_OTP: ${RATE_LIMIT_OTP:-15}
+      GOTRUE_RATE_LIMIT_VERIFY: ${RATE_LIMIT_VERIFY:-30}
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: ${RATE_LIMIT_TOKEN_REFRESH:-150}
+      GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: ${RATE_LIMIT_ANONYMOUS_USERS:-1}
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
+
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
 
@@ -473,6 +502,14 @@ services:
       # Serpro: só o gateway Integra Contador (certificado e credenciais ficam nele).
       GATEWAY_URL: ${GATEWAY_URL:-}
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
+      # Login (function equipe): URL do painel para o link de acesso e o SMTP
+      # só para dizer à tela se está configurado. A senha do SMTP NÃO vem.
+      SITE_URL: ${SITE_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-}
+      SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-}
     command:
       [
         "start",

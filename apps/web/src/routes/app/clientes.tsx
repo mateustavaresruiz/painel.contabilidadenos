@@ -30,6 +30,7 @@ import { useDebounced } from "@/hooks/use-debounced";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useSort } from "@/hooks/use-sort";
 import { formatDoc, formatTelefone } from "@/lib/format";
+import { usePermissao } from "@/lib/colaborador";
 import { nomeExibicao, useClientes, type ClienteResumo } from "@/lib/queries/clientes";
 import { REGIMES, type RegimeTributario } from "@/lib/validations/cliente";
 import { useEffect, useState } from "react";
@@ -38,6 +39,7 @@ const TODOS = "__todos__";
 
 export function ClientesPage() {
   usePageTitle("Clientes");
+  const podeEditar = usePermissao("clientes.editar");
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const tipoParam = params.get("tipo") ?? "";
@@ -88,12 +90,14 @@ export function ClientesPage() {
         title="Clientes"
         description="Empresas e pessoas atendidas pelo escritório."
         actions={
-          <Button asChild>
-            <Link to="/clientes/novo">
-              <Plus />
-              Novo cliente
-            </Link>
-          </Button>
+          podeEditar ? (
+            <Button asChild>
+              <Link to="/clientes/novo">
+                <Plus />
+                Novo cliente
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -172,12 +176,14 @@ export function ClientesPage() {
             title="Nenhum cliente cadastrado"
             description="Cadastre as empresas e pessoas que o escritório atende. O telefone liga o cliente às conversas do WhatsApp."
             action={
-              <Button asChild>
-                <Link to="/clientes/novo">
-                  <Plus />
-                  Cadastrar cliente
-                </Link>
-              </Button>
+              podeEditar ? (
+                <Button asChild>
+                  <Link to="/clientes/novo">
+                    <Plus />
+                    Cadastrar cliente
+                  </Link>
+                </Button>
+              ) : undefined
             }
           />
         )

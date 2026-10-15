@@ -1,10 +1,5 @@
-// Módulos ligáveis (Config 'modulos'), marca do escritório (Tenant.nome +
-// Config 'marca.logo') e o portão de admin.
-//
-// 🔴 O portão de admin é só de TELA: sem login, quem abre o painel escolhe
-// qualquer colaborador no "Quem é você?". Serve para tirar as configurações
-// do caminho de quem atende, não para proteger dado. Quando o login vier, o
-// papel passa a ser checado no banco (RLS) também.
+// Módulos ligáveis (Config 'modulos') e marca do escritório (Tenant.nome +
+// Config 'marca.logo'). Gravar exige configuracoes.gerenciar (RLS).
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -121,10 +116,9 @@ export function useSalvarModulos() {
   });
 }
 
-/** O colaborador escolhido é admin (portão de tela, ver o topo do arquivo). */
+/** Pode mexer nas Configurações do painel (permissão configuracoes.gerenciar). */
 export function useEhAdmin(): boolean {
-  const { eu } = useEu();
-  return eu?.papel === "admin";
+  return useEu().tem("configuracoes.gerenciar");
 }
 
 // ---------------------------------------------------------------------------

@@ -66,6 +66,7 @@ import {
 import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { usePermissao } from "@/lib/colaborador";
 
 const TODOS = "__todos__";
 const MODELO_PADRAO =
@@ -76,6 +77,8 @@ export function CertificadosPage() {
   const [params, setParams] = useSearchParams();
   const { data = [], isLoading } = useCertificados();
   const excluir = useExcluirCertificado();
+  const podeEditar = usePermissao("certificados.editar");
+  const podeAvisos = usePermissao("certificados.configurar_avisos");
   const [busca, setBusca] = useState("");
   // ?status=vencido|vencendo|ok (links da Visão geral) já abre filtrado.
   const [status, setStatus] = useState<string>(() => {
@@ -88,8 +91,8 @@ export function CertificadosPage() {
   // ?novo=<clienteId> (link do painel da conversa) abre o cadastro direto.
   const novoPara = params.get("novo");
   useEffect(() => {
-    if (novoPara) setEditando("novo");
-  }, [novoPara]);
+    if (novoPara && podeEditar) setEditando("novo");
+  }, [novoPara, podeEditar]);
 
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
@@ -116,10 +119,12 @@ export function CertificadosPage() {
         title="Certificados digitais"
         description="Validade dos certificados dos clientes e aviso automático pelo WhatsApp."
         actions={
-          <Button onClick={() => setEditando("novo")}>
-            <Plus />
-            Novo certificado
-          </Button>
+          podeEditar ? (
+            <Button onClick={() => setEditando("novo")}>
+              <Plus />
+              Novo certificado
+            </Button>
+          ) : undefined
         }
       />
 
@@ -220,7 +225,7 @@ export function CertificadosPage() {
                     c={c}
                     aberto={historico === c.id}
                     onHistorico={() => setHistorico(historico === c.id ? null : c.id)}
-                    onEditar={() => setEditando(c)}
+                    onEditar={podeEditar ? () => setEditando(c) : undefined}
                     onExcluir={async () => {
                       if (!(await confirmar({ titulo: "Excluir certificado?", descricao: "O histórico de avisos vai junto.", confirmLabel: "Excluir", destructive: true }))) return;
                       excluir.mutate(c.id, { onError: (e) => toast.error(msgErro(e)) });
@@ -233,7 +238,7 @@ export function CertificadosPage() {
         </Card>
       )}
 
-      <ConfigAvisos />
+      {podeAvisos && <ConfigAvisos />}
 
       <CertificadoDialog
         open={editando !== null}
@@ -260,7 +265,8 @@ function FragmentLinha({
   c: Certificado;
   aberto: boolean;
   onHistorico: () => void;
-  onEditar: () => void;
+  /** Sem permissão de editar, editar e excluir somem. */
+  onEditar?: () => void;
   onExcluir: () => void;
 }) {
   return (
@@ -299,12 +305,16 @@ function FragmentLinha({
             <Button size="icon" variant="ghost" onClick={onHistorico} title="Histórico de avisos" aria-expanded={aberto}>
               <History />
             </Button>
-            <Button size="icon" variant="ghost" onClick={onEditar} title="Editar">
-              <Pencil />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={onExcluir} title="Excluir">
-              <Trash2 />
-            </Button>
+            {onEditar && (
+              <>
+                <Button size="icon" variant="ghost" onClick={onEditar} title="Editar">
+                  <Pencil />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={onExcluir} title="Excluir">
+                  <Trash2 />
+                </Button>
+              </>
+            )}
           </div>
         </TableCell>
       </TableRow>

@@ -36,6 +36,7 @@ import { confirmar } from "@/components/ui/confirm-dialog";
 import { openMediaViewer } from "@/components/ui/media-viewer";
 import { formatBytes, parsePgTimestamp } from "@/lib/format";
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
+import { useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import {
   Popover,
@@ -175,9 +176,10 @@ export const MessageBubble = memo(function MessageBubble({
   const [expandido, setExpandido] = useState(false);
   const apagar = useApagarMensagem();
   const reagir = useReagirMensagem();
+  const { tem } = useEu();
   const pendente = !!msg._pendente || msg.id.startsWith("temp-");
   // WhatsApp só deixa apagar mensagens próprias.
-  const podeApagar = direita && !apagada && !pendente;
+  const podeApagar = direita && !apagada && !pendente && tem("whatsapp.apagar_mensagens");
   // Encaminhar precisa do wamId real (msg já existente no WhatsApp) e
   // só faz sentido pra conteúdo — não pra reaction/system nem apagada.
   const podeEncaminhar =

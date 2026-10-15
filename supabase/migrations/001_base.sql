@@ -5,11 +5,11 @@
 -- para o código vindo do adv3 funcionar sem cirurgia e para o login, quando
 -- vier, só precisar trocar as políticas abaixo.
 --
--- 🔴 SEM LOGIN POR ENQUANTO (decisão do dono, 14/10/2026): as políticas
--- deixam o papel `anon` ler e mexer no que a tela precisa. A proteção hoje é
--- a senha (basic auth) do domínio do painel no Easypanel. Quando o login
--- entrar, troque `to anon, authenticated` por `to authenticated` e o
--- `using (true)` por `"tenantId" = get_my_tenant_id()`.
+-- Histórico: quando este arquivo foi escrito o painel não tinha login e as
+-- políticas abaixo liberavam o papel `anon`. 🔴 ISSO NÃO VALE MAIS: a
+-- migration 005 (login por e-mail + cargos) trocou TODAS as políticas por
+-- `to authenticated` + `tem_permissao(...)` e tirou `anon` de tudo. As
+-- políticas atuais estão na 005; como funciona o login, em docs/LOGIN.md.
 -- ===========================================================================
 
 create extension if not exists pg_trgm;
@@ -34,8 +34,7 @@ begin
   return new;
 end $$;
 
--- Quem atende. Sem login, a tela escolhe "quem sou eu" numa lista.
--- "userId" fica pronto para amarrar ao auth.users quando o login vier.
+-- Quem atende. "userId" amarra a pessoa ao auth.users (login, migration 005).
 create table public."Colaborador" (
   id             uuid primary key default gen_random_uuid(),
   "tenantId"     text not null default 'denos' references public."Tenant"(id),
@@ -515,7 +514,7 @@ create trigger trg_touch before update on public."Solicitacao" for each row exec
 create trigger trg_touch before update on public."CertificadoDigital" for each row execute function public.touch_atualizado_em();
 
 -- ---------------------------------------------------------------------------
--- RLS — ver o aviso no topo: sem login, anon lê e escreve o que a tela usa.
+-- RLS (versão original, sem login; substituída pela migration 005).
 -- Mensagem, contato, sessão e log: só leitura pela tela (escrita é do backend).
 -- ---------------------------------------------------------------------------
 do $$

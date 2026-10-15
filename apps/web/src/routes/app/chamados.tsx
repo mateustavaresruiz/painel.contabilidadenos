@@ -53,7 +53,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useColaboradoresMap } from "@/lib/colaborador";
+import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, hojeISO } from "@/lib/format";
 import {
@@ -83,7 +83,11 @@ const TODOS = "__todos__";
 export function ChamadosPage() {
   usePageTitle("Chamados");
   const [params, setParams] = useSearchParams();
-  const aba = params.get("aba") ?? "lista";
+  const podeCriar = usePermissao("chamados.criar");
+  const podeRelatorio = usePermissao("chamados.relatorio");
+  const podeTipos = usePermissao("chamados.tipos");
+  const pedida = params.get("aba") ?? "lista";
+  const aba = (pedida === "relatorio" && podeRelatorio) || (pedida === "tipos" && podeTipos) ? pedida : "lista";
   const [nova, setNova] = useState(false);
 
   return (
@@ -93,10 +97,12 @@ export function ChamadosPage() {
         title="Chamados"
         description="Pedidos dos clientes registrados a partir das conversas (e na mão)."
         actions={
-          <Button onClick={() => setNova(true)}>
-            <Plus />
-            Abrir chamado
-          </Button>
+          podeCriar ? (
+            <Button onClick={() => setNova(true)}>
+              <Plus />
+              Abrir chamado
+            </Button>
+          ) : undefined
         }
       />
       <Tabs
@@ -118,14 +124,18 @@ export function ChamadosPage() {
             <ClipboardList className="size-3.5 mr-1.5" />
             Chamados
           </TabsTrigger>
-          <TabsTrigger value="relatorio">
-            <BarChart3 className="size-3.5 mr-1.5" />
-            Relatório
-          </TabsTrigger>
-          <TabsTrigger value="tipos">
-            <Tags className="size-3.5 mr-1.5" />
-            Tipos de chamado
-          </TabsTrigger>
+          {podeRelatorio && (
+            <TabsTrigger value="relatorio">
+              <BarChart3 className="size-3.5 mr-1.5" />
+              Relatório
+            </TabsTrigger>
+          )}
+          {podeTipos && (
+            <TabsTrigger value="tipos">
+              <Tags className="size-3.5 mr-1.5" />
+              Tipos de chamado
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="lista" className="mt-5">
           <ListaAba />

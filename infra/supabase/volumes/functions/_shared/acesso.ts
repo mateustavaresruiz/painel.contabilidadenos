@@ -1,16 +1,23 @@
-// Quem pode chamar as functions do painel, enquanto não há login.
+// Quem pode chamar as functions do painel: só quem está LOGADO e amarrado a
+// um Colaborador ativo.
 //
 // 🔴 O GATEWAY NÃO EXIGE A CHAVE NAS FUNCTIONS. A rota `/functions/v1/` do
-// Envoy (`volumes/api/envoy/lds.template.yaml`) libera tudo, e o router
-// `main` roda com VERIFY_JWT=false. Sem a conferência abaixo, qualquer um que
-// soubesse a URL mandaria mensagem pelo WhatsApp do escritório. Então cada
-// function de uso da tela confere aqui a chave `apikey` (anon ou service).
+// Envoy libera tudo e o router `main` roda com VERIFY_JWT=false. Então cada
+// function de uso da tela confere aqui o JWT do usuário:
+//
+//   Authorization: Bearer <access_token da sessão do supabase-js>
+//
+// O token é validado no próprio Auth (GET /auth/v1/user), o que também pega
+// sessão revogada (desativar alguém apaga as sessões dele, ver `equipe`).
+// Depois vem o Colaborador com "userId" = id do usuário; inativo → 403. As
+// permissões são as do CARGO dele (Administrador = todas), as mesmas que a
+// RLS usa (`tem_permissao` no banco).
+//
+// O header antigo `x-colaborador-id` (do "Quem é você?") NÃO vale mais: quem
+// age é sempre o colaborador do token.
 //
 // O webhook do WAHA e o cron NÃO passam por aqui: cada um tem o seu segredo
 // (`WAHA_WEBHOOK_SECRET`, `CRON_SECRET`), comparado em tempo constante.
-//
-// Quando o login entrar, este é o arquivo que troca: a chave vira o JWT do
-// usuário e `x-colaborador-id` vira o colaborador amarrado ao `auth.uid()`.
 
 import { forbidden, unauthorized } from "./response.ts";
 import { supabaseAdmin, TENANT_ID } from "./supabase.ts";
@@ -30,65 +37,114 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-const CHAVES_ACEITAS = [
-  Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  ...Object.values(parseJsonObj(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS"))),
-  ...Object.values(parseJsonObj(Deno.env.get("SUPABASE_SECRET_KEYS"))),
-].filter((k) => typeof k === "string" && k.length > 0) as string[];
+export type Colaborador = {
+  id: string;
+  nome: string;
+  email: string | null;
+  userId: string;
+  cargoId: string;
+  /** Cargo de sistema (Administrador): todas as permissões. */
+  admin: boolean;
+  permissoes: Set<string>;
+};
 
-function parseJsonObj(raw: string | undefined): Record<string, unknown> {
-  try {
-    const o = JSON.parse(raw ?? "{}");
-    return o && typeof o === "object" ? o : {};
-  } catch {
-    return {};
-  }
+/** O colaborador tem a permissão (Administrador tem todas). */
+export function tem(c: Colaborador, p: string): boolean {
+  return c.admin || c.permissoes.has(p);
 }
 
 /**
- * A chave vem no header `apikey` (o que o supabase-js manda) ou como Bearer.
- * Devolve uma Response 401 pra cortar cedo, ou null se pode seguir.
+ * Cache curto token → colaborador. A tela do WhatsApp chama a function
+ * várias vezes por minuto; sem isto, cada chamada seria uma ida ao Auth e
+ * outra ao banco. 30 s é o atraso máximo para uma desativação valer aqui
+ * (a RLS do banco já corta na hora).
  */
-export function exigirApikey(req: Request): Response | null {
-  const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const candidatos = [req.headers.get("apikey") ?? "", bearer].filter(Boolean);
-  for (const c of candidatos) {
-    if (CHAVES_ACEITAS.some((k) => timingSafeEqual(c, k))) return null;
-  }
-  return unauthorized("Chave de API ausente ou inválida (header apikey).");
+const CACHE_MS = 30_000;
+const CACHE_MAX = 500;
+const cache = new Map<string, { em: number; colaborador: Colaborador }>();
+
+async function chaveDoToken(token: string): Promise<string> {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(h), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Esquece o cache de um usuário (desativação, troca de papel). */
+export function esquecerUsuario(userId: string): void {
+  for (const [k, v] of cache) if (v.colaborador.userId === userId) cache.delete(k);
+}
 
-export type Colaborador = { id: string; nome: string };
+function tokenDoRequest(req: Request): string {
+  return (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+}
 
 /**
- * O colaborador que está operando a tela, pelo header `x-colaborador-id`.
- * Opcional: sem header devolve `{ colaborador: null }`. Com header, ele
- * tem de existir e estar ativo — colaborador desativado não envia (no adv3 o
- * membro desativado continuava mandando mensagem, defeito 55 do guia).
+ * Exige usuário logado com Colaborador ativo. Devolve o colaborador ou uma
+ * Response (401 sem/ com token inválido, 403 sem acesso liberado) para a
+ * function devolver direto.
+ *
+ *   const eu = await exigirColaborador(req);
+ *   if (eu instanceof Response) return eu;
  */
-export async function colaboradorDoRequest(
+export async function exigirColaborador(
   req: Request,
-): Promise<{ colaborador: Colaborador | null; erro: Response | null }> {
-  const raw = (req.headers.get("x-colaborador-id") ?? "").trim();
-  if (!raw) return { colaborador: null, erro: null };
-  if (!UUID_RE.test(raw)) {
-    return { colaborador: null, erro: forbidden("x-colaborador-id inválido.") };
+  opts: { permissao?: string | string[] } = {},
+): Promise<Colaborador | Response> {
+  const token = tokenDoRequest(req);
+  // Um JWT tem 3 partes. A chave anon também é JWT, mas não é de usuário: o
+  // Auth recusa abaixo.
+  if (!token || token.split(".").length !== 3) {
+    return unauthorized("Faça login para continuar.");
   }
-  const { data, error } = await supabaseAdmin
-    .from("Colaborador")
-    .select("id, nome, ativo")
-    .eq("tenantId", TENANT_ID)
-    .eq("id", raw)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    return { colaborador: null, erro: forbidden("Colaborador não encontrado.") };
+
+  const chave = await chaveDoToken(token);
+  const emCache = cache.get(chave);
+  let colaborador: Colaborador | null =
+    emCache && Date.now() - emCache.em < CACHE_MS ? emCache.colaborador : null;
+
+  if (!colaborador) {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data?.user) {
+      return unauthorized("Sessão expirada. Entre de novo.");
+    }
+    const { data: c, error: e2 } = await supabaseAdmin
+      .from("Colaborador")
+      .select("id, nome, email, ativo, cargoId, Cargo(sistema, permissoes)")
+      .eq("tenantId", TENANT_ID)
+      .eq("userId", data.user.id)
+      .maybeSingle();
+    if (e2) throw e2;
+    if (!c || !c.ativo) {
+      return forbidden("Acesso não liberado para este usuário.");
+    }
+    const cargo = (Array.isArray(c.Cargo) ? c.Cargo[0] : c.Cargo) as
+      | { sistema: boolean; permissoes: string[] | null }
+      | null;
+    colaborador = {
+      id: c.id,
+      nome: c.nome,
+      email: c.email,
+      userId: data.user.id,
+      cargoId: c.cargoId,
+      admin: !!cargo?.sistema,
+      permissoes: new Set(cargo?.permissoes ?? []),
+    };
+    if (cache.size >= CACHE_MAX) cache.clear();
+    cache.set(chave, { em: Date.now(), colaborador });
   }
-  if (!data.ativo) {
-    return { colaborador: null, erro: forbidden("Colaborador desativado.") };
+
+  if (opts.permissao) {
+    const lista = Array.isArray(opts.permissao) ? opts.permissao : [opts.permissao];
+    if (!lista.some((p) => tem(colaborador!, p))) return semPermissao(lista[0]!);
   }
-  return { colaborador: { id: data.id, nome: data.nome }, erro: null };
+  return colaborador;
+}
+
+/** O token do request (pra functions que repassam ao Auth). */
+export function tokenDe(req: Request): string {
+  return tokenDoRequest(req);
+}
+
+/** 403 padrão de permissão (a tela mostra a mensagem). */
+export function semPermissao(p: string): Response {
+  return forbidden(`Seu cargo não tem permissão para isso (${p}).`);
 }

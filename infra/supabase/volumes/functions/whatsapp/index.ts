@@ -6,11 +6,12 @@
 // `denos_<numero>` (ver `sessionNameFor`), único globalmente, e é por ele que
 // o webhook acha a sessão.
 //
-// 🔴 SEM LOGIN POR ENQUANTO (decisão do dono, 14/10/2026). Toda chamada
-// precisa da chave `apikey` (anon) — o gateway NÃO confere nas functions, a
-// conferência é `exigirApikey` aqui dentro. Quem está operando a tela vem no
-// header opcional `x-colaborador-id` (uuid de Colaborador ativo) e vira o
-// `enviadoPorUserId` das mensagens enviadas.
+// Toda chamada exige o JWT do usuário logado (`Authorization: Bearer`) com
+// Colaborador ativo — o gateway NÃO confere nas functions, a conferência é
+// `exigirColaborador` aqui dentro (_shared/acesso.ts). O colaborador do
+// token vira o `enviadoPorUserId` das mensagens enviadas. Cada rota exige
+// uma permissão do cargo (`permissaoDaRota`), e quem não tem
+// whatsapp.ver_todas só mexe em conversa sem responsável ou sua.
 //
 // Rotas (depois de /whatsapp):
 //
@@ -95,7 +96,7 @@ import { recordError } from "../_shared/error-log.ts";
 import { enforceRateLimit, sujeitoTenant } from "../_shared/rate-limit.ts";
 import { chatSafe, removerPorPrefixo } from "../_shared/storage-purge.ts";
 import { runAfterResponse } from "../_shared/background.ts";
-import { colaboradorDoRequest, exigirApikey } from "../_shared/acesso.ts";
+import { type Colaborador, exigirColaborador, semPermissao, tem } from "../_shared/acesso.ts";
 import { PUBLIC_BASE_URL } from "../_shared/env.ts";
 import {
   criarLinhaProvisoria,
@@ -425,14 +426,67 @@ function rotuloMidia(kind: string): string {
 }
 
 // ===========================================================================
+// Permissões (cargo do colaborador logado)
+// ===========================================================================
+
+/**
+ * A permissão que cada rota exige. Padrão: whatsapp.ver (leitura e
+ * sincronização). Conexões = whatsapp.conexoes; enviar = whatsapp.responder;
+ * apagar/limpar = whatsapp.apagar_mensagens.
+ */
+function permissaoDaRota(method: string, sub: string[]): string {
+  const [a, , b, , d] = sub;
+  if (a === "sessoes") {
+    if (sub.length === 1) return method === "POST" ? "whatsapp.conexoes" : "whatsapp.ver";
+    if (sub.length === 2) return method === "DELETE" ? "whatsapp.conexoes" : "whatsapp.ver";
+    if (sub.length === 3 && ["start", "stop", "restart", "logout", "refresh-webhook", "qr", "foto"].includes(b ?? "")) {
+      return "whatsapp.conexoes";
+    }
+    if (b === "limpar-conversas") return "whatsapp.apagar_mensagens";
+    if (b === "chats") {
+      if (sub[3] === "novo") return "whatsapp.responder";
+      if (sub.length === 4 && method === "DELETE") return "whatsapp.apagar_mensagens";
+      if (d === "clear") return "whatsapp.apagar_mensagens";
+      if (d === "leave") return "whatsapp.conexoes";
+    }
+    return "whatsapp.ver";
+  }
+  if (a === "messages") {
+    if (sub.length === 2 && method === "DELETE") return "whatsapp.apagar_mensagens";
+    if (sub.length === 2 && method === "PATCH") return "whatsapp.responder";
+    if (["send-text", "send-media", "forward", "poll-vote", "react", "typing"].includes(sub[1] ?? "")) {
+      return "whatsapp.responder";
+    }
+  }
+  return "whatsapp.ver";
+}
+
+/**
+ * Sem whatsapp.ver_todas, só conversa sem responsável ou do próprio
+ * colaborador (a mesma regra da RLS de WhatsappChat). Conversa que ainda não
+ * existe no banco (primeira mensagem) passa.
+ */
+async function podeMexerNaConversa(c: Colaborador, sessaoId: string, chatId: string): Promise<boolean> {
+  if (tem(c, "whatsapp.ver_todas")) return true;
+  const { data } = await supabaseAdmin
+    .from("WhatsappChat")
+    .select("responsavelId")
+    .eq("tenantId", tenantId)
+    .eq("sessaoId", sessaoId)
+    .eq("chatId", chatId)
+    .maybeSingle();
+  return !data || !data.responsavelId || data.responsavelId === c.id;
+}
+
+// ===========================================================================
 // Handler principal
 // ===========================================================================
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return handleCors(req);
 
-  const semChave = exigirApikey(req);
-  if (semChave) return semChave;
+  const colaborador = await exigirColaborador(req);
+  if (colaborador instanceof Response) return colaborador;
 
   const url = new URL(req.url);
   const parts = url.pathname.split("/").filter(Boolean);
@@ -467,10 +521,9 @@ serve(async (req) => {
   }
 
   try {
-    // Quem opera a tela (opcional). Com header inválido ou colaborador
-    // desativado, corta aqui — antes de qualquer efeito.
-    const { colaborador, erro: erroColab } = await colaboradorDoRequest(req);
-    if (erroColab) return erroColab;
+    // Permissão do cargo para a rota (catálogo em migrations/005).
+    const permissao = permissaoDaRota(req.method, sub);
+    if (!tem(colaborador, permissao)) return semPermissao(permissao);
 
     // -----------------------------------------------------------------
     // SESSÕES
@@ -613,6 +666,10 @@ serve(async (req) => {
     const chatIdDaRota = action === "sessoes" && sub[2] === "chats" && sub[3]
       ? decodeURIComponent(sub[3])
       : "";
+    if (sessao && chatIdDaRota && !["novo", "sync"].includes(sub[3] ?? "") &&
+        !(await podeMexerNaConversa(colaborador, sessao.id, chatIdDaRota))) {
+      return forbidden("Esta conversa está com outra pessoa da equipe.");
+    }
 
     // GET /sessoes/:id — status (sincroniza com WAHA antes)
     if (action === "sessoes" && sub.length === 2 && req.method === "GET" && sessao) {
@@ -1500,6 +1557,9 @@ serve(async (req) => {
       if (!sessaoIdBody || !chatId || !texto.trim()) {
         return badRequest("sessaoId, chatId e texto obrigatórios");
       }
+      if (!(await podeMexerNaConversa(colaborador, sessaoIdBody, chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
+      }
       if (texto.length > 4096) return badRequest("Texto muito longo (máximo 4096 caracteres).");
       const sessaoMsg = await getSessaoOrFail(sessaoIdBody);
       if (!sessaoMsg) return notFound("Sessão não encontrada");
@@ -1694,6 +1754,9 @@ serve(async (req) => {
       const replyToTexto = (body?.replyToTexto as string | undefined) || null;
       if (!sessaoIdBody || !chatId || !kind || !mediaPath) {
         return badRequest("sessaoId, chatId, kind e mediaPath obrigatórios");
+      }
+      if (!(await podeMexerNaConversa(colaborador, sessaoIdBody, chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
       }
       if (!["image", "file", "voice", "video"].includes(kind)) {
         return badRequest("kind deve ser image, file, voice ou video");

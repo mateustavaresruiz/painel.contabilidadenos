@@ -11,10 +11,9 @@
 // `consultas-fiscais`, em `denos/<clienteId>/<consultaId>-<nome>.pdf`.
 //
 // O CPF/CNPJ consultado sai SEMPRE do cadastro do cliente, nunca do corpo.
-// O operador mandado ao gateway (X-Operador) é o nome do colaborador de
-// `x-colaborador-id` (ou "painel-denos" sem colaborador).
+// O operador mandado ao gateway (X-Operador) é o nome do colaborador logado.
 //
-// Rotas (exigem a chave apikey; `x-colaborador-id` opcional vira `porId`):
+// Rotas (exigem o JWT do usuário logado com Colaborador ativo; ele vira `porId`):
 //   GET  /serpro/status                    → configurado? o que falta? (GET /v1/status do gateway)
 //   POST /serpro/testar-autenticacao       → testa o login no Serpro (GET /v1/status?testar_login=1)
 //   POST /serpro/consultar { clienteId, servico, periodo?, categoria?, ... }
@@ -41,7 +40,7 @@ import { handleCors } from "../_shared/cors.ts";
 import { badRequest, errorResponse, json, notFound, serviceUnavailable } from "../_shared/response.ts";
 import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
-import { colaboradorDoRequest, exigirApikey } from "../_shared/acesso.ts";
+import { exigirColaborador, semPermissao, tem } from "../_shared/acesso.ts";
 import { recordError } from "../_shared/error-log.ts";
 import { enforceRateLimit, sujeitoTenant } from "../_shared/rate-limit.ts";
 import {
@@ -544,17 +543,25 @@ async function carregarConsulta(id: string) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return handleCors(req);
-  const semChave = exigirApikey(req);
-  if (semChave) return semChave;
+  const colaborador = await exigirColaborador(req);
+  if (colaborador instanceof Response) return colaborador;
 
   const url = new URL(req.url);
   const sub = url.pathname.split("/").filter(Boolean).slice(1);
   const action = sub[0] ?? "";
 
   try {
-    const { colaborador, erro: erroColab } = await colaboradorDoRequest(req);
-    if (erroColab) return erroColab;
-    const operador = colaborador?.nome ?? "painel-denos";
+    const operador = colaborador.nome;
+
+    // Permissão do cargo por rota: consultar (e acompanhar) = serpro.consultar,
+    // confirmar com PIN = serpro.confirmar_pin, testar o login = configurações.
+    const exigidas =
+      action === "status" ? ["serpro.consultar", "configuracoes.gerenciar"]
+      : action === "testar-autenticacao" ? ["configuracoes.gerenciar"]
+      : action === "consultas" && sub[2] === "confirmar" ? ["serpro.confirmar_pin"]
+      : action === "consultas" && sub[2] === "pdf" ? ["serpro.consultar", "clientes.ver"]
+      : ["serpro.consultar"];
+    if (!exigidas.some((p) => tem(colaborador, p))) return semPermissao(exigidas[0]!);
 
     // GET /serpro/status — o `/v1/status` do gateway, no formato da tela:
     // `configurado` + `faltando` (texto com o nome da variável). Nunca
@@ -792,7 +799,7 @@ serve(async (req) => {
 
       const { data: consulta, error: insErr } = await supabaseAdmin
         .from("ConsultaFiscal")
-        .insert({ tenantId: TENANT_ID, clienteId, servico, status: "pendente", porId: colaborador?.id ?? null })
+        .insert({ tenantId: TENANT_ID, clienteId, servico, status: "pendente", porId: colaborador.id })
         .select('id, "clienteId", servico, resultado')
         .single();
       if (insErr || !consulta) throw insErr ?? new Error("Falha ao registrar a consulta");

@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { DetalheSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useColaboradoresMap } from "@/lib/colaborador";
+import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
 import { maskCpfCnpj, maskTelefone } from "@/lib/masks";
@@ -65,6 +65,8 @@ type Aba = (typeof ABAS)[number];
 export function ClienteDetalhePage() {
   const { id } = useParams<{ id: string }>();
   const { data: cliente, isLoading, error } = useCliente(id);
+  const podeEditar = usePermissao("clientes.editar");
+  const podeExcluir = usePermissao("clientes.excluir");
   const [params, setParams] = useSearchParams();
   const abaParam = params.get("aba") as Aba | null;
   const aba: Aba = abaParam && ABAS.includes(abaParam) ? abaParam : "dados";
@@ -111,11 +113,13 @@ export function ClienteDetalhePage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link to={`/clientes/${cliente.id}/editar`} className={buttonVariants({ variant: "outline" })}>
-              <Pencil />
-              Editar
-            </Link>
-            <DeleteClienteButton clienteId={cliente.id} clienteNome={nomeExibicao(cliente)} />
+            {podeEditar && (
+              <Link to={`/clientes/${cliente.id}/editar`} className={buttonVariants({ variant: "outline" })}>
+                <Pencil />
+                Editar
+              </Link>
+            )}
+            {podeExcluir && <DeleteClienteButton clienteId={cliente.id} clienteNome={nomeExibicao(cliente)} />}
           </div>
         </div>
       </header>

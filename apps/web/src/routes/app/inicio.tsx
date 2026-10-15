@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useEu } from "@/lib/colaborador";
+import { useEu, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { useEhAdmin, useModulos } from "@/lib/modulos";
 import { PERIODOS, useDashboard, type Dashboard, type Periodo } from "@/lib/queries/dashboard";
@@ -39,8 +39,10 @@ export function InicioPage() {
   usePageTitle("Visão geral");
   const { eu } = useEu();
   const { ativo } = useModulos();
+  const verNumeros = usePermissao("dashboard.ver");
+  const verSaude = usePermissao("configuracoes.gerenciar");
   const [periodo, setPeriodo] = useState<Periodo>(periodoSalvo);
-  const { data, isLoading, error, isFetching } = useDashboard(periodo);
+  const { data, isLoading, error, isFetching } = useDashboard(periodo, verNumeros);
 
   function escolher(p: Periodo) {
     setPeriodo(p);
@@ -68,7 +70,7 @@ export function InicioPage() {
             {saudacao}, {eu?.nome.split(" ")[0]}
           </h1>
         </div>
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Período">
+        {verNumeros && <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Período">
           {PERIODOS.map((p) => (
             <button
               key={p.valor}
@@ -86,12 +88,19 @@ export function InicioPage() {
               {p.rotulo}
             </button>
           ))}
-        </div>
+        </div>}
       </header>
 
-      <FaixaSaude />
+      {verSaude && <FaixaSaude />}
 
-      {error ? (
+      {!verNumeros ? (
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            Use o menu ao lado para abrir o que você precisa. Os números do escritório aparecem aqui para quem tem
+            essa permissão no cargo.
+          </CardContent>
+        </Card>
+      ) : error ? (
         <Card>
           <CardContent className="p-6 text-sm text-destructive">
             Não foi possível carregar a visão geral: {msgErro(error)}

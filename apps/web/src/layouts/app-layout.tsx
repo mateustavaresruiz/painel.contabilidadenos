@@ -1,21 +1,20 @@
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { Logo, LogoMark } from "@/components/logo";
-import { QuemSouEuDialog } from "@/components/quem-sou-eu";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
 import { useEu } from "@/lib/colaborador";
-import { useEhAdmin, useMarca, useModulos } from "@/lib/modulos";
+import { useMarca, useModulos } from "@/lib/modulos";
 import { cn } from "@/lib/utils";
 
 /**
- * Casca do painel: sidebar fixa no desktop, gaveta no celular. Sem login:
- * no rodapé fica "quem é você" (colaborador escolhido neste computador),
- * trocável a qualquer momento.
+ * Casca do painel: sidebar fixa no desktop, gaveta no celular. No rodapé,
+ * quem está logado, com o cargo e o "Sair".
  */
 export function AppLayout() {
   const location = useLocation();
@@ -78,12 +77,16 @@ export function AppLayout() {
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { ativo } = useModulos();
-  const ehAdmin = useEhAdmin();
+  const { tem } = useEu();
   const { data: marca } = useMarca();
-  // Módulo desligado em Configurações some do menu; sub-item só de admin também.
-  const itens = NAV_APP.filter((i) => !i.modulo || ativo(i.modulo)).map((i) =>
-    i.filhos ? { ...i, filhos: i.filhos.filter((f) => !f.soAdmin || ehAdmin) } : i,
+  const pode = (ps?: string[]) => !ps || ps.some((p) => tem(p));
+  // Módulo desligado em Configurações some do menu; item sem permissão também.
+  const itens = NAV_APP.filter((i) => (!i.modulo || ativo(i.modulo)) && pode(i.permissao)).map((i) =>
+    i.filhos ? { ...i, filhos: i.filhos.filter((f) => pode(f.permissao)) } : i,
   );
+  const configuracoes = tem("configuracoes.gerenciar")
+    ? NAV_CONFIGURACOES
+    : { ...NAV_CONFIGURACOES, to: "/configuracoes?tab=conexoes" };
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-5 py-4 border-b shrink-0">
@@ -98,7 +101,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
       <div className="p-3 border-t space-y-1 shrink-0">
-        {ehAdmin && <ItemNav item={NAV_CONFIGURACOES} onNavigate={onNavigate} />}
+        {pode(NAV_CONFIGURACOES.permissao) && (tem("configuracoes.gerenciar") || ativo("whatsapp")) && (
+          <ItemNav item={configuracoes} onNavigate={onNavigate} />
+        )}
         <EuBotao />
         <ThemeToggle variant="full" />
       </div>
@@ -153,36 +158,52 @@ function ItemNav({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
   );
 }
 
-/** Quem está usando este computador + botão de trocar. */
+/** Quem está logado: nome, cargo, e-mail e "Sair". */
 function EuBotao({ compacto }: { compacto?: boolean }) {
-  const { eu } = useEu();
+  const { eu, sessao, sair } = useEu();
   const [aberto, setAberto] = useState(false);
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setAberto(true)}
-        className={cn(
-          "flex items-center gap-3 rounded-md text-left transition-colors hover:bg-accent/60",
-          compacto ? "p-1 -mr-1" : "w-full px-2 py-2",
-        )}
-        title="Trocar de pessoa"
-      >
-        {eu ? (
-          <ColaboradorAvatar nome={eu.nome} cor={eu.cor} size={compacto ? "xs" : "sm"} />
-        ) : (
-          <LogoMark className="size-7" />
-        )}
-        {!compacto && (
-          <span className="flex-1 min-w-0">
-            <span className="block text-sm font-medium truncate">{eu?.nome ?? "Quem é você?"}</span>
-            <span className="block text-2xs text-muted-foreground truncate">
-              {eu?.cargo ? `${eu.cargo} · ` : ""}trocar
+    <Popover open={aberto} onOpenChange={setAberto}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-3 rounded-md text-left transition-colors hover:bg-accent/60",
+            compacto ? "p-1 -mr-1" : "w-full px-2 py-2",
+          )}
+          aria-label="Sua conta"
+        >
+          {eu ? (
+            <ColaboradorAvatar nome={eu.nome} cor={eu.cor} size={compacto ? "xs" : "sm"} />
+          ) : (
+            <LogoMark className="size-7" />
+          )}
+          {!compacto && (
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-medium truncate">{eu?.nome}</span>
+              <span className="block text-2xs text-muted-foreground truncate">{eu?.cargo ?? ""}</span>
             </span>
-          </span>
-        )}
-      </button>
-      <QuemSouEuDialog open={aberto} onOpenChange={setAberto} />
-    </>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align={compacto ? "end" : "start"} side={compacto ? "bottom" : "top"} className="w-64 p-2">
+        <div className="px-2 py-2">
+          <p className="text-sm font-semibold truncate">{eu?.nome}</p>
+          <p className="text-2xs text-muted-foreground truncate">{eu?.email ?? sessao?.user.email}</p>
+          {eu?.cargo && <p className="text-2xs text-muted-foreground mt-0.5">{eu.cargo}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setAberto(false);
+            void sair();
+          }}
+          className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent transition-colors"
+        >
+          <LogOut className="size-4" />
+          Sair
+        </button>
+      </PopoverContent>
+    </Popover>
   );
 }

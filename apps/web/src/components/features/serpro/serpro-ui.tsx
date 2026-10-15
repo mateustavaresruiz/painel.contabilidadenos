@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ErroDaApi } from "@/lib/api";
+import { usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatBRL, formatDataHora, formatDoc } from "@/lib/format";
 import {
@@ -191,6 +192,8 @@ export function ConsultarSituacaoBotao({
   size?: "sm" | "default";
 }) {
   const consultar = useConsultarSerpro();
+  const pode = usePermissao("serpro.consultar");
+  if (!pode) return null;
   async function rodar() {
     try {
       await consultar.mutateAsync({ clienteId, servico: "SITFIS" });
@@ -238,6 +241,7 @@ function AcoesConsulta({ consulta }: { consulta: ConsultaFiscal }) {
   const [abrindo, setAbrindo] = useState(false);
   const [pinAberto, setPinAberto] = useState(false);
   const temPdf = !!(consulta.resultado as { pdfPath?: string } | null)?.pdfPath;
+  const podePin = usePermissao("serpro.confirmar_pin");
   const conf = confirmacaoPendente(consulta);
   if (consulta.status !== "pendente" && !temPdf) return null;
   async function cancelarConfirmacao() {
@@ -254,7 +258,7 @@ function AcoesConsulta({ consulta }: { consulta: ConsultaFiscal }) {
     <div className="flex flex-wrap gap-2">
       {conf && (
         <>
-          <Button size="sm" onClick={() => setPinAberto(true)}>
+          <Button size="sm" onClick={() => setPinAberto(true)} disabled={!podePin} title={podePin ? undefined : "Seu cargo não confirma com PIN"}>
             <KeyRound />
             Confirmar com PIN
           </Button>

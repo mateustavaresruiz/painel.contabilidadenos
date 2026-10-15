@@ -108,7 +108,8 @@ export function StatusSolicitacaoSelect({
 /** O botão some quando Configurações desliga Chamados ou "abrir chamado na conversa". */
 export function SolicitacaoBotaoSeAtivo({ origem }: { origem: OrigemSolicitacao }) {
   const { ativo } = useModulos();
-  if (!ativo("chamadoNaConversa")) return null;
+  const { tem } = useEu();
+  if (!ativo("chamadoNaConversa") || !tem("chamados.criar")) return null;
   return <SolicitacaoBotao origem={origem} />;
 }
 

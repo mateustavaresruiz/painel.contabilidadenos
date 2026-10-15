@@ -46,7 +46,7 @@ import {
   SolicitacaoBotaoSeAtivo,
   type OrigemSolicitacao,
 } from "@/components/features/solicitacoes/solicitacao-ui";
-import { useColaboradoresMap } from "@/lib/colaborador";
+import { useColaboradoresMap, useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatTelefone, parsePgTimestamp } from "@/lib/format";
 import { useTransferencias, useWhatsappChatAberto } from "@/lib/queries/atendimento";
@@ -118,6 +118,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
   const marcarLido = useMarcarChatLido(sessaoId);
   const limpar = useLimparChat(sessaoId);
   const apagar = useApagarChat(sessaoId);
+  const { tem } = useEu();
   const sairGrupo = useSairDoGrupo(sessaoId);
   const refresh = useRefreshContact(sessaoId);
   const backfill = useBackfillParticipantes();
@@ -886,6 +887,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                   <ConversaTagsBotao chatId={chat.id} />
                 </div>
               ) : null}
+              {tem("whatsapp.exportar") && (
               <button
                 type="button"
                 onClick={() => {
@@ -897,6 +899,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                 <Download className="size-4 text-muted-foreground" />
                 Exportar conversa (PDF)
               </button>
+              )}
+              {tem("whatsapp.apagar_mensagens") && (<>
               <div className="my-1 h-px bg-border/60" />
               <button
                 type="button"
@@ -907,7 +911,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                 <Eraser className="size-4 text-muted-foreground" />
                 Limpar mensagens
               </button>
-              {chat?.tipo === "group" ? (
+              </>)}
+              {chat?.tipo === "group" && tem("whatsapp.conexoes") ? (
                 <button
                   type="button"
                   onClick={handleSairGrupo}
@@ -918,6 +923,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                   Sair do grupo
                 </button>
               ) : null}
+              {tem("whatsapp.apagar_mensagens") && (
               <button
                 type="button"
                 onClick={handleApagar}
@@ -927,6 +933,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
                 <Trash2 className="size-4" />
                 Apagar conversa
               </button>
+              )}
             </PopoverContent>
           </Popover>
         </div>
@@ -1067,7 +1074,11 @@ export function ChatConversa({ sessaoId, chatId, sessoes, onVoltar, textoInicial
       </div>
 
         {sessaoId && chatId &&
-          (chat?.podeEnviar === false ? (
+          (!tem("whatsapp.responder") ? (
+            <p className="border-t barra-fixa px-4 py-3 text-xs text-muted-foreground text-center">
+              Seu cargo pode ler as conversas, mas não responder.
+            </p>
+          ) : chat?.podeEnviar === false ? (
             <ComposerBloqueado motivo={chat.motivoBloqueio} />
           ) : (
             <Composer

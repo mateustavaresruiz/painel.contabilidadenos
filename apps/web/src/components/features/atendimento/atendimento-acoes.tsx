@@ -32,13 +32,17 @@ import { cn } from "@/lib/utils";
  * responsável, Assumir, Finalizar/Reabrir e Transferir.
  */
 export function AtendimentoAcoes({ chat }: { chat: WhatsappChat }) {
-  const { eu } = useEu();
+  const { eu, tem } = useEu();
   const mapa = useColaboradoresMap();
   const responsavel = chat.responsavelId ? mapa.get(chat.responsavelId) : undefined;
   const transferir = useTransferirAtendimento();
   const mudarStatus = useMudarStatusAtendimento();
   const [transferirAberto, setTransferirAberto] = useState(false);
-  const podeTransferir = useModulos().ativo("transferenciaAtendimento");
+  const podeTransferir = useModulos().ativo("transferenciaAtendimento") && tem("whatsapp.transferir");
+  // Assumir conversa de outra pessoa é transferir; sem responsável basta assumir.
+  const podeAssumir = chat.responsavelId
+    ? tem("whatsapp.transferir")
+    : tem("whatsapp.assumir") || tem("whatsapp.transferir");
 
   const souEu = !!eu && chat.responsavelId === eu.id;
   const finalizado = chat.atendimentoStatus === "finalizado";
@@ -82,7 +86,7 @@ export function AtendimentoAcoes({ chat }: { chat: WhatsappChat }) {
         </span>
       </Tooltip>
 
-      {!souEu && !finalizado && (
+      {!souEu && !finalizado && podeAssumir && (
         <Button
           size="sm"
           onClick={assumir}

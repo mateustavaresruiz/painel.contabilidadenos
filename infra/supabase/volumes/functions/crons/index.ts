@@ -10,7 +10,7 @@
 //   POST /crons/whatsapp-fotos-pendentes  ← a cada hora: fotos que faltam
 //   POST /crons/certificados-avisos       ← diário 09:00 (SP): aviso de vencimento
 //   POST /crons/certificados-avisos?dryRun=1 ← o que SERIA enviado, sem enviar
-//        (este aceita também a chave apikey, pra tela mostrar a prévia)
+//        (este aceita também o JWT de um colaborador logado, pra tela mostrar a prévia)
 //
 // A purga do WhatsappEventoLog / RateLimit / ErrorLog é SQL puro no pg_cron
 // (migration 003) — não precisa de function.
@@ -22,7 +22,7 @@ import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
 import * as waha from "../_shared/waha.ts";
 import { ensureChatPicture, ensureContatoPicture } from "../_shared/whatsapp-avatar.ts";
-import { exigirApikey, timingSafeEqual } from "../_shared/acesso.ts";
+import { exigirColaborador, timingSafeEqual } from "../_shared/acesso.ts";
 import { enviarTexto } from "../_shared/whatsapp-envio.ts";
 import { onlyDigits } from "../_shared/phone-utils.ts";
 
@@ -40,9 +40,15 @@ serve(async (req) => {
   const action = segs[1] ?? "";
   const dryRun = ["1", "true"].includes(url.searchParams.get("dryRun") ?? "");
 
-  // A prévia dos avisos é leitura e serve à tela: aceita a chave da tela.
-  const previaDaTela = action === "certificados-avisos" && dryRun && !exigirApikey(req);
-  if (!previaDaTela && !checkCronSecret(req)) return unauthorized("cron secret inválido");
+  // A prévia dos avisos é leitura e serve à tela: aceita um colaborador logado.
+  if (!checkCronSecret(req)) {
+    const previa = action === "certificados-avisos" && dryRun;
+    if (!previa) return unauthorized("cron secret inválido");
+    const eu = await exigirColaborador(req, {
+      permissao: ["certificados.configurar_avisos", "certificados.ver"],
+    });
+    if (eu instanceof Response) return eu;
+  }
 
   // ---------------- whatsapp-fotos-pendentes ----------------
   // Processa os chats com fotoPath=null das sessões conectadas. Paralelo 4

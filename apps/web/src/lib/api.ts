@@ -1,5 +1,4 @@
-import { getColaboradorAtualId } from "./colaborador";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase";
+import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase";
 
 /** Base das Edge Functions: `<SUPABASE_URL>/functions/v1`. */
 const BASE = `${SUPABASE_URL}/functions/v1`;
@@ -24,16 +23,18 @@ export class ErroDaApi extends Error {
 }
 
 /**
- * Headers de toda chamada às Edge Functions. Sem login: `apikey` e
- * `Authorization` levam a anon key, e `x-colaborador-id` diz quem está agindo
- * (o "Quem é você?" do cabeçalho).
+ * Headers de toda chamada às Edge Functions: `Authorization` leva o JWT da
+ * sessão (a function descobre por ele quem é o colaborador e o cargo) e
+ * `apikey` a chave pública do projeto. `getSession()` já renova o token
+ * vencido antes de devolver.
  */
-export function apiHeaders(extras?: HeadersInit): Headers {
+export async function apiHeaders(extras?: HeadersInit): Promise<Headers> {
   const headers = new Headers(extras);
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new ErroDaApi("Sua sessão terminou. Entre de novo.", 401);
   headers.set("apikey", SUPABASE_ANON_KEY);
-  headers.set("Authorization", `Bearer ${SUPABASE_ANON_KEY}`);
-  const colaboradorId = getColaboradorAtualId();
-  if (colaboradorId) headers.set("x-colaborador-id", colaboradorId);
+  headers.set("Authorization", `Bearer ${token}`);
   return headers;
 }
 
@@ -43,7 +44,7 @@ export function apiHeaders(extras?: HeadersInit): Headers {
  * O corpo é serializado AQUI — não passe `JSON.stringify(...)` (defeito 29 do adv3).
  */
 export async function api<T>(path: string, opts: FetchOptions = {}): Promise<T> {
-  const headers = apiHeaders(opts.headers);
+  const headers = await apiHeaders(opts.headers);
   headers.set("Content-Type", "application/json");
 
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
@@ -73,8 +74,8 @@ export async function api<T>(path: string, opts: FetchOptions = {}): Promise<T> 
     }
     // Mensagens amigáveis para os códigos que o backend do painel usa.
     if (res.status === 429) msg = "Muitas ações seguidas. Espere alguns segundos e tente de novo.";
-    if (res.status === 403 && /colaborador/i.test(msg))
-      msg = "Seu colaborador não está ativo. Troque em \"Quem é você?\".";
+    // Sessão revogada (desativação, logout em outro lugar): volta ao login.
+    if (res.status === 401) void supabase.auth.signOut();
     throw new ErroDaApi(msg, res.status, dados);
   }
 

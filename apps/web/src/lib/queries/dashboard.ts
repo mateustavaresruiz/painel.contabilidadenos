@@ -74,8 +74,9 @@ export type Dashboard = {
   };
 };
 
-export function useDashboard(periodo: Periodo) {
+export function useDashboard(periodo: Periodo, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ["dashboard", periodo],
     queryFn: async () => {
       const { de, ate } = intervaloDoPeriodo(periodo);

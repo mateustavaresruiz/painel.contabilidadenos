@@ -1,4 +1,4 @@
-import { ArrowRight, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowRight, ExternalLink, Loader2, Mail, RefreshCw, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
@@ -18,6 +18,7 @@ import {
   useWhatsappStatus,
   type Estado,
 } from "@/lib/queries/saude";
+import { useEmailStatus, useTestarEmail } from "@/lib/queries/equipe";
 import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function ConfigIntegracoes() {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <CardBanco />
+      <CardEmail />
       {ativo("whatsapp") && <CardWhatsapp />}
       {ativo("pendenciasFiscais") && <CardSerpro />}
       <CardCrons />
@@ -144,6 +146,100 @@ function CardBanco() {
           </details>
         </>
       ) : null}
+    </CardIntegracao>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/** Painel do servidor de e-mail (Stalwart, app "email" no Easypanel). */
+const STALWART_ADMIN = "https://painel-email.at63vf.easypanel.host";
+
+const CHECKLIST_EMAIL: string[] = [
+  "No Stalwart: criar o domínio contabilidadenos.com.br e gerar a chave DKIM.",
+  "No DNS do domínio: MX apontando para o servidor, SPF (TXT v=spf1), DKIM (TXT que o Stalwart mostra) e DMARC (TXT _dmarc).",
+  "Na Hostinger (VPS): configurar o DNS reverso (PTR) do IP para o nome do servidor de e-mail.",
+  "A Hostinger pode bloquear a porta 25 de saída: sem ela o servidor não entrega para Gmail e outros. Peça a liberação ou use um relay (SMTP de terceiros).",
+  "Criar no Stalwart uma conta só para o painel (ex.: painel@contabilidadenos.com.br) e usar o usuário e a senha dela.",
+  "No Easypanel, serviço supabase: preencher SMTP_HOST, SMTP_PORT (587), SMTP_USER, SMTP_PASS e SMTP_ADMIN_EMAIL, e reimplantar. Passo a passo em docs/LOGIN.md.",
+];
+
+function CardEmail() {
+  const q = useEmailStatus();
+  const testar = useTestarEmail();
+  const d = q.data;
+  const estado: Estado = q.isLoading
+    ? "carregando"
+    : q.error
+      ? "erro"
+      : !d?.configurado
+        ? "atencao"
+        : d.portaAbre === false
+          ? "erro"
+          : "ok";
+  const rotulo = !q.isLoading && !q.error && !d?.configurado ? "Não configurado" : undefined;
+  return (
+    <CardIntegracao
+      titulo="E-mail (login)"
+      estado={estado}
+      rotulo={rotulo}
+      verificadoEm={q.dataUpdatedAt || q.errorUpdatedAt || undefined}
+      onVerificar={() => void q.refetch()}
+      verificando={q.isFetching}
+    >
+      {q.isLoading ? (
+        <Skeleton className="h-20 w-full" />
+      ) : q.error ? (
+        <p className="text-sm text-destructive">A função equipe não respondeu: {msgErro(q.error)}</p>
+      ) : d ? (
+        <dl className="divide-y divide-divider">
+          <Linha rotulo="SMTP">{d.configurado ? `${d.host}:${d.porta}` : "Sem servidor (SMTP_HOST vazio)"}</Linha>
+          {d.configurado && (
+            <Linha rotulo="Servidor responde">{d.portaAbre ? "Sim" : "Não: a porta não abriu"}</Linha>
+          )}
+          <Linha rotulo="Usuário do SMTP">{d.usuarioConfigurado ? "Configurado" : "Não configurado"}</Linha>
+          <Linha rotulo="Remetente">{d.remetente ? `${d.nomeRemetente ?? ""} <${d.remetente}>` : "Não definido"}</Linha>
+          <Linha rotulo="Rede interna (painel_email)">{d.redeInterna.painel_email ? "Alcançável" : "Não alcançável"}</Linha>
+        </dl>
+      ) : null}
+      {!d?.configurado && (
+        <p className="text-sm text-muted-foreground">
+          Enquanto o e-mail não funciona, o login continua possível: em Equipe, use "Gerar link de acesso" para
+          cada pessoa.
+        </p>
+      )}
+      <details className="text-sm">
+        <summary className="cursor-pointer text-primary text-xs">O que configurar</summary>
+        <ol className="mt-3 list-decimal pl-5 space-y-1.5 text-xs text-muted-foreground">
+          {CHECKLIST_EMAIL.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ol>
+      </details>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="sm" variant="secondary">
+          <a href={STALWART_ADMIN} target="_blank" rel="noreferrer">
+            <ExternalLink />
+            Abrir o Stalwart
+          </a>
+        </Button>
+        {d?.configurado && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={testar.isPending}
+            onClick={() =>
+              testar.mutate(undefined, {
+                onSuccess: (r) => toast.success(`E-mail de teste enviado para ${r.para}. Confira a caixa de entrada.`),
+                onError: (e) => toast.error(msgErro(e)),
+              })
+            }
+          >
+            {testar.isPending ? <Loader2 className="animate-spin" /> : <Mail />}
+            Enviar e-mail de teste
+          </Button>
+        )}
+      </div>
     </CardIntegracao>
   );
 }

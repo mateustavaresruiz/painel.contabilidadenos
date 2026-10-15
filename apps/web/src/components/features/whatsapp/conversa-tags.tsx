@@ -1,5 +1,5 @@
 // Etiquetas da conversa (CRM-lite). Chip no header abre um popover pra aplicar/
-// remover etiquetas e criar novas. Sem login, qualquer colaborador etiqueta,
+// remover etiquetas e criar novas. Quem tem whatsapp.responder etiqueta,
 // cria e apaga etiquetas.
 
 import { Check, Loader2, Plus, Tag as TagIcon, Trash2 } from "lucide-react";

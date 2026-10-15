@@ -2,7 +2,7 @@
 // (blindadas via Edge/RPC), aqui o front fala DIRETO com o banco via supabase-js
 // + RLS — é dado do escritório, não segredo. Ver migration 202.
 //
-// Sem login: qualquer colaborador cria, apaga e etiqueta.
+// Quem tem whatsapp.responder cria, apaga e etiqueta (RLS, migration 005).
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 

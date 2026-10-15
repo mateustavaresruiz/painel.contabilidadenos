@@ -1,10 +1,9 @@
-// Consultas pequenas do painel Denos: aniversários, colaboradores (CRUD),
-// Serpro e o resumo da tela Início.
+// Consultas pequenas do painel Denos: aniversários, Serpro e o resumo da
+// tela Início. Equipe e cargos: lib/queries/equipe.ts.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import type { Colaborador } from "@/lib/colaborador";
 import { parsePgDate } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 
@@ -62,68 +61,6 @@ function ocorrencia(nasc: Date, ano: number): Date {
   const d = new Date(ano, nasc.getMonth(), nasc.getDate());
   if (d.getMonth() !== nasc.getMonth()) return new Date(ano, nasc.getMonth() + 1, 0);
   return d;
-}
-
-// ---------------------------------------------------------------------------
-// Colaboradores (CRUD)
-// ---------------------------------------------------------------------------
-
-export type ColaboradorInput = {
-  nome: string;
-  email?: string | null;
-  telefone?: string | null;
-  cor: string;
-  cargo?: string | null;
-  ativo: boolean;
-  papel?: "admin" | "atendente";
-};
-
-export function useSalvarColaborador() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (args: { id?: string; input: ColaboradorInput }) => {
-      const payload = {
-        nome: args.input.nome.trim(),
-        email: args.input.email?.trim() || null,
-        telefone: args.input.telefone?.trim() || null,
-        cor: args.input.cor,
-        cargo: args.input.cargo?.trim() || null,
-        ativo: args.input.ativo,
-        // Sem papel no input (cadastro rápido), o banco decide: o primeiro
-        // colaborador vira admin pelo gatilho da migration 004.
-        ...(args.input.papel ? { papel: args.input.papel } : {}),
-      };
-      if (args.id) {
-        const { error } = await supabase.from("Colaborador").update(payload).eq("id", args.id);
-        if (error) throw error;
-        return { id: args.id };
-      }
-      const { data, error } = await supabase.from("Colaborador").insert(payload).select("*").single();
-      if (error) throw error;
-      return data as Colaborador;
-    },
-    onSuccess: (res) => {
-      // Põe o recém-criado na lista JÁ: o "Quem é você?" escolhe o id logo em
-      // seguida, e o provider descartaria um id que ainda não está na lista.
-      if ("nome" in res) {
-        qc.setQueryData<Colaborador[]>(["colaboradores"], (old) =>
-          old ? [...old.filter((c) => c.id !== res.id), res] : [res],
-        );
-      }
-      void qc.invalidateQueries({ queryKey: ["colaboradores"] });
-    },
-  });
-}
-
-export function useExcluirColaborador() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("Colaborador").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["colaboradores"] }),
-  });
 }
 
 // ---------------------------------------------------------------------------

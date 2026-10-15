@@ -2,9 +2,8 @@
 -- 004: Configurações (papel do colaborador, módulos, marca) e Visão geral
 -- (RPCs agregadas do dashboard e da saúde do sistema).
 --
--- 🔴 Continua SEM LOGIN (ver 001). O papel 'admin' é um portão de TELA, não
--- de segurança: quem abre o painel pode escolher qualquer colaborador no
--- "Quem é você?". A proteção de acesso segue sendo a senha do domínio.
+-- (Histórico: o "papel" admin/atendente daqui foi trocado por cargos com
+-- permissões na migration 005, junto com o login.)
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------

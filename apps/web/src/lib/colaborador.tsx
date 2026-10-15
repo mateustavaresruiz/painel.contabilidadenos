@@ -1,13 +1,12 @@
-// "Quem é você?" — substitui o login do adv3 (decisão do dono: sem login por
-// enquanto). Cada computador escolhe um Colaborador da lista; o id fica no
-// localStorage e vai em toda chamada às Edge Functions (`x-colaborador-id`).
+// Sessão (login por e-mail, docs/LOGIN.md) e o colaborador logado.
 //
-// 🔴 Isto é IDENTIFICAÇÃO, não autenticação: quem abre o painel pode se dizer
-// qualquer um. A proteção de acesso hoje é a senha do domínio no Easypanel.
-// Quando o login vier, `Colaborador.userId` amarra a pessoa ao auth.users e
-// este contexto passa a ler o colaborador do usuário logado.
+// Quem é a pessoa sai do Auth: o usuário logado (auth.uid()) é amarrado ao
+// Colaborador por "userId". O que ela pode fazer vem do CARGO dele
+// (lib/permissoes.ts). Esconder botão aqui é conforto; quem barra de verdade
+// é a RLS do banco e as Edge Functions.
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Session } from "@supabase/supabase-js";
 import {
   createContext,
   useCallback,
@@ -18,6 +17,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { TODAS_PERMISSOES } from "@/lib/permissoes";
+import { useRealtimeInvalidate } from "@/lib/realtime";
 import { supabase } from "@/lib/supabase";
 
 export type Colaborador = {
@@ -26,29 +27,29 @@ export type Colaborador = {
   email: string | null;
   telefone: string | null;
   cor: string;
+  cargoId: string;
+  /** Nome do cargo (vem do join com Cargo). */
   cargo: string | null;
   ativo: boolean;
-  /** 'admin' vê Configurações (portão de tela, sem login: ver lib/modulos.ts). */
-  papel: "admin" | "atendente";
+  userId: string | null;
   criadoEm: string;
   atualizadoEm: string;
 };
 
-const CHAVE = "denos:colaboradorId";
+export type Cargo = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  permissoes: string[];
+  /** Administrador: todas as permissões, não se edita nem se apaga. */
+  sistema: boolean;
+};
 
-/** Lido pelo `api()` fora do React. Mantido em sincronia pelo provider. */
-let colaboradorAtualId: string | null = lerSalvo();
+type ColaboradorDoBanco = Omit<Colaborador, "cargo"> & { Cargo: { nome: string } | null };
 
-function lerSalvo(): string | null {
-  try {
-    return localStorage.getItem(CHAVE);
-  } catch {
-    return null;
-  }
-}
-
-export function getColaboradorAtualId(): string | null {
-  return colaboradorAtualId;
+function doBanco(c: ColaboradorDoBanco): Colaborador {
+  const { Cargo: cargo, ...resto } = c;
+  return { ...resto, cargo: cargo?.nome ?? null };
 }
 
 /** Todos os colaboradores (ativos e inativos), por nome. */
@@ -58,10 +59,10 @@ export function useColaboradores() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("Colaborador")
-        .select("*")
+        .select("*, Cargo(nome)")
         .order("nome", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as Colaborador[];
+      return ((data ?? []) as ColaboradorDoBanco[]).map(doBanco);
     },
     staleTime: 60_000,
   });
@@ -78,62 +79,104 @@ export function useColaboradoresMap() {
 }
 
 type Ctx = {
-  /** Colaborador escolhido neste computador (null = ainda não escolheu). */
+  /** undefined = ainda lendo a sessão guardada; null = sem login. */
+  sessao: Session | null | undefined;
+  /** Colaborador do usuário logado (null = sem acesso liberado ou carregando). */
   eu: Colaborador | null;
   euId: string | null;
+  cargo: Cargo | null;
+  /** Lendo sessão ou colaborador. */
   carregando: boolean;
-  escolher: (id: string | null) => void;
+  permissoes: ReadonlySet<string>;
+  tem: (p: string) => boolean;
+  sair: () => Promise<void>;
 };
 
 const ColaboradorContext = createContext<Ctx | null>(null);
 
 export function ColaboradorProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
-  const { data: lista, isLoading } = useColaboradores();
-  const [euId, setEuId] = useState<string | null>(colaboradorAtualId);
+  const [sessao, setSessao] = useState<Session | null | undefined>(undefined);
 
-  const escolher = useCallback(
-    (id: string | null) => {
-      colaboradorAtualId = id;
-      try {
-        if (id) localStorage.setItem(CHAVE, id);
-        else localStorage.removeItem(CHAVE);
-      } catch {
-        /* navegador sem storage: vale só nesta aba */
-      }
-      setEuId(id);
-      // Filtros "Minhas" e afins dependem de quem sou eu.
-      void qc.invalidateQueries({ queryKey: ["whatsapp-chats"] });
-    },
-    [qc],
-  );
-
-  const eu = useMemo(
-    () => (euId ? (lista ?? []).find((c) => c.id === euId) ?? null : null),
-    [lista, euId],
-  );
-
-  // O colaborador salvo foi apagado ou desativado: pede de novo.
   useEffect(() => {
-    if (isLoading || !lista || !euId) return;
-    const achado = lista.find((c) => c.id === euId);
-    if (!achado || !achado.ativo) escolher(null);
-  }, [isLoading, lista, euId, escolher]);
+    let vivo = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (vivo) setSessao(data.session);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
+      setSessao(s);
+      // Outra pessoa pode entrar no mesmo navegador: nada do cache anterior fica.
+      if (evento === "SIGNED_OUT") qc.clear();
+    });
+    return () => {
+      vivo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [qc]);
 
+  const userId = sessao?.user.id ?? null;
+  const euQuery = useQuery({
+    queryKey: ["eu", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("Colaborador")
+        .select("*, Cargo(id, nome, descricao, permissoes, sistema)")
+        .eq("userId", userId!)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data || !data.ativo) return null;
+      const { Cargo: cargo, ...resto } = data as Omit<Colaborador, "cargo"> & { Cargo: Cargo | null };
+      return { eu: { ...resto, cargo: cargo?.nome ?? null } as Colaborador, cargo };
+    },
+    staleTime: 5 * 60_000,
+    meta: { silencioso: true },
+  });
+
+  // Troca de cargo ou desativação vale na hora, sem recarregar.
+  useRealtimeInvalidate("Colaborador", [["eu"], ["colaboradores"]], undefined, !!euQuery.data);
+  useRealtimeInvalidate("Cargo", [["eu"], ["cargos"], ["colaboradores"]], undefined, !!euQuery.data);
+
+  const cargo = euQuery.data?.cargo ?? null;
+  const permissoes = useMemo<ReadonlySet<string>>(
+    () => new Set(cargo?.sistema ? TODAS_PERMISSOES : (cargo?.permissoes ?? [])),
+    [cargo],
+  );
+  const tem = useCallback((p: string) => permissoes.has(p), [permissoes]);
+
+  const sair = useCallback(async () => {
+    await supabase.auth.signOut();
+    qc.clear();
+  }, [qc]);
+
+  const eu = euQuery.data?.eu ?? null;
+  const carregando = sessao === undefined || (!!userId && euQuery.isLoading);
   const valor = useMemo<Ctx>(
-    () => ({ eu, euId: eu?.id ?? null, carregando: isLoading, escolher }),
-    [eu, isLoading, escolher],
+    () => ({ sessao, eu, euId: eu?.id ?? null, cargo, carregando, permissoes, tem, sair }),
+    [sessao, eu, cargo, carregando, permissoes, tem, sair],
   );
 
-  return (
-    <ColaboradorContext.Provider value={valor}>{children}</ColaboradorContext.Provider>
-  );
+  return <ColaboradorContext.Provider value={valor}>{children}</ColaboradorContext.Provider>;
 }
 
 export function useEu(): Ctx {
   const ctx = useContext(ColaboradorContext);
   if (!ctx) throw new Error("useEu fora do ColaboradorProvider");
   return ctx;
+}
+
+/**
+ * O colaborador logado tem a permissão? (Administrador tem todas.) Esconde
+ * menu, botão e ação; a regra de verdade está na RLS e nas functions.
+ */
+export function usePermissao(p: string): boolean {
+  return useEu().tem(p);
+}
+
+/** Pelo menos uma da lista. */
+export function useAlgumaPermissao(ps: string[]): boolean {
+  const { tem } = useEu();
+  return ps.some((p) => tem(p));
 }
 
 /** Paleta das cores de colaborador (avatar de iniciais). */

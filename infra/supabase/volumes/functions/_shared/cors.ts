@@ -21,8 +21,8 @@ const DEFAULT_ORIGIN = "https://painel-web.at63vf.easypanel.host";
 
 const ALLOWED_ORIGINS = new Set<string>([
   DEFAULT_ORIGIN,
-  // Dev local. Sem login, o CORS não é a fronteira de segurança (a chave
-  // anon é exigida em `exigirApikey`), então liberar o Vite não abre nada.
+  // Dev local. O CORS não é a fronteira de segurança (o JWT do usuário é
+  // exigido em `exigirColaborador`), então liberar o Vite não abre nada.
   "http://localhost:5173",
   "http://localhost:4173",
 ]);
@@ -50,8 +50,9 @@ export function corsHeadersFor(
     // `Vary: Origin` impede que cache do navegador/CDN sirva o header
     // de uma origem pra outra.
     Vary: "Origin",
-    // x-colaborador-id: quem está atendendo (sem login, a tela escolhe
-    // "quem sou eu"). SEM ele aqui, o preflight bloqueia todo envio.
+    // x-colaborador-id: header antigo do "Quem é você?", ignorado desde o
+    // login. Fica na lista só para uma aba aberta antes do deploy não falhar
+    // no preflight até recarregar.
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type, x-cron-secret, x-colaborador-id",
     // PUT entra de propósito: a foto interna da instância é `PUT

@@ -24,7 +24,7 @@ import {
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/ui/confirm-dialog";
-import { useColaboradoresMap } from "@/lib/colaborador";
+import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { useModulos } from "@/lib/modulos";
 import { formatData, formatDataHora, formatDoc, formatTelefone } from "@/lib/format";
@@ -69,7 +69,8 @@ export function PainelConversa({
   const vincular = useVincularChatCliente();
   const [vincularAberto, setVincularAberto] = useState(false);
   const [novaSolicitacao, setNovaSolicitacao] = useState(false);
-  const chamadoNaConversa = useModulos().ativo("chamadoNaConversa");
+  const podeCriarChamado = usePermissao("chamados.criar");
+  const chamadoNaConversa = useModulos().ativo("chamadoNaConversa") && podeCriarChamado;
 
   async function vincularA(clienteId: string | null) {
     try {

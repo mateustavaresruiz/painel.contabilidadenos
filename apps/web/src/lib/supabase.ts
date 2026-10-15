@@ -9,13 +9,17 @@ if (!url || !anonKey) {
   );
 }
 
-// Sem login (decisão do dono): o cliente fala sempre como `anon`. Nada de
-// sessão para guardar nem renovar.
+// Login por e-mail sem senha (docs/LOGIN.md). A sessão fica guardada no
+// navegador e é renovada sozinha; com ela o supabase-js manda o JWT do
+// usuário em toda consulta, no Storage e no Realtime, e a RLS decide o resto.
+// A chave anon sozinha não lê nada.
 export const supabase = createClient(url, anonKey, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
+    persistSession: true,
+    autoRefreshToken: true,
+    // O link gerado pelo Auth (action_link) volta com o token no fragmento.
+    detectSessionInUrl: true,
+    storageKey: "denos-auth",
   },
 });
 
