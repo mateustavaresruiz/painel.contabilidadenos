@@ -33,12 +33,8 @@ export const NAV_APP: NavItem[] = [
     label: "WhatsApp",
     icon: MessageSquare,
     modulo: "whatsapp",
-    permissao: ["whatsapp.ver", "whatsapp.conexoes"],
-    filhos: [
-      { to: "/whatsapp", label: "Conversas", end: true, permissao: ["whatsapp.ver"] },
-      // Um lugar só para as conexões: Configurações (como no adv3).
-      { to: "/configuracoes?tab=conexoes", label: "Conexões", permissao: ["whatsapp.conexoes"] },
-    ],
+    // Como no adv3: abre direto as conversas. Conexões só em Configurações.
+    permissao: ["whatsapp.ver"],
   },
   {
     to: "/chamados",
