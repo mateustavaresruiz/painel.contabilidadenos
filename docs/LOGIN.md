@@ -99,6 +99,22 @@ mostrar responsáveis) e `aniversarios.ver` (a view usa as permissões de Client
 | equipe.ver | x | x | x | |
 | equipe.gerenciar | x | | | |
 | configuracoes.gerenciar | x | | | |
+| auditoria.ver | x | | | |
+
+## Auditoria (quem fez o quê)
+
+A migration `009_auditoria.sql` grava um evento (quem, o quê, quando, antes e depois) para tudo
+que importa: chamados, clientes, sócios, certificados, equipe, cargos, ajustes, atendimento e
+etiquetas do WhatsApp, consultas fiscais, agendamentos, conexões dos números e entradas no
+painel. Só gatilhos do banco escrevem; o navegador nunca grava. Mensagens do WhatsApp, "visto"
+e presença ficam de fora (volume). Sem expurgo automático.
+
+- **Quem vê tudo**: `auditoria.ver` (só o Administrador), em Configurações > Auditoria (filtros,
+  50 por página, CSV).
+- **Quem vê o histórico de uma coisa**: quem já enxerga a coisa (chamado, conversa, cliente), pela
+  RPC `historico_entidade`: gaveta do chamado, aba Histórico da conversa e da ficha do cliente.
+- **Quem agiu**: o login (`auth.uid()`); nas Edge Functions, o header `x-painel-ator`, que o banco só
+  aceita do papel `service_role`. Sem ator aparece "Sistema".
 
 ## Link de emergência (sem e-mail, sem ninguém logado)
 

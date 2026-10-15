@@ -175,7 +175,7 @@ export function EventosPorDia({
     <div>
       {grupos.map((g) => (
         <section key={`${g.dia}-${g.itens[0]!.id}`} aria-label={g.dia}>
-          <h4 className="sticky top-0 z-[1] -mx-1 bg-background/90 px-1 py-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur">
+          <h4 className="mt-1 inline-block rounded-md bg-muted/60 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
             {g.dia}
           </h4>
           <ul className="divide-y divide-border/60">
