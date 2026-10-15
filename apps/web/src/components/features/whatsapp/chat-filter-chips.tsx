@@ -112,9 +112,9 @@ export function ChatFilterChips({ ativo, onChange }: Props) {
     <div
       ref={ref}
       className={cn(
-        "flex items-center gap-2 px-3 py-2.5 overflow-x-auto cursor-grab select-none",
-        // Esconde scrollbar visualmente — UX melhor em mobile (chips rolam)
-        "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        // Quebra em duas linhas quando a coluna é estreita: antes os chips
+        // saíam cortados ("Sem respon…") e só apareciam arrastando.
+        "flex flex-wrap items-center gap-1.5 px-3 py-2.5 select-none",
       )}
     >
       {CHIPS.map((chip) => {
@@ -129,7 +129,7 @@ export function ChatFilterChips({ ativo, onChange }: Props) {
             // (e o handler de drag-to-scroll continua no container pai).
             onPointerDown={(e) => e.stopPropagation()}
             className={cn(
-              "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium",
+              "shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
               "transition-all border",
               isAtivo
                 ? "bg-foreground text-background border-foreground shadow-sm"

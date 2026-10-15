@@ -36,10 +36,6 @@ import {
 } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useDebounced } from "@/hooks/use-debounced";
-import {
-  ColaboradorAvatar,
-  SemResponsavelAvatar,
-} from "@/components/colaborador-avatar";
 import { useColaboradoresMap, useEu, type Colaborador } from "@/lib/colaborador";
 import { TagsDaConversa } from "@/components/features/whatsapp/conversa-tags";
 import { msgErro } from "@/lib/erro";
@@ -253,7 +249,7 @@ export function ChatSidebar({
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar conversa ou número…"
+            placeholder="Buscar nome ou número"
             className="pl-8 h-9 bg-card/80"
           />
         </div>
@@ -764,19 +760,8 @@ const ChatItem = memo(function ChatItemImpl({
             fotoPath={chat.fotoPath}
             ringCliente={temCliente}
           />
-          {/* Responsável pelo atendimento, no canto do avatar. */}
-          <span className="absolute -bottom-0.5 -right-0.5 rounded-full ring-2 ring-card">
-            {responsavel ? (
-              <ColaboradorAvatar
-                nome={responsavel.nome}
-                cor={responsavel.cor}
-                size="2xs"
-                title={"Responsável: " + responsavel.nome}
-              />
-            ) : chat.tipo !== "group" ? (
-              <SemResponsavelAvatar size="2xs" />
-            ) : null}
-          </span>
+          {/* O responsável aparece no chip "Em atendimento · Nome" da linha 3;
+              o mini-avatar no canto cobria as iniciais do contato. */}
         </span>
         <div className="flex-1 min-w-0">
           {/* Linha 1: nome + hora */}

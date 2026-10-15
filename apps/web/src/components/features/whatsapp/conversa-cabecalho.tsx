@@ -130,7 +130,7 @@ export function ConversaCabecalho(p: Props) {
 
   return (
     <header className="shrink-0 border-b bg-card shadow-[0_1px_3px_rgba(16,32,64,0.05)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)]">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5 px-3 py-2.5 md:flex-nowrap md:px-4 md:py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5 px-3 py-2.5 md:px-4 md:py-3">
         <ConversaAvatar
           semente={chat?.chatId ?? p.nome}
           nome={chat?.nome}
@@ -138,7 +138,7 @@ export function ConversaCabecalho(p: Props) {
           fotoPath={chat?.fotoPath}
         />
 
-        <div className="min-w-0 flex-1 basis-[calc(100%-7rem)] md:basis-0">
+        <div className="min-w-0 flex-1 basis-[calc(100%-7rem)] md:min-w-[11rem] md:basis-[11rem]">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <h2 className="min-w-0 break-words text-[15px] font-semibold leading-tight tracking-[-0.01em] text-foreground md:text-base">
               {p.nome}
@@ -154,7 +154,7 @@ export function ConversaCabecalho(p: Props) {
         </div>
 
         {/* Desktop: tudo na mesma linha. Celular: o chip e a ação descem. */}
-        <div className="hidden shrink-0 items-center gap-2 md:flex">
+        <div className="hidden shrink-0 items-center gap-2 md:ml-auto md:flex">
           {chip}
           {botaoPrimario}
           {chamado}
@@ -495,7 +495,7 @@ function ItensMenu(
       {!grupo && !p.mobile && (
         <Item
           icone={<PanelRight />}
-          rotulo={p.painelAberto ? "Esconder painel do cliente" : "Painel do cliente"}
+          rotulo={p.painelAberto ? "Esconder perfil e histórico" : "Perfil e histórico"}
           onClick={() => {
             p.onMenuAbertoChange(false);
             p.onTogglePainel();

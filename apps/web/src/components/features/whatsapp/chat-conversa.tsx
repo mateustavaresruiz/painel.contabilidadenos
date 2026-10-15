@@ -943,13 +943,21 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
           ))}
       </div>
 
-      {/* Painel do cliente — overlay flutuante sobre a direita da conversa
-          (desktop). Não encolhe a conversa: desliza por cima com sombra,
-          a conversa segue visível atrás. Fecha no X. */}
+      {/* Painel do cliente. Em telas largas (2xl) fica ao lado da conversa, que
+          encolhe; abaixo disso desliza por cima com um véu (clicar fora fecha),
+          porque a coluna da conversa não comporta os dois sem esconder o cabeçalho. */}
+      {painelAberto && !grupo && (
+        <div
+          className="absolute inset-0 z-20 hidden bg-foreground/25 md:block 2xl:hidden"
+          onClick={() => setPainelAberto(false)}
+          aria-hidden
+        />
+      )}
       {painelAberto && !grupo && (
         <div
           className={cn(
             "absolute inset-y-0 right-0 z-30 hidden md:block bg-card shadow-2xl",
+            "2xl:static 2xl:z-auto 2xl:shrink-0 2xl:shadow-none",
             "animate-in slide-in-from-right-8 fade-in-0 duration-200",
           )}
         >

@@ -165,11 +165,11 @@ export function CertificadosPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por cliente, titular, emissora…"
+            placeholder="Cliente, titular ou emissora"
             className="pl-8 text-base md:text-sm"
           />
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex">
+        <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2 sm:flex">
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="sm:w-[170px]" aria-label="Status">
               <SelectValue />

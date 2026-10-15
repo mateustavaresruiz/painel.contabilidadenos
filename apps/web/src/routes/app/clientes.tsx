@@ -126,11 +126,11 @@ export function ClientesPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome, fantasia, CPF/CNPJ, e-mail ou telefone…"
+            placeholder="Nome, CPF/CNPJ, e-mail ou telefone"
             className="pl-8 text-base md:text-sm"
           />
         </div>
-        <div className="grid grid-cols-3 gap-2 sm:flex">
+        <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-3 sm:flex">
           <Select value={tipo || TODOS} onValueChange={(v) => setParam("tipo", v === TODOS ? "" : v)}>
             <SelectTrigger className="sm:w-[130px]" aria-label="Tipo">
               <SelectValue />
