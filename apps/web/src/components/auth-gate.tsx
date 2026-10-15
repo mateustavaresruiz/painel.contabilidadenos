@@ -1,17 +1,16 @@
-import { Loader2, Lock, LogOut, UserX } from "lucide-react";
+import { Lock, LogOut, UserX } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 
 import { Logo } from "@/components/logo";
+import { CarregandoMarca } from "@/components/marca-hexagono";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useEu } from "@/lib/colaborador";
 
 function Carregando() {
   return (
-    <div className="h-dvh grid place-items-center bg-background">
-      <Loader2 className="size-6 animate-spin text-muted-foreground" />
-    </div>
+    <CarregandoMarca className="h-dvh bg-background" rotulo="Abrindo o painel" />
   );
 }
 

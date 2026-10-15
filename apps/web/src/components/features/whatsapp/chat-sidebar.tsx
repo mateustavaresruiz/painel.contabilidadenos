@@ -44,7 +44,9 @@ import { useColaboradoresMap, useEu, type Colaborador } from "@/lib/colaborador"
 import { TagsDaConversa } from "@/components/features/whatsapp/conversa-tags";
 import { msgErro } from "@/lib/erro";
 import { parsePgTimestamp } from "@/lib/format";
+import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { avatarFicticio } from "@/lib/avatar-ficticio";
+import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import {
   mediaSignedUrl,
@@ -757,6 +759,7 @@ const ChatItem = memo(function ChatItemImpl({
         <span className="relative shrink-0">
           <ChatAvatar
             semente={chat.chatId}
+            nome={chat.nome}
             grupo={chat.tipo === "group"}
             fotoPath={chat.fotoPath}
             ringCliente={temCliente}
@@ -998,12 +1001,15 @@ function previewLimpo(texto: string | null): string | null {
 
 function ChatAvatar({
   semente,
+  nome,
   grupo,
   fotoPath,
   ringCliente,
 }: {
   /** Identificador do chat (JID). É a semente do desenho, NUNCA o nome. */
   semente: string;
+  /** Nome salvo: com letra, vira iniciais em cor suave (cor pela semente). */
+  nome?: string | null;
   grupo: boolean;
   fotoPath?: string | null;
   ringCliente: boolean;
@@ -1046,6 +1052,8 @@ function ChatAvatar({
         />
       ) : grupo ? (
         <Users className="size-4" />
+      ) : iniciaisDeContato(nome) ? (
+        <AvatarIniciais nome={nome} semente={semente} className="size-full text-sm" />
       ) : (
         // Sem foto do WhatsApp (privacidade do contato, que é a regra em quem
         // chega por anúncio): desenho fictício estável por número.

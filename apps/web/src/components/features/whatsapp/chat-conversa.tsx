@@ -49,7 +49,9 @@ import { useColaboradoresMap, useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatTelefone, parsePgTimestamp } from "@/lib/format";
 import { useTransferencias, useWhatsappChatAberto } from "@/lib/queries/atendimento";
+import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { avatarFicticio } from "@/lib/avatar-ficticio";
+import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import {
   mediaSignedUrl,
@@ -781,6 +783,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
         >
           <ConversaAvatar
             semente={chat?.chatId ?? nome}
+            nome={chat?.nome}
             grupo={grupo}
             fotoPath={chat?.fotoPath}
           />
@@ -1287,11 +1290,13 @@ function formatHeaderNumero(numero: string | null): string | null {
  */
 function ConversaAvatar({
   semente,
+  nome,
   grupo,
   fotoPath,
 }: {
   /** Identificador do chat (JID). É a semente do desenho, NUNCA o nome. */
   semente: string;
+  nome?: string | null;
   grupo: boolean;
   fotoPath?: string | null;
 }) {
@@ -1329,6 +1334,8 @@ function ConversaAvatar({
         />
       ) : grupo ? (
         <Users className="size-4" />
+      ) : iniciaisDeContato(nome) ? (
+        <AvatarIniciais nome={nome} semente={semente} className="size-full text-xs" />
       ) : (
         // Mesmo desenho da lista, mesma semente: o rosto não muda ao abrir a
         // conversa.

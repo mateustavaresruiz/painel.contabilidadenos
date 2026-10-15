@@ -1,4 +1,5 @@
 import { UserRound } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
@@ -14,7 +15,7 @@ const sizes: Record<Size, string> = {
 };
 
 /**
- * Iniciais do colaborador no círculo da cor dele. Substitui o UserAvatar do
+ * Iniciais do colaborador no círculo da cor dele (suave: fundo claro, letra na cor). Substitui o UserAvatar do
  * adv3 (lá havia foto; aqui não há login nem upload de foto).
  */
 export function ColaboradorAvatar({
@@ -34,11 +35,11 @@ export function ColaboradorAvatar({
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center rounded-full shrink-0 select-none font-semibold text-white",
+        "avatar-cor inline-flex items-center justify-center rounded-full shrink-0 select-none font-semibold",
         sizes[size],
         className,
       )}
-      style={{ backgroundColor: cor || "#64748b" }}
+      style={{ "--av-c": cor || "#64748b" } as CSSProperties}
       title={title ?? nome ?? undefined}
       aria-label={nome ?? "Sem responsável"}
     >

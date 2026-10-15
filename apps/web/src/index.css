@@ -118,7 +118,7 @@ html[data-estilo="B"] {
   --sidebar-foreground: var(--ink);
   --sidebar-muted: var(--ink-48);
   --sidebar-hover: var(--accent);
-  --sidebar-active: color-mix(in srgb, var(--mc, var(--primary)) 10%, transparent);
+  --sidebar-active: color-mix(in srgb, var(--primary) 10%, transparent);
   --sidebar-border: var(--hairline);
 }
 
@@ -250,6 +250,24 @@ html[data-estilo="B"] {
   .texto-mod {
     color: var(--mc);
   }
+  /* Avatar de iniciais em cor suave (components/avatar-iniciais.tsx). */
+  .avatar-suave {
+    background-color: hsl(var(--av-h, 212) 80% 92%);
+    color: hsl(var(--av-h, 212) 55% 32%);
+  }
+  .dark .avatar-suave {
+    background-color: hsl(var(--av-h, 212) 35% 24%);
+    color: hsl(var(--av-h, 212) 85% 82%);
+  }
+  /* Avatar do colaborador: a cor dele, suave (fundo 16%, texto na cor escurecida). */
+  .avatar-cor {
+    background-color: color-mix(in srgb, var(--av-c) 18%, var(--card));
+    color: color-mix(in srgb, var(--av-c) 78%, black);
+  }
+  .dark .avatar-cor {
+    background-color: color-mix(in srgb, var(--av-c) 32%, var(--card));
+    color: color-mix(in srgb, var(--av-c) 55%, white);
+  }
   /* Cartão que sobe no hover (respeita reduced-motion pelo bloco do fim). */
   .cartao-vivo {
     box-shadow: var(--sombra-card);
@@ -357,6 +375,15 @@ html[data-vt] .animate-page-enter {
 }
 .animate-skeleton {
   animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+/* A marca pulsando na tela de carregamento. */
+@keyframes marca-pulso {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.9); opacity: 0.55; }
+}
+.animate-marca-pulso {
+  animation: marca-pulso 1.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

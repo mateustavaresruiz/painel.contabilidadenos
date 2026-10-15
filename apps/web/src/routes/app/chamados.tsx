@@ -309,7 +309,7 @@ function ListaAba() {
                       <TableCell>
                         {resp ? (
                           <span className="inline-flex items-center gap-1.5 text-sm">
-                            <ColaboradorAvatar nome={resp.nome} cor={resp.cor} size="2xs" />
+                            <ColaboradorAvatar nome={resp.nome} cor={resp.cor} size="xs" />
                             {resp.nome.split(" ")[0]}
                           </span>
                         ) : (

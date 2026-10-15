@@ -1,8 +1,9 @@
-import { Check, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { Check, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
 import { Suspense, useCallback, useEffect, useState, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import { BuscaGlobal, useAtalhoBusca } from "@/components/busca-global";
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { Logo, LogoMark } from "@/components/logo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -12,7 +13,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
 import { useAplicarEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
-import { corModulo } from "@/lib/cores-modulo";
+import { useContadorChamados, useContadorWhatsapp } from "@/lib/queries/contadores";
 import { useModulos } from "@/lib/modulos";
 import { useTheme } from "@/lib/use-theme";
 import { cn } from "@/lib/utils";
@@ -98,6 +99,9 @@ export function AppLayout() {
   const { recolhida, alternar } = useSidebarRecolhida();
   const { ativo } = useModulos();
   const estilo = useAplicarEstilo();
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const abrirBusca = useCallback(() => setBuscaAberta(true), []);
+  useAtalhoBusca(abrirBusca);
 
   // Radix não fecha sozinho quando só o pathname muda.
   useEffect(() => {
@@ -159,6 +163,21 @@ export function AppLayout() {
       </Sheet>
 
       <main id="main-content" className="flex-1 min-h-0 min-w-0 flex flex-col [view-transition-name:conteudo]">
+        {/* Barra de topo do desktop: busca global (Ctrl+K) e a conta. */}
+        <div className="hidden md:flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/80 px-6 barra-fixa">
+          <button
+            type="button"
+            onClick={abrirBusca}
+            className="flex h-9 w-full max-w-md items-center gap-2.5 rounded-full border border-border bg-background px-3.5 text-sm text-muted-foreground transition-[border-color,box-shadow] duration-150 hover:border-primary/40 hover:shadow-card"
+          >
+            <Search className="size-4" />
+            <span className="flex-1 text-left">Buscar página, cliente ou conversa</span>
+            <kbd className="rounded-md border border-border bg-card px-1.5 py-0.5 font-sans text-2xs">Ctrl K</kbd>
+          </button>
+          <div className="ml-auto">
+            <EuBotao compacto comNome />
+          </div>
+        </div>
         <div
           key={location.pathname}
           className={cn(
@@ -171,6 +190,7 @@ export function AppLayout() {
           </Suspense>
         </div>
       </main>
+      <BuscaGlobal aberto={buscaAberta} onOpenChange={setBuscaAberta} />
     </div>
   );
 }
@@ -198,6 +218,8 @@ function Sidebar({
     ? NAV_CONFIGURACOES
     : { ...NAV_CONFIGURACOES, to: "/configuracoes?tab=conexoes" };
   const AlternarIcone = recolhida ? PanelLeftOpen : PanelLeftClose;
+  const { data: contWhats } = useContadorWhatsapp(itens.some((i) => i.to === "/whatsapp"));
+  const { data: contChamados } = useContadorChamados(itens.some((i) => i.to === "/chamados"));
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className={cn("shrink-0 flex items-center h-[92px] mb-1", recolhida ? "justify-center px-0" : "pl-5 pr-3 gap-2")}>
@@ -231,7 +253,13 @@ function Sidebar({
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-3 space-y-0.5" aria-label="Páginas">
         {itens.map((item) => (
-          <ItemNav key={item.to} item={item} onNavigate={onNavigate} recolhida={recolhida} />
+          <ItemNav
+            key={item.to}
+            item={item}
+            onNavigate={onNavigate}
+            recolhida={recolhida}
+            contador={item.to === "/whatsapp" ? contWhats : item.to === "/chamados" ? contChamados : undefined}
+          />
         ))}
       </nav>
       <div className="px-3 pb-3 pt-2 border-t border-sidebar-border space-y-0.5 shrink-0">
@@ -250,7 +278,6 @@ function Sidebar({
             </button>
           </Tooltip>
         )}
-        <EuBotao recolhida={recolhida} naSidebar />
       </div>
     </div>
   );
@@ -260,10 +287,12 @@ function ItemNav({
   item,
   onNavigate,
   recolhida,
+  contador,
 }: {
   item: NavItem;
   onNavigate?: () => void;
   recolhida?: boolean;
+  contador?: number;
 }) {
   const Icon = item.icon;
   const { pathname } = useLocation();
@@ -292,23 +321,39 @@ function ItemNav({
           "group relative flex h-10 items-center gap-2.5 rounded-lg px-1.5 text-xs transition-[color,background-color] duration-150",
           recolhida && "justify-center",
           isActive
-            ? "bg-sidebar-active text-primary font-semibold [html[data-estilo=B]_&]:texto-mod"
+            ? "bg-sidebar-active text-primary font-semibold"
             : "text-sidebar-foreground/85 hover:bg-sidebar-hover hover:text-sidebar-foreground",
         )
       }
-      style={corModulo(item.cor)}
     >
       {({ isActive }) => (
         <>
+          {/* Item ativo: só o azul da marca (ícone, texto, fundo e a barrinha de 3px). */}
+          {isActive && (
+            <span aria-hidden className="absolute -left-3 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-primary" />
+          )}
           <span
             className={cn(
-              "grid size-7 shrink-0 place-items-center rounded-md transition-[background-color,color,transform] duration-200 ease-brand",
-              isActive ? "bg-[var(--mc)] text-white scale-105" : "text-sidebar-muted group-hover:text-sidebar-foreground",
+              "relative grid size-7 shrink-0 place-items-center rounded-md transition-colors duration-150",
+              isActive ? "text-primary" : "text-sidebar-muted group-hover:text-sidebar-foreground",
             )}
           >
-            <Icon className="size-4" />
+            <Icon className="size-[18px]" />
+            {recolhida && contador ? (
+              <span className="absolute -right-1 -top-1 min-w-4 h-4 rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground text-center tabular-nums ring-2 ring-sidebar">
+                {contador > 99 ? "99+" : contador}
+              </span>
+            ) : null}
           </span>
-          <span className={cn("truncate transition-opacity duration-150", recolhida && "sr-only")}>{item.label}</span>
+          <span className={cn("flex-1 truncate transition-opacity duration-150", recolhida && "sr-only")}>{item.label}</span>
+          {!recolhida && contador ? (
+            <span
+              className="ml-auto mr-1 min-w-5 h-5 rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground text-center tabular-nums"
+              aria-label={`${contador} pendente${contador > 1 ? "s" : ""}`}
+            >
+              {contador > 99 ? "99+" : contador}
+            </span>
+          ) : null}
         </>
       )}
     </NavLink>
@@ -351,7 +396,7 @@ function ItemNav({
 }
 
 /** Quem está logado: nome, cargo, e-mail, tema e "Sair". */
-function EuBotao({ compacto, recolhida, naSidebar }: { compacto?: boolean; recolhida?: boolean; naSidebar?: boolean }) {
+function EuBotao({ compacto, recolhida, naSidebar, comNome }: { compacto?: boolean; recolhida?: boolean; naSidebar?: boolean; comNome?: boolean }) {
   const { eu, sessao, sair } = useEu();
   const { theme, setTheme } = useTheme();
   const [aberto, setAberto] = useState(false);
@@ -364,14 +409,17 @@ function EuBotao({ compacto, recolhida, naSidebar }: { compacto?: boolean; recol
           className={cn(
             "flex items-center gap-3 rounded-md text-left transition-[background-color,transform] duration-150 active:scale-[.98]",
             naSidebar ? "hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover" : "hover:bg-accent/70 data-[state=open]:bg-accent/70",
-            compacto ? "p-1 -mr-1 rounded-full" : recolhida ? "w-full justify-center py-1.5" : "w-full px-2 py-1.5",
+            compacto && comNome ? "py-1 pl-1 pr-3 rounded-full gap-2.5" : compacto ? "p-1 -mr-1 rounded-full" : recolhida ? "w-full justify-center py-1.5" : "w-full px-2 py-1.5",
           )}
           aria-label="Sua conta"
         >
           {eu ? (
-            <ColaboradorAvatar nome={eu.nome} cor={eu.cor} size={compacto ? "xs" : "sm"} />
+            <ColaboradorAvatar nome={eu.nome} cor={eu.cor} size={compacto && !comNome ? "xs" : "sm"} />
           ) : (
             <LogoMark className="size-7" />
+          )}
+          {comNome && (
+            <span className="hidden lg:block text-xs font-semibold max-w-[160px] truncate">{eu?.nome?.split(" ")[0]}</span>
           )}
           {!soAvatar && (
             <span className="flex-1 min-w-0">

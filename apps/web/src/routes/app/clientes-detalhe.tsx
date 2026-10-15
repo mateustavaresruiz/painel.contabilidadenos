@@ -13,7 +13,10 @@ import { useState, type ReactNode } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
+import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
+import { MarcaDagua } from "@/components/marca-hexagono";
+import { corModulo } from "@/lib/cores-modulo";
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
 import { DeleteClienteButton } from "@/components/features/clientes/delete-cliente-button";
@@ -90,15 +93,19 @@ export function ClienteDetalhePage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <header className="space-y-3">
-        <Link to="/clientes" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <header className="relative -mx-4 -mt-4 overflow-hidden border-b border-border/70 px-4 pb-5 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 space-y-3" style={corModulo("clientes")}>
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,transparent_55%,color-mix(in_srgb,var(--mc)_7%,transparent))]" />
+        <MarcaDagua />
+        <Link to="/clientes" className="relative inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="size-4" />
           Clientes
         </Link>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+          <AvatarIniciais nome={nomeExibicao(cliente)} semente={cliente.id} empresa={cliente.tipo === "PJ"} size="xl" className="rounded-xl" />
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-title-lg truncate">{nomeExibicao(cliente)}</h1>
+              <h1 className="truncate text-[22px] font-bold leading-tight tracking-[-0.015em] sm:text-[28px]">{nomeExibicao(cliente)}</h1>
               <TipoBadge tipo={cliente.tipo} />
               {cliente.regimeTributario && <Badge variant="outline">{cliente.regimeTributario}</Badge>}
               {!cliente.ativo && <Badge variant="secondary">Inativo</Badge>}
@@ -111,6 +118,7 @@ export function ClienteDetalhePage() {
                 .filter(Boolean)
                 .join(" · ")}
             </p>
+          </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {podeEditar && (

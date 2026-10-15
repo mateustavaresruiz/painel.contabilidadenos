@@ -27,6 +27,31 @@
 >   linguagem simples. Saúde das integrações, tempo de resposta e conexões ficam só em
 >   Configurações > Integrações.
 
+## Identidade (15/10/2026, segunda passada; vence o que vier abaixo)
+
+- **Uma cor para interação:** azul `--primary` em botão, link, foco e item ativo do menu. Item ativo
+  = ícone + texto azuis, fundo azul suave (`--sidebar-active`) e barrinha de 3px à esquerda. **Nada
+  de cor de módulo no menu** (o chip colorido saiu: ícone vermelho + texto azul ficava feio).
+- **Cor de módulo só dentro da página e com parcimônia:** quadrado do ícone do cabeçalho, números
+  de KPI, ilustração de estado vazio.
+- **Cabeçalho padrão** (`components/page-header.tsx`) em toda página: quadrado do ícone na cor do
+  módulo (deduzida do caminho; `cor` sobrepõe), título 28/700 (22 no celular), descrição de uma
+  linha, ação principal à direita (no celular desce), faixa com gradiente leve e o hexágono da
+  marca apagado no canto. `topo` recebe o link "Voltar".
+- **Hexágono NÓS** (`components/marca-hexagono.tsx`): sempre a imagem `public/favicon.png`, nunca
+  desenho refeito. Marca d'água (`MarcaDagua`) nos cabeçalhos e no banner do Início; pulsando na
+  tela de carregamento (`CarregandoMarca`); marca do menu recolhido.
+- **Avatares:** iniciais em cor suave determinística (`components/avatar-iniciais.tsx`, classe
+  `avatar-suave`) para clientes e contatos; equipe usa `Colaborador.cor` em tom suave
+  (`avatar-cor`). No WhatsApp, foto > iniciais (nome com letra) > desenho fictício.
+- **Contadores no menu:** WhatsApp (conversas com não lidas) e Chamados (abertos comigo + atrasados),
+  só `count head`, cache 60 s, sem polling (`lib/queries/contadores.ts`).
+- **Estado vazio** (`components/ui/empty-state.tsx`): ícone lucide em círculo tingido da cor do
+  módulo, halo e dois satélites; texto curto e ação principal.
+- **Barra de topo do desktop:** busca global Ctrl+K (`components/busca-global.tsx`: páginas,
+  clientes e conversas pelo nome) e o menu da conta (avatar). No celular a conta fica no cabeçalho.
+- **Listas:** linhas mais altas com avatar; ações aparecem no hover com tooltip.
+
 Base: análise do design da Apple enviada pelo dono em 14/10/2026 ("Apple-design-analysis").
 Aqui está a tradução daquele sistema para um **painel de trabalho** (denso, cheio de listas e
 formulários), não para uma vitrine de produto. Onde a referência fala de "product tile" e

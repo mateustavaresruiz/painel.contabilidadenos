@@ -1,8 +1,10 @@
-import { Building2, MapPin, Plus, Search, SearchX, User, Users } from "lucide-react";
+import { Building2, ChevronRight, MapPin, Pencil, Plus, Search, SearchX, User, Users } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { ABAS_CLIENTES, ModuloAbas } from "@/components/modulo-abas";
+import { Tooltip } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -226,21 +228,27 @@ export function ClientesPage() {
                   <SortableTableHead active={sort?.key === "cidade"} dir={sort?.dir} onSort={() => toggle("cidade")}>
                     Cidade
                   </SortableTableHead>
+                  <TableHead className="w-20"><span className="sr-only">Ações</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((c) => (
                   <TableRow
                     key={c.id}
-                    className="cursor-pointer hover:bg-muted/40"
+                    className="group cursor-pointer hover:bg-muted/40 [&>td]:py-3.5"
                     onClick={() => navigate(`/clientes/${c.id}`)}
                   >
                     <TableCell className="font-medium">
-                      <span className="block">{nomeExibicao(c)}</span>
-                      {c.nomeFantasia && c.nomeFantasia !== c.nome && (
-                        <span className="block text-2xs text-muted-foreground font-normal">{c.nome}</span>
-                      )}
-                      {!c.ativo && <Badge variant="secondary" className="mt-1">Inativo</Badge>}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <AvatarIniciais nome={nomeExibicao(c)} semente={c.id} empresa={c.tipo === "PJ"} size="md" />
+                        <div className="min-w-0">
+                          <span className="block truncate">{nomeExibicao(c)}</span>
+                          {c.nomeFantasia && c.nomeFantasia !== c.nome && (
+                            <span className="block truncate text-2xs text-muted-foreground font-normal">{c.nome}</span>
+                          )}
+                          {!c.ativo && <Badge variant="secondary" className="mt-1">Inativo</Badge>}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <TipoBadge tipo={c.tipo} />
@@ -257,6 +265,20 @@ export function ClientesPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {[c.cidade, c.estado].filter(Boolean).join(" / ") || "-"}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                        {podeEditar && (
+                          <Tooltip label="Editar cliente">
+                            <Button asChild size="icon" variant="ghost" className="size-8" onClick={(e) => e.stopPropagation()}>
+                              <Link to={`/clientes/${c.id}/editar`} aria-label="Editar cliente">
+                                <Pencil className="size-4" />
+                              </Link>
+                            </Button>
+                          </Tooltip>
+                        )}
+                        <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -267,7 +289,12 @@ export function ClientesPage() {
             <ItemCard
               key={c.id}
               to={`/clientes/${c.id}`}
-              titulo={nomeExibicao(c)}
+              titulo={
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <AvatarIniciais nome={nomeExibicao(c)} semente={c.id} empresa={c.tipo === "PJ"} size="sm" />
+                  <span className="truncate">{nomeExibicao(c)}</span>
+                </span>
+              }
               subtitulo={c.telefone ? formatTelefone(c.telefone) : c.email ?? undefined}
               selo={<TipoBadge tipo={c.tipo} />}
               meta={[
