@@ -119,7 +119,7 @@ export function ConversaTagsBotao({
             {aplicadas.size > 0 && <span className="text-2xs text-muted-foreground">{aplicadas.size}</span>}
           </button>
         ) : (
-          <Button variant="ghost" size="icon" className="size-9" title="Etiquetas">
+          <Button variant="ghost" size="icon" className="size-9" title="Etiquetas" aria-label="Etiquetas da conversa">
             <TagIcon className={cn("size-4", aplicadas.size > 0 && "text-primary")} />
           </Button>
         )}

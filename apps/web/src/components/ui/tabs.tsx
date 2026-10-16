@@ -5,6 +5,7 @@ import {
   type ElementRef,
 } from "react";
 
+import { useFadeRolagem } from "@/hooks/use-fade-rolagem";
 import { cn } from "@/lib/utils";
 
 export const Tabs = TabsPrimitive.Root;
@@ -12,9 +13,15 @@ export const Tabs = TabsPrimitive.Root;
 export const TabsList = forwardRef<
   ElementRef<typeof TabsPrimitive.List>,
   ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
+>(({ className, ...props }, ref) => {
+  const fade = useFadeRolagem<HTMLDivElement>();
+  return (
   <TabsPrimitive.List
-    ref={ref}
+    ref={(n) => {
+      fade(n);
+      if (typeof ref === "function") ref(n);
+      else if (ref) ref.current = n;
+    }}
     className={cn(
       // max-w-full + rolagem: no celular as abas rolam de lado em vez de cortar.
       "inline-flex h-9 max-lg:h-11 max-w-full items-center justify-start overflow-x-auto scrollbar-none rounded-full border border-border bg-card p-1 text-muted-foreground",
@@ -22,7 +29,8 @@ export const TabsList = forwardRef<
     )}
     {...props}
   />
-));
+  );
+});
 TabsList.displayName = TabsPrimitive.List.displayName;
 
 export const TabsTrigger = forwardRef<

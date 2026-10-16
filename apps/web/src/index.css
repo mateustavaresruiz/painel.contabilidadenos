@@ -29,7 +29,7 @@
   /* Paleta do DESIGN.md */
   --ink: #1d1d1f;
   --ink-80: #333333;
-  --ink-48: #7a7a7a;
+  --ink-48: #6b6b6b;
   --canvas: #ffffff;
   --parchment: #f4f6fa;
   --pearl: #fafafc;
@@ -255,7 +255,7 @@ html[data-estilo="B"] {
   /* Avatar de iniciais em cor suave (components/avatar-iniciais.tsx). */
   .avatar-suave {
     background-color: hsl(var(--av-h, 212) 80% 92%);
-    color: hsl(var(--av-h, 212) 55% 32%);
+    color: hsl(var(--av-h, 212) 60% 26%);
   }
   .dark .avatar-suave {
     background-color: hsl(var(--av-h, 212) 35% 24%);
@@ -264,7 +264,7 @@ html[data-estilo="B"] {
   /* Avatar do colaborador: a cor dele, suave (fundo 16%, texto na cor escurecida). */
   .avatar-cor {
     background-color: color-mix(in srgb, var(--av-c) 18%, var(--card));
-    color: color-mix(in srgb, var(--av-c) 78%, black);
+    color: color-mix(in srgb, var(--av-c) 58%, black);
   }
   .dark .avatar-cor {
     background-color: color-mix(in srgb, var(--av-c) 32%, var(--card));
@@ -299,6 +299,19 @@ html[data-estilo="B"] {
   .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  /* Barra de abas que rola de lado: esmaece a borda onde ainda há conteúdo (hooks/use-fade-rolagem.ts). */
+  [data-fade="fim"] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+  [data-fade="inicio"] {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+  }
+  [data-fade="ambos"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
   }
   .scrollbar-thin {
     scrollbar-width: thin;

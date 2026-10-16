@@ -66,7 +66,7 @@ fotografia, o painel não usa; o resto vale.
 | `--primary-focus` | `#0071e3` | Anel de foco (outline 2px) |
 | `--ink` | `#1d1d1f` | Todo texto principal |
 | `--ink-80` | `#333333` | Texto em botão secundário (pearl) |
-| `--ink-48` | `#7a7a7a` | Texto secundário, legenda, desabilitado |
+| `--ink-48` | `#6b6b6b` | Texto secundário, legenda, desabilitado |
 | `--canvas` | `#ffffff` | Cartões, painéis, conversa |
 | `--parchment` | `#f5f5f7` | Fundo da página, menu lateral, cabeçalho de tabela |
 | `--pearl` | `#fafafc` | Botão secundário |

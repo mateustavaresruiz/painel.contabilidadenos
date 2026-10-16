@@ -11,9 +11,13 @@ ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 # Opcional: commit mostrado em Configurações > Sistema (senão "desconhecido").
 ARG VITE_COMMIT
+# O Easypanel passa GIT_SHA no build de origem Git; sem nenhum dos dois (e sem
+# .git na imagem) a tela mostra "desconhecido".
+ARG GIT_SHA
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
-    VITE_COMMIT=$VITE_COMMIT
+    VITE_COMMIT=$VITE_COMMIT \
+    GIT_SHA=$GIT_SHA
 
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund

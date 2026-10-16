@@ -283,6 +283,9 @@ export function validarClientes(linhas: Array<{ linha: number; c: Record<string,
     const parsed = clienteSchema.safeParse({
       ...c,
       cpfCnpj: doc,
+      // Data inválida já foi apontada acima: não repete o erro pelo zod (usa só a válida).
+      dataAbertura: undefined,
+      dataNascimento: undefined,
       ...datas,
       tipo: resolverTipo(c.tipo ?? "", doc),
       regimeTributario: resolverRegime(c.regimeTributario ?? ""),

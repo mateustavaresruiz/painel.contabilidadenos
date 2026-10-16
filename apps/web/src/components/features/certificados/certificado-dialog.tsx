@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { msgErro } from "@/lib/erro";
-import { maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { isValidCpfCnpj, isValidTelefone, maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { useClientesList } from "@/lib/queries/helpers";
 import {
   TIPOS_CERTIFICADO,
   useSalvarCertificado,
@@ -31,6 +32,7 @@ import {
   type TipoCertificado,
 } from "@/lib/queries/certificados";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 /** Criar/editar certificado digital. */
 export function CertificadoDialog({
@@ -56,6 +58,11 @@ export function CertificadoDialog({
   const [telefoneAviso, setTelefoneAviso] = useState("");
   const [avisar, setAvisar] = useState(true);
   const [obs, setObs] = useState("");
+  const [tentou, setTentou] = useState(false);
+  const [erroEmitido, setErroEmitido] = useState<string | null>(null);
+  const [erroValido, setErroValido] = useState<string | null>(null);
+  const tipoEscolhido = useRef(false);
+  const clientes = useClientesList();
 
   useEffect(() => {
     if (!open) return;
@@ -70,12 +77,38 @@ export function CertificadoDialog({
     setTelefoneAviso(c?.telefoneAviso ? maskTelefone(c.telefoneAviso) : "");
     setAvisar(c?.avisarWhatsapp ?? true);
     setObs(c?.observacoes ?? "");
+    setTentou(false);
+    tipoEscolhido.current = !!c;
   }, [open, certificado, clienteIdFixo]);
 
+  // Certificado novo: o tipo padrão acompanha o cliente (PF -> e-CPF A1, PJ -> e-CNPJ A1)
+  // até a pessoa escolher o tipo na mão.
+  const tipoDoCliente = clientes.data?.find((c) => c.id === clienteId)?.tipo;
+  useEffect(() => {
+    if (!open || certificado || tipoEscolhido.current || !tipoDoCliente) return;
+    setTipo(tipoDoCliente === "PF" ? "e-CPF A1" : "e-CNPJ A1");
+  }, [open, certificado, tipoDoCliente]);
+
+  const erros = {
+    cliente: clienteId ? null : "Escolha o cliente.",
+    validoAte: erroValido ?? (validoAte ? null : "Informe a validade."),
+    emitidoEm: erroEmitido ?? (emitidoEm && validoAte && emitidoEm > validoAte ? "A emissão é depois da validade." : null),
+    documento: documento && !isValidCpfCnpj(documento) ? "CPF ou CNPJ inválido." : null,
+    telefoneAviso: telefoneAviso && !isValidTelefone(telefoneAviso) ? "Telefone incompleto (DDD + número)." : null,
+  };
+  const temErro = Object.values(erros).some(Boolean);
+  const ver = (k: keyof typeof erros) => (tentou ? erros[k] : null);
+  const inv = (k: keyof typeof erros) => (ver(k) ? "border-destructive" : undefined);
+  const msg = (k: keyof typeof erros) =>
+    ver(k) ? (
+      <p role="alert" className="text-xs text-destructive">
+        {ver(k)}
+      </p>
+    ) : null;
+
   async function enviar() {
-    if (!clienteId) return toast.error("Escolha o cliente.");
-    if (!validoAte) return toast.error("Informe a validade.");
-    if (emitidoEm && emitidoEm > validoAte) return toast.error("A emissão é depois da validade.");
+    setTentou(true);
+    if (temErro || !clienteId) return;
     try {
       await salvar.mutateAsync({
         id: certificado?.id,
@@ -112,10 +145,17 @@ export function CertificadoDialog({
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Cliente *</Label>
             <ClienteSelect value={clienteId} onChange={setClienteId} disabled={!!clienteIdFixo && !certificado} />
+            {msg("cliente")}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cd-tipo">Tipo</Label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoCertificado)}>
+            <Select
+              value={tipo}
+              onValueChange={(v) => {
+                tipoEscolhido.current = true;
+                setTipo(v as TipoCertificado);
+              }}
+            >
               <SelectTrigger id="cd-tipo">
                 <SelectValue />
               </SelectTrigger>
@@ -143,15 +183,20 @@ export function CertificadoDialog({
               inputMode="numeric"
               value={documento}
               onChange={(e) => setDocumento(maskCpfCnpj(e.target.value))}
+              aria-invalid={!!ver("documento") || undefined}
+              className={inv("documento")}
             />
+            {msg("documento")}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cd-emitido">Emitido em</Label>
-            <DatePicker id="cd-emitido" limpavel value={emitidoEm} onChange={setEmitidoEm} />
+            <DatePicker id="cd-emitido" limpavel value={emitidoEm} onChange={setEmitidoEm} onErroChange={setErroEmitido} />
+            {tentou && !erroEmitido ? msg("emitidoEm") : null}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cd-valido">Válido até *</Label>
-            <DatePicker id="cd-valido" value={validoAte} onChange={setValidoAte} />
+            <DatePicker id="cd-valido" value={validoAte} onChange={setValidoAte} onErroChange={setErroValido} />
+            {tentou && !erroValido ? msg("validoAte") : null}
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="cd-tel">Telefone para o aviso</Label>
@@ -161,7 +206,10 @@ export function CertificadoDialog({
               value={telefoneAviso}
               onChange={(e) => setTelefoneAviso(maskTelefone(e.target.value))}
               placeholder="Vazio = telefone do cliente"
+              aria-invalid={!!ver("telefoneAviso") || undefined}
+              className={cn(inv("telefoneAviso"))}
             />
+            {msg("telefoneAviso")}
           </div>
           <label className="sm:col-span-2 flex items-center gap-2 text-sm">
             <input

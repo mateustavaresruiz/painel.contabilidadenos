@@ -4,8 +4,10 @@ import { Link } from "react-router-dom";
 
 import { ClienteForm } from "@/components/features/clientes/cliente-form";
 import { PageHeader } from "@/components/page-header";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 export function NovoClientePage() {
+  usePageTitle("Novo cliente");
   return (
     <PageContainer className="lg:space-y-8">
       <PageHeader

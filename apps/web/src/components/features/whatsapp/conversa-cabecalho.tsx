@@ -520,7 +520,7 @@ function ItensMenu(
         <Item icone={<LogOut />} rotulo="Sair do grupo" onClick={p.onSairGrupo} disabled={p.saindo} perigo />
       )}
       {podeApagar && (
-        <Item icone={<Trash2 />} rotulo="Apagar conversa" onClick={p.onApagar} disabled={p.apagando} perigo />
+        <Item icone={<Trash2 />} rotulo="Excluir conversa" onClick={p.onApagar} disabled={p.apagando} perigo />
       )}
     </div>
   );

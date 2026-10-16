@@ -15,6 +15,7 @@ import {
   FileBadge2,
   LinkIcon,
   LockKeyhole,
+  LogOut,
   MapPin,
   MessageCircle,
   Send,
@@ -133,6 +134,13 @@ export function PortalPublicoPage() {
     void carregar(senhaRef.current);
   }, [carregar]);
 
+  /** Sair: esquece a senha (memória e sessionStorage) e volta para a tela da senha. */
+  function sair() {
+    gravarSenha(token, null);
+    senhaRef.current = "";
+    setFase({ t: "senha" });
+  }
+
   async function entrar(senha: string): Promise<string | null> {
     const v = await portalVerificar(token, senha);
     if (v.tipo === "ok") {
@@ -155,7 +163,7 @@ export function PortalPublicoPage() {
     <div className="min-h-dvh bg-background text-foreground">
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[linear-gradient(180deg,var(--brand-soft),transparent)] opacity-80" />
       <div className="relative mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 pb-safe-b pt-safe-t sm:px-6">
-        <Topo />
+        <Topo onSair={fase.t === "ok" ? sair : undefined} />
         <main className="flex flex-1 flex-col pb-10" id="conteudo">
           {fase.t === "carregando" && <Carregando />}
           {fase.t === "indisponivel" && <Indisponivel />}
@@ -173,7 +181,7 @@ export function PortalPublicoPage() {
 // ---------------------------------------------------------------------------
 // Estrutura
 // ---------------------------------------------------------------------------
-function Topo() {
+function Topo({ onSair }: { onSair?: () => void }) {
   return (
     <header className="flex items-center justify-between gap-3 py-4 sm:py-6">
       <Logo className="h-10 sm:h-12" />
@@ -183,6 +191,12 @@ function Topo() {
           Acesso seguro
         </span>
         <ThemeToggle />
+        {onSair && (
+          <Button variant="outline" size="sm" onClick={onSair}>
+            <LogOut />
+            Sair
+          </Button>
+        )}
       </div>
     </header>
   );

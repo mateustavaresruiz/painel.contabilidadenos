@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { msgErro } from "@/lib/erro";
+import { formatDoc } from "@/lib/format";
 import {
   adivinharMapa,
   aplicarMapa,
@@ -491,7 +492,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                 <TabelaPrevia
                   titulo="Clientes"
                   linhas={previa.clientes}
-                  colunas={[["Nome", (l) => l.nome], ["CPF/CNPJ", (l) => l.doc]]}
+                  colunas={[["Nome", (l) => l.nome], ["CPF/CNPJ", (l) => (l.doc ? formatDoc(l.doc) : "")]]}
                   status={(l) =>
                     l.erros.length
                       ? { texto: "Erro", tom: "destructive" }
@@ -585,7 +586,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                 onOpenChange(false);
               }}
             >
-              Fechar
+              Concluir
             </Button>
           )}
         </DialogFooter>

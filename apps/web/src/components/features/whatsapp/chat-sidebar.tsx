@@ -176,11 +176,11 @@ export function ChatSidebar({
     if (selecionados.size === 0) return;
     if (
       !(await confirmar({
-        titulo: `Apagar ${selecionados.size} conversa(s)?`,
+        titulo: `Excluir ${selecionados.size} conversa(s)?`,
         descricao:
           "Remove as conversas selecionadas, todas as mensagens e os vínculos com clientes. Tenta apagar também no WhatsApp do número conectado. Sem desfazer.",
         destructive: true,
-        confirmLabel: "Apagar selecionadas",
+        confirmLabel: "Excluir selecionadas",
       }))
     )
       return;
@@ -305,7 +305,7 @@ export function ChatSidebar({
             ) : (
               <Trash2 className="size-3.5" />
             )}
-            Apagar
+            Excluir
           </button>
         </div>
       )}
@@ -692,11 +692,11 @@ const ChatItem = memo(function ChatItemImpl({
     setMenuOpen(false);
     if (
       !(await confirmar({
-        titulo: "Apagar conversa?",
+        titulo: "Excluir conversa?",
         descricao:
           "Remove a conversa, todas as mensagens e o vínculo com cliente. Tenta apagar também no WhatsApp do número conectado.",
         destructive: true,
-        confirmLabel: "Apagar conversa",
+        confirmLabel: "Excluir conversa",
       }))
     )
       return;
@@ -917,7 +917,7 @@ const ChatItem = memo(function ChatItemImpl({
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-destructive/10 text-destructive text-left disabled:opacity-50"
           >
             <Trash2 className="size-4" />
-            Apagar conversa
+            Excluir conversa
           </button>
             </>
           ) : null}

@@ -250,6 +250,7 @@ export function Composer({
           <button
             type="button"
             onClick={onCancelReply}
+            aria-label="Cancelar resposta"
             className="text-muted-foreground hover:text-foreground"
           >
             <X className="size-3.5" />
@@ -312,6 +313,7 @@ export function Composer({
               className="size-9 shrink-0"
               onClick={handleAnexarClick}
               title="Anexar arquivo"
+              aria-label="Anexar arquivo"
             >
               <Paperclip className="size-4" />
             </Button>

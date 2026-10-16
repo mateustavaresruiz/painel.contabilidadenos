@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Loader2, Sparkles } from "lucide-react";
-import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDebounced } from "@/hooks/use-debounced";
 import { msgErro } from "@/lib/erro";
 import { fetchCep, fetchCnpj, onlyDigits } from "@/lib/lookups";
-import { maskCep, maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { isValidCnpj, maskCep, maskCpfCnpj, maskTelefone } from "@/lib/masks";
 import {
   type Cliente,
   useClientePorDoc,
@@ -100,6 +100,8 @@ export function ClienteForm(props: Props) {
     }
   }, [props.mode, searchParams, form]);
 
+  const [dataInvalida, setDataInvalida] = useState(false);
+  const aoErroData = useCallback((e: string | null) => setDataInvalida(!!e), []);
   const docRaw = form.watch("cpfCnpj") ?? "";
   const tipoAtual = form.watch("tipo");
   const debouncedDoc = useDebounced(docRaw, 600);
@@ -128,7 +130,8 @@ export function ClienteForm(props: Props) {
   useEffect(() => {
     if (tipoAtual !== "PJ" || props.mode === "edit") return;
     const sanit = onlyDigits(debouncedDoc);
-    if (sanit.length !== 14) return;
+    // Dígitos verificadores errados: nem chama a BrasilAPI (o campo já mostra "inválido").
+    if (sanit.length !== 14 || !isValidCnpj(sanit)) return;
     let active = true;
     setCnpjLoading(true);
     void fetchCnpj(sanit).then((info) => {
@@ -198,6 +201,10 @@ export function ClienteForm(props: Props) {
   };
 
   async function onSubmit(values: ClienteInput) {
+    if (dataInvalida) {
+      toast.error("Corrija a data antes de salvar.");
+      return;
+    }
     if (duplicadoBloqueio) {
       toast.error(
         duplicadoEmail
@@ -211,6 +218,8 @@ export function ClienteForm(props: Props) {
       ...values,
       dataNascimento: values.tipo === "PF" ? values.dataNascimento : undefined,
       dataAbertura: values.tipo === "PJ" ? values.dataAbertura : undefined,
+      // Regime e inscrições são de empresa: não vão no cadastro de pessoa física.
+      ...(values.tipo === "PF" ? { regimeTributario: undefined, inscricaoEstadual: undefined, inscricaoMunicipal: undefined } : {}),
     };
     try {
       if (props.mode === "create") {
@@ -287,6 +296,7 @@ export function ClienteForm(props: Props) {
               id="dataAbertura"
               limpavel
               value={form.watch("dataAbertura") ?? ""}
+              onErroChange={aoErroData}
               onChange={(v) => form.setValue("dataAbertura", v, { shouldDirty: true, shouldValidate: true })}
             />
           </Field>
@@ -296,6 +306,7 @@ export function ClienteForm(props: Props) {
               id="dataNascimento"
               limpavel
               value={form.watch("dataNascimento") ?? ""}
+              onErroChange={aoErroData}
               onChange={(v) => form.setValue("dataNascimento", v, { shouldDirty: true, shouldValidate: true })}
             />
           </Field>
@@ -327,6 +338,7 @@ export function ClienteForm(props: Props) {
         </Field>
       </Section>
 
+      {tipoAtual === "PJ" && (
       <Section title="Fiscal" description="Regime e inscrições.">
         <Field label="Regime tributário" htmlFor="regime" error={erros.regimeTributario?.message}>
           <Select
@@ -355,6 +367,7 @@ export function ClienteForm(props: Props) {
           <Input id="im" {...form.register("inscricaoMunicipal")} />
         </Field>
       </Section>
+      )}
 
       <Section
         title="Endereço"

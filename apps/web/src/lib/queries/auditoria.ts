@@ -307,8 +307,14 @@ export async function exportarAuditoriaCsv(filtros: FiltrosAuditoria): Promise<{
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
-  const hoje = new Date().toISOString().slice(0, 10);
-  a.download = `auditoria-${filtros.de ?? "inicio"}-a-${filtros.ate ?? hoje}.csv`;
+  // auditoria-AAAA-MM-DD-a-AAAA-MM-DD.csv: sem filtro de data, vale do evento mais antigo exportado até hoje.
+  const dia = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const hoje = dia(new Date().toISOString());
+  const maisAntigo = linhas.length ? dia(linhas.reduce((m, l) => (l.criadoEm < m ? l.criadoEm : m), linhas[0].criadoEm)) : hoje;
+  a.download = `auditoria-${filtros.de ?? maisAntigo}-a-${filtros.ate ?? hoje}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();

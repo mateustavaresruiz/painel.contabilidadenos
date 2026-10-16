@@ -6,7 +6,9 @@ import react from "@vitejs/plugin-react-swc";
 // Commit publicado (Configurações > Sistema). No Docker do Easypanel não há
 // .git: vem do build arg VITE_COMMIT; localmente, do git.
 function commitDoBuild(): string {
-  const env = process.env.VITE_COMMIT?.trim();
+  // VITE_COMMIT (fixado na mão) ou GIT_SHA (o Easypanel passa no build de origem Git).
+  const env = (process.env.VITE_COMMIT || process.env.GIT_SHA || "").trim();
+  if (/^[0-9a-f]{7,40}$/i.test(env)) return env.slice(0, 7);
   if (env) return env.slice(0, 12);
   try {
     return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();

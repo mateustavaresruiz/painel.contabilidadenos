@@ -159,11 +159,11 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
     setMenuOpen(false);
     if (
       !(await confirmar({
-        titulo: "Apagar conversa?",
+        titulo: "Excluir conversa?",
         descricao:
           "Remove a conversa, todas as mensagens e o vínculo com cliente. Tenta apagar também no WhatsApp do número conectado. Esta ação não pode ser desfeita.",
         destructive: true,
-        confirmLabel: "Apagar conversa",
+        confirmLabel: "Excluir conversa",
       }))
     ) {
       return;

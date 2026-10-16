@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AuthGate, PermissaoGate } from "@/components/auth-gate";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { ModuloGate } from "@/components/modulo-gate";
 import { AppLayout } from "@/layouts/app-layout";
 import type { ModuloChave } from "@/lib/modulos";
@@ -45,6 +46,18 @@ function Pagina({
 function Redireciona({ para }: { para: string }) {
   const { search } = useLocation();
   return <Navigate to={para + search} replace />;
+}
+
+function NaoEncontrada() {
+  usePageTitle("Página não encontrada");
+  return (
+    <div className="p-8 space-y-2">
+      <h1 className="text-title-lg">Página não encontrada</h1>
+      <Link to="/" className="text-sm underline">
+        Voltar ao início
+      </Link>
+    </div>
+  );
 }
 
 export function App() {
@@ -91,14 +104,7 @@ export function App() {
 
           <Route
             path="*"
-            element={
-              <div className="p-8 space-y-2">
-                <h1 className="text-title-lg">Página não encontrada</h1>
-                <Link to="/" className="text-sm underline">
-                  Voltar ao início
-                </Link>
-              </div>
-            }
+            element={<NaoEncontrada />}
           />
       </Route>
     </Routes>
