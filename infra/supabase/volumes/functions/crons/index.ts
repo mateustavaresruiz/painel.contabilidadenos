@@ -352,13 +352,23 @@ async function sessaoDosAvisos(sessaoIdCfg: string | null): Promise<{ id: string
     .eq("status", "WORKING")
     .order("criadoEm", { ascending: true });
   const lista = (data ?? []) as Array<{ id: string; nome: string }>;
-  return lista.find((s) => s.id === sessaoIdCfg) ?? lista[0] ?? null;
+  // 🔴 Sem conexão escolhida = avisos DESLIGADOS (auditoria de 16/10/2026: o
+  // padrão antigo, "a primeira conexão no ar", mandaria mensagem a cliente de
+  // verdade às 9h assim que os certificados fossem importados). Quem decide
+  // por onde sai é a pessoa, em Certificados > Aviso automático.
+  if (!sessaoIdCfg) return null;
+  return lista.find((s) => s.id === sessaoIdCfg) ?? null;
 }
 
 async function certificadosAvisos(dryRun: boolean) {
   const hoje = hojeSaoPaulo();
   const { marcos, sessaoId, modelo } = await lerConfig();
   if (!marcos.length) return { ok: true, hoje, dryRun, avisos: [], motivo: "sem marcos configurados" };
+  // Execução de verdade sem conexão escolhida: não envia nem grava nada (não
+  // consome marco). A simulação (dryRun) segue para mostrar o que sairia.
+  if (!dryRun && !sessaoId) {
+    return { ok: true, hoje, dryRun, avisos: [], motivo: "avisos desligados: nenhuma conexão escolhida em Certificados" };
+  }
   const maior = marcos[marcos.length - 1];
 
   const { data: certs, error } = await supabaseAdmin
