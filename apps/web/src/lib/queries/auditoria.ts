@@ -52,6 +52,7 @@ export const MODULO_LABEL: Record<string, string> = {
   equipe: "Equipe",
   configuracoes: "Configurações",
   acesso: "Acesso",
+  portal: "Portal do cliente",
 };
 
 export const MODULOS_AUDITORIA = Object.entries(MODULO_LABEL).map(([valor, rotulo]) => ({ valor, rotulo }));
@@ -59,6 +60,12 @@ export const MODULOS_AUDITORIA = Object.entries(MODULO_LABEL).map(([valor, rotul
 /** Ação (código do banco) → texto para filtro e etiqueta. */
 export const ACAO_LABEL: Record<string, string> = {
   criado: "Criado",
+  link_gerado: "Gerou o link do portal",
+  link_revogado: "Revogou o link do portal",
+  senha_regenerada: "Gerou senha nova do portal",
+  cliente_acessou: "Cliente acessou o portal",
+  chamado_aberto: "Chamado aberto pelo portal",
+  config: "Mudou configuração do portal",
   editado: "Editado",
   excluido: "Excluído",
   status: "Mudou o status",

@@ -113,7 +113,7 @@ export function EventoItem({
   const [aberto, setAberto] = useState(false);
   const comentario = ev.acao === "comentario" && !!ev.detalhes?.texto;
   const expansivel = temDetalhes(ev.detalhes);
-  const ator = ev.atorNome ?? "Sistema";
+  const ator = ev.atorNome ?? (ev.modulo === "portal" ? "Cliente (portal)" : "Sistema");
   const automatica = ev.origem !== "painel" && !ev.atorNome;
 
   return (

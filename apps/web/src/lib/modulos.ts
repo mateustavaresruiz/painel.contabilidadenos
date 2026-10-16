@@ -15,6 +15,7 @@ export type ModuloChave =
   | "equipe"
   | "certificadosAvisos"
   | "aniversarioParabens"
+  | "portalCliente"
   | "chamadoNaConversa"
   | "transferenciaAtendimento"
   | "loginSemVerificacao";
@@ -30,6 +31,7 @@ export const MODULOS_PADRAO: Modulos = {
   equipe: true,
   certificadosAvisos: true,
   aniversarioParabens: true,
+  portalCliente: true,
   chamadoNaConversa: true,
   transferenciaAtendimento: true,
   loginSemVerificacao: true,
@@ -58,6 +60,12 @@ export const SUBFUNCOES: { chave: ModuloChave; pai: ModuloChave; nome: string; d
     pai: "clientes",
     nome: "Botão de parabéns de aniversário",
     descricao: "Abre a conversa com a mensagem de parabéns já escrita.",
+  },
+  {
+    chave: "portalCliente",
+    pai: "clientes",
+    nome: "Portal do cliente",
+    descricao: "Link público com senha para o cliente ver chamados e certificados e pedir algo. Desligado, os links deixam de abrir e a aba some da ficha.",
   },
   {
     chave: "chamadoNaConversa",

@@ -25,6 +25,7 @@ import { CertificadoDialog } from "@/components/features/certificados/certificad
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
 import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { DeleteClienteButton } from "@/components/features/clientes/delete-cliente-button";
+import { PortalClienteAba } from "@/components/features/clientes/portal-cliente";
 import { ResumoFiscalCliente } from "@/components/features/serpro/serpro-painel";
 import { ConsultarSituacaoBotao, ConsultasFiscaisLista } from "@/components/features/serpro/serpro-ui";
 import {
@@ -53,6 +54,7 @@ import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
 import { maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { useModulos } from "@/lib/modulos";
 import { useCertificados, useExcluirCertificado, type Certificado } from "@/lib/queries/certificados";
 import {
   nomeExibicao,
@@ -71,7 +73,7 @@ import { HistoricoLista } from "@/components/features/auditoria/linha-do-tempo";
 
 import { TipoBadge } from "./clientes";
 
-const ABAS = ["dados", "socios", "certificados", "solicitacoes", "conversas", "fiscal", "historico"] as const;
+const ABAS = ["dados", "socios", "certificados", "solicitacoes", "conversas", "fiscal", "portal", "historico"] as const;
 type Aba = (typeof ABAS)[number];
 
 export function ClienteDetalhePage() {
@@ -79,9 +81,11 @@ export function ClienteDetalhePage() {
   const { data: cliente, isLoading, error } = useCliente(id);
   const podeEditar = usePermissao("clientes.editar");
   const podeExcluir = usePermissao("clientes.excluir");
+  const { ativo: moduloAtivo } = useModulos();
+  const mostraPortal = usePermissao("portal.gerenciar") && moduloAtivo("portalCliente");
   const [params, setParams] = useSearchParams();
   const abaParam = params.get("aba") as Aba | null;
-  const aba: Aba = abaParam && ABAS.includes(abaParam) ? abaParam : "dados";
+  const aba: Aba = abaParam && ABAS.includes(abaParam) && (abaParam !== "portal" || mostraPortal) ? abaParam : "dados";
   usePageTitle(cliente ? nomeExibicao(cliente) : "Cliente");
 
   if (!id) return <Navigate to="/clientes" replace />;
@@ -170,6 +174,7 @@ export function ClienteDetalhePage() {
             <TabsTrigger value="solicitacoes">Chamados</TabsTrigger>
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
             <TabsTrigger value="fiscal">Consultas fiscais</TabsTrigger>
+            {mostraPortal && <TabsTrigger value="portal">Portal do cliente</TabsTrigger>}
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
         </div>
@@ -188,6 +193,11 @@ export function ClienteDetalhePage() {
         <TabsContent value="conversas" className="mt-5">
           <ConversasAba clienteId={cliente.id} telefone={cliente.telefone} />
         </TabsContent>
+        {mostraPortal && (
+          <TabsContent value="portal" className="mt-5">
+            <PortalClienteAba clienteId={cliente.id} nome={nomeExibicao(cliente)} telefone={cliente.telefone} />
+          </TabsContent>
+        )}
         <TabsContent value="historico" className="mt-5">
           <p className="mb-3 text-sm text-muted-foreground">
             Edições do cadastro, chamados, certificados, consultas fiscais e conversas deste cliente, do mais novo para o mais antigo.

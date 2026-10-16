@@ -363,11 +363,14 @@ function ListaAba() {
                       }}
                     >
                       <TableCell className="min-w-[220px]">
-                        <p className="font-medium">{s.tipo?.nome ?? "-"}</p>
+                        <p className="flex flex-wrap items-center gap-1.5 font-medium">
+                          {s.tipo?.nome ?? "-"}
+                          {s.origem === "portal" && <Badge variant="default">Portal</Badge>}
+                        </p>
                         {s.descricao && <p className="text-xs text-muted-foreground line-clamp-2 max-w-md">{s.descricao}</p>}
                         <p className="text-2xs text-muted-foreground mt-0.5">
                           {formatDataHora(s.criadoEm)}
-                          {criador ? ` · por ${criador.nome.split(" ")[0]}` : ""}
+                          {criador ? ` · por ${criador.nome.split(" ")[0]}` : s.origem === "portal" ? " · pelo portal do cliente" : ""}
                         </p>
                       </TableCell>
                       <TableCell className="text-sm">
@@ -422,6 +425,8 @@ function ListaAba() {
                     <Badge variant="destructive">atrasada</Badge>
                   ) : s.cliente?.provisorio ? (
                     <CadastroIncompletoBadge />
+                  ) : s.origem === "portal" ? (
+                    <Badge variant="default">Portal</Badge>
                   ) : undefined
                 }
                 meta={[

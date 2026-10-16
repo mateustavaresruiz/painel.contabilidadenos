@@ -54,7 +54,7 @@ export function corsHeadersFor(
     // login. Fica na lista só para uma aba aberta antes do deploy não falhar
     // no preflight até recarregar.
     "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type, x-cron-secret, x-colaborador-id",
+      "authorization, x-client-info, apikey, content-type, x-cron-secret, x-colaborador-id, x-portal-senha",
     // PUT entra de propósito: a foto interna da instância é `PUT
     // /sessoes/:id/foto` e no adv3 ela falhava no navegador porque a lista
     // parava no PATCH (defeito 2 do guia).

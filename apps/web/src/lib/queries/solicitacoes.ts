@@ -40,6 +40,8 @@ export type Solicitacao = {
   descricao: string | null;
   status: SolicitacaoStatus;
   criadoPorId: string | null;
+  /** De onde nasceu: painel, WhatsApp ou o portal do cliente. */
+  origem?: "painel" | "whatsapp" | "portal";
   responsavelId: string | null;
   prazo: string | null;
   concluidaEm: string | null;

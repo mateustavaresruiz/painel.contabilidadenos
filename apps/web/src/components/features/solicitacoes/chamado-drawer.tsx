@@ -68,7 +68,7 @@ function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
             {isLoading ? "Chamado" : s?.tipo?.nome ?? "Chamado"}
           </DialogPrimitive.Title>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {s ? `Aberto em ${formatDataHora(s.criadoEm)}${criador ? ` por ${criador.nome.split(" ")[0]}` : ""}` : "Carregando…"}
+            {s ? `Aberto em ${formatDataHora(s.criadoEm)}${criador ? ` por ${criador.nome.split(" ")[0]}` : s.origem === "portal" ? " pelo portal do cliente" : ""}` : "Carregando…"}
           </p>
         </div>
         <button

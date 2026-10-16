@@ -22,9 +22,9 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { msgErro } from "@/lib/erro";
 import { formatTelefone, linkWaMe } from "@/lib/format";
 import { useAniversarios, type AniversarioCalculado } from "@/lib/queries/denos";
-import { abrirConversaPorTelefone, useWhatsappSessoes } from "@/lib/queries/whatsapp";
+import { caminhoDaConversa, localizarConversaDoCliente } from "@/lib/conversa-cliente";
+import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { useModulos } from "@/lib/modulos";
-import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -236,52 +236,15 @@ function ParabenizarBotao({ a }: { a: AniversarioCalculado }) {
   async function abrir() {
     setBuscando(true);
     try {
-      const digitos = (a.telefone ?? "").replace(/\D/g, "");
-      let chat: { sessaoId: string; chatId: string } | null = null;
       // Sócio tem telefone próprio: o vínculo por cliente levaria à empresa.
-      if (a.origem !== "socio") {
-        const { data, error } = await supabase
-          .from("WhatsappChat")
-          .select("sessaoId, chatId")
-          .eq("clienteId", a.clienteId)
-          .eq("tipo", "individual")
-          .is("apagadoEm", null)
-          .order("ultimaMensagemEm", { ascending: false, nullsFirst: false })
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
-        chat = data;
-      }
-      if (!chat && digitos.length >= 10) {
-        const comDdi = digitos.length <= 11 ? "55" + digitos : digitos;
-        // Tolera o 9º dígito: procura as duas formas do número.
-        const variantes = [comDdi];
-        if (comDdi.length === 13) variantes.push(comDdi.slice(0, 4) + comDdi.slice(5));
-        if (comDdi.length === 12) variantes.push(comDdi.slice(0, 4) + "9" + comDdi.slice(4));
-        const { data, error } = await supabase
-          .from("WhatsappChat")
-          .select("sessaoId, chatId")
-          .in(
-            "chatId",
-            variantes.map((v) => `${v}@c.us`),
-          )
-          .is("apagadoEm", null)
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
-        chat = data;
-        if (!chat) {
-          // Sem conversa: o servidor abre uma (POST /sessoes/:id/chats/novo).
-          const sessao = sessoes.find((s) => s.status === "WORKING");
-          if (sessao) {
-            const nova = await abrirConversaPorTelefone(sessao.id, comDdi);
-            chat = { sessaoId: sessao.id, chatId: nova.chatId };
-          }
-        }
-      }
+      const chat = await localizarConversaDoCliente({
+        clienteId: a.clienteId,
+        telefone: a.telefone,
+        porCliente: a.origem !== "socio",
+        sessaoConectadaId: sessoes.find((s) => s.status === "WORKING")?.id ?? null,
+      });
       if (chat) {
-        const q = new URLSearchParams({ instancia: chat.sessaoId, chat: chat.chatId, texto });
-        navigate(`/whatsapp?${q.toString()}`);
+        navigate(caminhoDaConversa(chat, texto));
         return;
       }
       const wa = linkWaMe(a.telefone, texto);

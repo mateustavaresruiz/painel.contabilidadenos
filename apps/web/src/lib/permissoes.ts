@@ -37,6 +37,7 @@ export const CATALOGO_PERMISSOES: GrupoPermissoes[] = [
       { chave: "clientes.editar", rotulo: "Cadastrar e editar", descricao: "Cadastra e altera clientes e sócios." },
       { chave: "clientes.excluir", rotulo: "Excluir clientes", descricao: "Exclui clientes (some o histórico ligado a eles)." },
       { chave: "aniversarios.ver", rotulo: "Ver aniversários", descricao: "Abre a lista de aniversários de clientes e sócios." },
+      { chave: "portal.gerenciar", rotulo: "Gerenciar o portal do cliente", descricao: "Gera, revoga e troca a senha do link do portal, vê os acessos e liga a situação fiscal no portal." },
     ],
   },
   {

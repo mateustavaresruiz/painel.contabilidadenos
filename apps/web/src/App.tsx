@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AuthGate, PermissaoGate } from "@/components/auth-gate";
@@ -23,6 +23,9 @@ import {
   NovoClientePage,
   PendenciasFiscaisPage,
 } from "@/routes/paginas";
+
+// Portal do cliente (público): chunk próprio, sem o painel junto.
+const PortalPublicoPage = lazy(() => import("@/routes/portal-publico").then((m) => ({ default: m.PortalPublicoPage })));
 
 /** Módulo ligado + permissão do cargo. */
 function Pagina({
@@ -49,6 +52,15 @@ export function App() {
     <Routes>
       <Route path="login" element={<LoginPage />} />
       <Route path="auth/callback" element={<AuthCallbackPage />} />
+      {/* Público: link + senha enviados ao cliente. Fora do AuthGate e do menu. */}
+      <Route
+        path="portal/:token"
+        element={
+          <Suspense fallback={<div className="min-h-dvh bg-background" />}>
+            <PortalPublicoPage />
+          </Suspense>
+        }
+      />
       <Route
         element={
           <AuthGate>
