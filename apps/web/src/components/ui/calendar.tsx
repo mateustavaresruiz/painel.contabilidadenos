@@ -7,6 +7,8 @@ import {
   isSameDay,
   isSameMonth,
   isToday,
+  setMonth,
+  setYear,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
@@ -17,6 +19,16 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const DIAS_SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
+
+const MESES = Array.from({ length: 12 }, (_, i) => {
+  const nome = format(new Date(2024, i, 1), "LLLL", { locale: ptBR });
+  return nome.charAt(0).toUpperCase() + nome.slice(1);
+});
+const ANO_MIN = 1900;
+const ANO_MAX = 2100;
+const ANOS = Array.from({ length: ANO_MAX - ANO_MIN + 1 }, (_, i) => ANO_MIN + i);
+const SELECT_CLS =
+  "h-9 cursor-pointer rounded-md border border-transparent bg-transparent px-1 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&>option]:bg-card [&>option]:text-foreground";
 
 type Props = {
   /** Data selecionada (ou nenhuma). */
@@ -55,7 +67,32 @@ export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, clas
         >
           <ChevronLeft className="size-4" />
         </button>
-        <p className="text-sm font-semibold first-letter:uppercase">{format(mesAtual, "LLLL 'de' yyyy", { locale: ptBR })}</p>
+        <div className="flex items-center gap-1">
+          <select
+            aria-label="Mês"
+            value={mesAtual.getMonth()}
+            onChange={(e) => setMesAtual((m) => setMonth(m, Number(e.target.value)))}
+            className={SELECT_CLS}
+          >
+            {MESES.map((nome, i) => (
+              <option key={nome} value={i}>
+                {nome}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Ano"
+            value={mesAtual.getFullYear()}
+            onChange={(e) => setMesAtual((m) => setYear(m, Number(e.target.value)))}
+            className={SELECT_CLS}
+          >
+            {ANOS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           type="button"
           onClick={() => setMesAtual((m) => addMonths(m, 1))}
