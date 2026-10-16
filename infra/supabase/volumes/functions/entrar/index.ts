@@ -20,11 +20,11 @@ import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
 import { ipDoCliente } from "../_shared/client-ip.ts";
 import { dentroDoLimite } from "../_shared/rate-limit.ts";
+import { normalizarEmail, padraoIlikeExato } from "../_shared/email-exato.ts";
 import { createChallenge, verifySolution } from "npm:altcha-lib@2.6.0/v1";
 
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const ALTCHA_KEY = Deno.env.get("ALTCHA_HMAC_KEY") ?? "";
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** A chave vale enquanto não for desligada explicitamente. */
 async function liberado(): Promise<boolean> {
@@ -35,7 +35,10 @@ async function liberado(): Promise<boolean> {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return handleCors(req);
-  if (!ALTCHA_KEY) return errorResponse("Proteção anti-robô não configurada (ALTCHA_HMAC_KEY).", 503);
+  if (!ALTCHA_KEY) {
+    console.error("entrar: ALTCHA_HMAC_KEY ausente");
+    return errorResponse("Serviço indisponível.", 503);
+  }
 
   // Desafio novo a cada pedido; vence em 10 minutos.
   if (req.method === "GET") {
@@ -55,15 +58,18 @@ serve(async (req) => {
   }
 
   const ip = ipDoCliente(req);
-  const porIp = await dentroDoLimite({ action: "entrar", sujeito: `ip:${ip}`, max: 10, windowSecs: 300 });
-  const global = await dentroDoLimite({ action: "entrar", sujeito: "global", max: 60, windowSecs: 300 });
-  if (!porIp || !global) return errorResponse("Muitas tentativas. Espere alguns minutos.", 429);
+  // Freio por IP antes de tudo (barato e só pune o próprio IP).
+  if (!(await dentroDoLimite({ action: "entrar", sujeito: `ip:${ip}`, max: 10, windowSecs: 300 }))) {
+    return errorResponse("Muitas tentativas. Espere alguns minutos.", 429);
+  }
 
-  const body = await req.json().catch(() => ({}));
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 254) : "";
-  if (!EMAIL_RE.test(email)) return badRequest("E-mail inválido.");
+  const body = (await req.json().catch(() => null)) ?? {};
+  const email = normalizarEmail(body.email);
+  if (!email) return badRequest("E-mail inválido.");
 
-  // Anti-robô: a solução tem de ser válida, no prazo e usada uma vez só.
+  // Anti-robô PRIMEIRO: a solução tem de ser válida, no prazo e usada uma vez só.
+  // O freio GLOBAL só conta depois de uma prova válida; senão qualquer um, sem
+  // resolver nada, esgotaria os 60 do escritório inteiro e travaria o login de todos.
   const altcha = typeof body.altcha === "string" ? body.altcha.slice(0, 2000) : "";
   if (!altcha || !(await verifySolution(altcha, ALTCHA_KEY, true).catch(() => false))) {
     return forbidden("Verificação anti-robô falhou. Recarregue a página e tente de novo.");
@@ -75,12 +81,15 @@ serve(async (req) => {
   if (!(await dentroDoLimite({ action: "altcha", sujeito: assinatura, max: 1, windowSecs: 900 }))) {
     return forbidden("Verificação anti-robô já usada. Recarregue a página.");
   }
+  if (!(await dentroDoLimite({ action: "entrar", sujeito: "global", max: 60, windowSecs: 300 }))) {
+    return errorResponse("Muitas tentativas. Espere alguns minutos.", 429);
+  }
 
   const { data: c } = await supabaseAdmin
     .from("Colaborador")
     .select("id, ativo, userId")
     .eq("tenantId", TENANT_ID)
-    .ilike("email", email)
+    .ilike("email", padraoIlikeExato(email))
     .maybeSingle();
   if (!c?.ativo || !c.userId) return forbidden("Este e-mail não tem acesso ao painel.");
 

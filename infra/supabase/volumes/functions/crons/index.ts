@@ -28,6 +28,7 @@ import { exigirColaborador, timingSafeEqual } from "../_shared/acesso.ts";
 import { enviarTexto } from "../_shared/whatsapp-envio.ts";
 import { onlyDigits } from "../_shared/phone-utils.ts";
 import { serproAgendado } from "./serpro-agendado.ts";
+import { avisoBloqueado, STATUS_RETENTAVEIS } from "./avisos-regra.ts";
 
 function checkCronSecret(req: Request): boolean {
   const got = req.headers.get("x-cron-secret") ?? "";
@@ -255,9 +256,11 @@ serve(async (req) => {
 // 🔴 NUNCA REENVIA. `CertificadoAviso` tem unique(certificadoId, marco), e a
 // linha é criada ANTES do envio (é a "trava"): dois crons sobrepostos não
 // mandam duas vezes. E um marco não sai se um marco MENOR (mais perto do
-// vencimento) já foi registrado. A única repetição é a de `sem_conexao`:
-// o WhatsApp do escritório estava fora e a mensagem nunca chegou ao WAHA,
-// então tentar no dia seguinte não duplica nada. `falhou` NÃO repete: o
+// vencimento) já foi registrado. As únicas repetições são `sem_conexao` (o
+// WhatsApp do escritório estava fora) e `sem_telefone` (cliente sem telefone
+// ou sem WhatsApp): a mensagem nunca chegou ao WAHA, então tentar no dia
+// seguinte não duplica nada e não consome o marco de quem ainda vai ter o
+// cadastro corrigido. `falhou` NÃO repete: o
 // WAHA pode ter enviado e só a resposta se perdeu.
 
 type Aviso = {
@@ -396,11 +399,8 @@ async function certificadosAvisos(dryRun: boolean) {
     if (marco === undefined) continue;
     const historico = feitos.get(c.id as string) ?? [];
     // Já registrado este marco ou um MAIS PERTO do vencimento → nada a fazer
-    // (exceto sem_conexao do próprio marco, que pode repetir).
-    const bloqueia = historico.some((h) =>
-      (h.marco < marco) || (h.marco === marco && h.status !== "sem_conexao")
-    );
-    if (bloqueia) continue;
+    // (exceto sem_conexao/sem_telefone do próprio marco, que repetem; ver avisos-regra.ts).
+    if (avisoBloqueado(historico, marco)) continue;
     const nomeCliente = cli.nomeFantasia?.trim() || cli.nome;
     devidos.push({
       certificadoId: c.id as string,
@@ -431,8 +431,8 @@ async function certificadosAvisos(dryRun: boolean) {
   const sessao = waha.wahaIsConfigured() ? await sessaoDosAvisos(sessaoId) : null;
   const resultado: Aviso[] = [];
   for (const d of devidos) {
-    // TRAVA: a linha nasce antes do envio. Retentativa de sem_conexao troca
-    // o status só se ainda for sem_conexao (outro cron pode ter pegado).
+    // TRAVA: a linha nasce antes do envio. Retentativa de sem_conexao/sem_telefone
+    // troca o status só se ainda for um desses (outro cron pode ter pegado).
     const travou = await travarAviso(d);
     if (!travou) {
       resultado.push({ ...d, status: "pulado", erro: "já em andamento por outra execução" });
@@ -508,7 +508,7 @@ async function certificadosAvisos(dryRun: boolean) {
   };
 }
 
-/** Cria (ou retoma, se sem_conexao) a linha de CertificadoAviso. */
+/** Cria (ou retoma, se sem_conexao/sem_telefone) a linha de CertificadoAviso. */
 async function travarAviso(d: Aviso): Promise<boolean> {
   const { error } = await supabaseAdmin.from("CertificadoAviso").insert({
     tenantId: TENANT_ID,
@@ -525,7 +525,7 @@ async function travarAviso(d: Aviso): Promise<boolean> {
     .update({ status: "falhou", erro: "em andamento" })
     .eq("certificadoId", d.certificadoId)
     .eq("marco", d.marco)
-    .eq("status", "sem_conexao")
+    .in("status", [...STATUS_RETENTAVEIS])
     .select("id");
   return (data?.length ?? 0) > 0;
 }

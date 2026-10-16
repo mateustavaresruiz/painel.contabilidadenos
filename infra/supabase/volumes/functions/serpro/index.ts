@@ -41,7 +41,7 @@
 // se ele reiniciar, ela some, e a consulta vira `erro` ao tentar confirmar.
 
 import { handleCors } from "../_shared/cors.ts";
-import { badRequest, errorResponse, json, notFound, serviceUnavailable } from "../_shared/response.ts";
+import { badRequest, errorResponse, internalError, json, notFound, novoErroId, serviceUnavailable } from "../_shared/response.ts";
 import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
 import { exigirColaborador, semPermissao, tem } from "../_shared/acesso.ts";
@@ -351,7 +351,8 @@ serve(async (req) => {
     return notFound(`Rota ${req.method} /${sub.join("/")} não encontrada`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err);
-    await recordError({ origem: "serpro", mensagem: `serpro ${sub[0] ?? ""}: ${msg}`, stack: err instanceof Error ? err.stack : null });
-    return json({ error: msg }, { status: 500, headers: { "x-erro-registrado": "1" } });
+    const id = novoErroId();
+    await recordError({ origem: "serpro", mensagem: `serpro ${sub[0] ?? ""}: ${msg} (ref ${id})`, stack: err instanceof Error ? err.stack : null });
+    return internalError(msg, { id, registrado: true });
   }
 });

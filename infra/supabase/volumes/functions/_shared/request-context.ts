@@ -11,7 +11,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 /** `ator`: Colaborador que fez o pedido (preenchido por `exigirColaborador`); vira o header
  *  `x-painel-ator` nas chamadas ao banco, e é assim que a auditoria sabe quem agiu. */
-type Ctx = { req: Request; ator?: string };
+type Ctx = { req: Request; ator?: string; erroInterno?: { id: string; detalhe: string } };
 
 const storage = new AsyncLocalStorage<Ctx>();
 
@@ -47,4 +47,15 @@ export function definirAtor(colaboradorId: string): void {
 /** Quem está agindo neste request, se for um colaborador logado. */
 export function atorAtual(): string | null {
   return storage.getStore()?.ator ?? null;
+}
+
+/** Guarda o detalhe de um 5xx deste request (o cliente só recebe o id; o `serve` grava o detalhe no ErrorLog). */
+export function registrarErroInterno(id: string, detalhe: string): void {
+  const ctx = storage.getStore();
+  if (ctx) ctx.erroInterno = { id, detalhe };
+}
+
+/** O 5xx registrado neste request, se algum handler devolveu `internalError`. */
+export function erroInternoAtual(): { id: string; detalhe: string } | null {
+  return storage.getStore()?.erroInterno ?? null;
 }

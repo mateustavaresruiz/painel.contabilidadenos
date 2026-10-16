@@ -79,6 +79,7 @@ import {
   forbidden,
   gatewayTimeout,
   internalError,
+  novoErroId,
   json,
   notFound,
   notImplemented,
@@ -2063,12 +2064,13 @@ serve(async (req) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err);
     console.error("[whatsapp]", sub.join("/"), msg);
+    const id = novoErroId();
     await recordError({
       origem: "edge",
-      mensagem: `whatsapp ${req.method} /${sub[0] ?? ""}: ${msg}`,
+      mensagem: `whatsapp ${req.method} /${sub[0] ?? ""}: ${msg} (ref ${id})`,
       stack: err instanceof Error ? err.stack : null,
     });
-    return json({ error: msg || "Erro interno" }, { status: 500, headers: { "x-erro-registrado": "1" } });
+    return internalError(msg, { id, registrado: true });
   }
 });
 

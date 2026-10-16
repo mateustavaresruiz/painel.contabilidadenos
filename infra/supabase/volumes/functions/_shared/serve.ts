@@ -17,7 +17,8 @@
 // rastro. A escrita sai por `runAfterResponse`: ninguém espera pelo log.
 
 import { withRequestContext } from "./request-context.ts";
-import { internalError } from "./response.ts";
+import { internalError, novoErroId } from "./response.ts";
+import { erroInternoAtual } from "./request-context.ts";
 import { recordError } from "./error-log.ts";
 import { runAfterResponse } from "./background.ts";
 
@@ -71,9 +72,13 @@ export function serve(
         // `x-erro-registrado`: o handler já gravou o erro com mais contexto.
         if (res.status >= 500 && !res.headers.get("x-erro-registrado")) {
           const duracao = Date.now() - inicio;
+          // Lido já: o corpo que o cliente vê é genérico; o detalhe fica no contexto.
+          const interno = erroInternoAtual();
           runAfterResponse(
             (async () => {
-              const msg = await mensagemDaResposta(res);
+              const msg = interno
+                ? `${interno.detalhe || "(sem detalhe)"} (ref ${interno.id})`
+                : await mensagemDaResposta(res);
               await recordError({
                 origem: "edge",
                 mensagem: `[${res.status}] ${rotaNormalizada(path)}${msg ? `: ${msg}` : ""}`,
@@ -91,16 +96,17 @@ export function serve(
         // Rede de segurança: erro NÃO tratado pelo handler vira um 500 limpo
         // e entra no ErrorLog com stack.
         const msg = err instanceof Error ? err.message : String(err);
+        const id = novoErroId();
         await recordError({
           origem: "edge",
-          mensagem: `[uncaught] ${rotaNormalizada(path)}: ${msg}`,
+          mensagem: `[uncaught] ${rotaNormalizada(path)}: ${msg} (ref ${id})`,
           stack: err instanceof Error ? err.stack : null,
           contexto: { method: req.method },
           rota: rotaNormalizada(path),
           status: 500,
           duracaoMs: Date.now() - inicio,
         });
-        return internalError(msg || "Erro interno");
+        return internalError(msg, { id, registrado: true });
       }
     }),
   );

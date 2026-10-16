@@ -42,7 +42,7 @@
 // autor) e por isso nunca gravavam nada (defeitos 21, 24 e 49).
 
 import { handleCors } from "../_shared/cors.ts";
-import { badRequest, json, unauthorized } from "../_shared/response.ts";
+import { badRequest, json, mensagemErroInterno, novoErroId, unauthorized } from "../_shared/response.ts";
 import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin } from "../_shared/supabase.ts";
 import * as waha from "../_shared/waha.ts";
@@ -1240,7 +1240,8 @@ serve(async (req) => {
   // "Se configurado, valida; senão aceita tudo" transformaria o webhook em
   // endpoint público.
   if (!WEBHOOK_SECRET) {
-    return json({ ok: false, error: "WAHA_WEBHOOK_SECRET não configurado no servidor." }, { status: 503 });
+    console.error("[webhook] WAHA_WEBHOOK_SECRET não configurado");
+    return json({ ok: false, error: "Serviço indisponível" }, { status: 503 });
   }
   const provided = req.headers.get("x-waha-secret") ?? "";
   if (!timingSafeEqual(provided, WEBHOOK_SECRET)) {
@@ -1374,15 +1375,16 @@ serve(async (req) => {
     // Um registro só no ErrorLog (no adv3 todo erro do webhook ia duas vezes:
     // aqui e no wrapper do 5xx, defeito 65). O `serve` não loga de novo
     // porque a resposta abaixo leva o cabeçalho de "já registrado".
+    const refId = novoErroId();
     await recordError({
       origem: "webhook",
-      mensagem: `${body.event}: ${msg}`,
+      mensagem: `${body.event}: ${msg} (ref ${refId})`,
       stack: err instanceof Error ? err.stack : null,
       contexto: { evento: body.event, sessionName: ctx.sessionName },
     });
     if (logId) {
       await supabaseAdmin.from("WhatsappEventoLog").update({ processado: false, erro: msg.slice(0, 2000) }).eq("id", logId);
     }
-    return json({ ok: false, error: msg }, { status: 500, headers: { "x-erro-registrado": "1" } });
+    return json({ ok: false, error: mensagemErroInterno(refId) }, { status: 500, headers: { "x-erro-registrado": "1" } });
   }
 });
