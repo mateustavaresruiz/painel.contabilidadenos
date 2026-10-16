@@ -25,7 +25,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QueryError } from "@/components/ui/query-error";
 import { ListaSkeleton } from "@/components/ui/skeleton";
+import { erroDeConsulta } from "@/components/features/serpro/serpro-painel";
 import { api, ErroDaApi } from "@/lib/api";
 import { usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
@@ -194,6 +196,8 @@ export function ConsultarSituacaoBotao({
   size?: "sm" | "default";
 }) {
   const consultar = useConsultarSerpro();
+  const status = useSerproStatus();
+  const naoConfigurado = !!status.data && !status.data.configurado;
   const pode = usePermissao("serpro.consultar");
   if (!pode) return null;
   async function rodar() {
@@ -201,19 +205,17 @@ export function ConsultarSituacaoBotao({
       await consultar.mutateAsync({ clienteId, servico: "SITFIS" });
       toast.info("Consulta enviada. O resultado aparece no histórico.");
     } catch (err) {
-      const naoPublicada = err instanceof ErroDaApi && (err.status === 404 || err.status === 0);
-      const naoConfigurada = err instanceof ErroDaApi && err.status === 503;
-      toast.error(
-        naoPublicada
-          ? "A consulta ao Serpro ainda não está disponível no servidor."
-          : naoConfigurada
-            ? "A integração com o Serpro ainda não foi configurada (veja Pendências fiscais)."
-            : "Consulta não realizada: " + msgErro(err),
-      );
+      toast.error(erroDeConsulta(err, status.data?.faltando));
     }
   }
   return (
-    <Button size={size} variant="outline" onClick={rodar} disabled={consultar.isPending}>
+    <Button
+      size={size}
+      variant="outline"
+      onClick={rodar}
+      disabled={consultar.isPending || naoConfigurado}
+      title={naoConfigurado ? "Serpro ainda não configurado" : undefined}
+    >
       {consultar.isPending ? <Loader2 className="animate-spin" /> : <Search />}
       Consultar situação fiscal
     </Button>
@@ -406,7 +408,7 @@ export function ConsultasFiscaisLista({
   clienteId?: string;
   mostrarCliente?: boolean;
 }) {
-  const { data = [], isLoading } = useConsultasFiscais(clienteId);
+  const { data = [], isLoading, error, refetch } = useConsultasFiscais(clienteId);
   const [aberta, setAberta] = useState<string | null>(null);
 
   if (isLoading) {
@@ -414,6 +416,7 @@ export function ConsultasFiscaisLista({
       <ListaSkeleton linhas={3} />
     );
   }
+  if (error && data.length === 0) return <QueryError oque="as consultas" error={error} onRetry={refetch} />;
   if (data.length === 0) {
     return (
       <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">

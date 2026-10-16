@@ -44,6 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/ui/query-error";
 import { ListaSkeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { ErroDaApi } from "@/lib/api";
@@ -79,7 +80,7 @@ const MODELO_PADRAO =
 export function CertificadosPage() {
   usePageTitle("Certificados digitais");
   const [params, setParams] = useSearchParams();
-  const { data = [], isLoading } = useCertificados();
+  const { data = [], isLoading, isError, error, refetch } = useCertificados();
   const excluir = useExcluirCertificado();
   const podeEditar = usePermissao("certificados.editar");
   const podeAvisos = usePermissao("certificados.configurar_avisos");
@@ -139,7 +140,7 @@ export function CertificadosPage() {
         {(
           [
             ["vencido", "Vencidos", "destructive"],
-            ["vencendo", "Vencem em até 30 dias", "warning"],
+            ["vencendo", "Vencem em 30 dias", "warning"],
             ["ok", "Em dia", "success"],
           ] as const
         ).map(([k, label, variante]) => (
@@ -148,13 +149,13 @@ export function CertificadosPage() {
             type="button"
             onClick={() => setStatus(status === k ? TODOS : k)}
             className={cn(
-              "rounded-card border bg-card p-3 sm:p-5 text-left transition-[background-color,box-shadow,transform] duration-150 ease-brand hover:bg-accent/40 active:scale-[.98]",
+              "flex min-w-0 flex-col items-start rounded-card border bg-card p-3 sm:p-5 text-left transition-[background-color,box-shadow,transform] duration-150 ease-brand hover:bg-accent/40 active:scale-[.98]",
               status === k && "border-transparent shadow-[inset_0_0_0_2px_var(--primary-focus)]",
             )}
             aria-pressed={status === k}
           >
             <p className="text-title-lg sm:text-title-xl font-semibold tabular-nums">{contagem[k]}</p>
-            <Badge variant={variante} className="mt-1.5 whitespace-normal text-left">{label}</Badge>
+            <Badge variant={variante} className="mt-1.5 max-w-full whitespace-nowrap max-[420px]:px-2 max-[420px]:text-2xs">{label}</Badge>
           </button>
         ))}
       </div>
@@ -165,13 +166,14 @@ export function CertificadosPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Cliente, titular ou emissora"
+            placeholder="Buscar certificado"
+            aria-label="Buscar por cliente, titular ou emissora"
             className="pl-8 text-base md:text-sm"
           />
         </div>
         <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2 sm:flex">
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="sm:w-[170px]" aria-label="Status">
+            <SelectTrigger className="sm:w-[200px] sm:shrink-0" aria-label="Status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -182,7 +184,7 @@ export function CertificadosPage() {
             </SelectContent>
           </Select>
           <Select value={tipo} onValueChange={setTipo}>
-            <SelectTrigger className="sm:w-[150px]" aria-label="Tipo">
+            <SelectTrigger className="sm:w-[160px] sm:shrink-0" aria-label="Tipo">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -199,6 +201,8 @@ export function CertificadosPage() {
 
       {isLoading ? (
         <ListaSkeleton linhas={5} />
+      ) : isError && data.length === 0 ? (
+        <QueryError oque="os certificados" error={error} onRetry={refetch} />
       ) : filtrados.length === 0 ? (
         <EmptyState
           icon={BadgeCheck}
@@ -299,10 +303,10 @@ function CardCertificado({ c, aberto, onHistorico, onEditar, onExcluir }: Parame
             </Button>
             {onEditar && (
               <>
-                <Button size="icon" variant="ghost" onClick={onEditar} title="Editar" aria-label="Editar">
+                <Button size="icon" variant="ghost" onClick={onEditar} title="Editar" aria-label="Editar certificado">
                   <Pencil />
                 </Button>
-                <Button size="icon" variant="ghost" onClick={onExcluir} title="Excluir" aria-label="Excluir">
+                <Button size="icon" variant="ghost" onClick={onExcluir} title="Excluir" aria-label="Excluir certificado">
                   <Trash2 />
                 </Button>
               </>
@@ -366,15 +370,15 @@ function FragmentLinha({
         </TableCell>
         <TableCell>
           <div className="flex justify-end gap-0.5">
-            <Button size="icon" variant="ghost" onClick={onHistorico} title="Histórico de avisos" aria-expanded={aberto}>
+            <Button size="icon" variant="ghost" onClick={onHistorico} title="Histórico de avisos" aria-label="Histórico de avisos" aria-expanded={aberto}>
               <History />
             </Button>
             {onEditar && (
               <>
-                <Button size="icon" variant="ghost" onClick={onEditar} title="Editar">
+                <Button size="icon" variant="ghost" onClick={onEditar} title="Editar" aria-label="Editar certificado">
                   <Pencil />
                 </Button>
-                <Button size="icon" variant="ghost" onClick={onExcluir} title="Excluir">
+                <Button size="icon" variant="ghost" onClick={onExcluir} title="Excluir" aria-label="Excluir certificado">
                   <Trash2 />
                 </Button>
               </>
@@ -441,10 +445,21 @@ function ConfigAvisos() {
     setCarregado(true);
   }, [carregado, marcosQ.isLoading, sessaoQ.isLoading, modeloQ.isLoading, marcosQ.data, sessaoQ.data, modeloQ.data]);
 
-  const marcosLista = marcos
-    .split(/[,;\s]+/)
-    .map((m) => Number(m))
-    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 365);
+  // Cada item tem de ser um inteiro de 0 a 365; o que não for é apontado, não descartado em silêncio.
+  const marcosTokens = marcos.split(/[,;\s]+/).filter(Boolean);
+  const marcosInvalidos = marcosTokens.filter((m) => !/^\d{1,3}$/.test(m) || Number(m) > 365);
+  const marcosLista = marcosTokens.filter((m) => !marcosInvalidos.includes(m)).map(Number);
+  const erroMarcos =
+    marcosTokens.length === 0
+      ? "Informe ao menos um marco (dias antes do vencimento)."
+      : marcosInvalidos.length > 0
+        ? `Valor inválido: ${marcosInvalidos.join(", ")}. Use números inteiros de 0 a 365, separados por vírgula.`
+        : null;
+  const placeholdersDesconhecidos = [
+    ...new Set((modelo.match(/\{[^{}\s]*\}/g) ?? []).filter((p) => !["{cliente}", "{tipo}", "{data}", "{dias}"].includes(p))),
+  ];
+  const [tentouSalvar, setTentouSalvar] = useState(false);
+  const mostrarErroMarcos = !!erroMarcos && (tentouSalvar || marcosInvalidos.length > 0);
   const exemploData = new Date(Date.now() + 15 * 86_400_000);
   const exemplo = aplicarModelo(modelo || MODELO_PADRAO, {
     cliente: "Padaria Bom Pão",
@@ -453,7 +468,8 @@ function ConfigAvisos() {
   });
 
   async function gravar() {
-    if (marcosLista.length === 0) return toast.error("Informe ao menos um marco (dias antes do vencimento).");
+    setTentouSalvar(true);
+    if (erroMarcos) return;
     try {
       await salvar.mutateAsync([
         { chave: CONFIG_MARCOS, valor: [...new Set(marcosLista)].sort((a, b) => b - a) },
@@ -491,10 +507,10 @@ function ConfigAvisos() {
           <h2 className="text-base">Aviso automático pelo WhatsApp</h2>
           <p className="text-xs text-muted-foreground">
             {carregado
-              ? `Marcos: ${marcosLista.join(", ") || "-"} dias · envio por ${
-                  sessoes.find((s) => s.id === sessaoId)?.apelido ??
-                  sessoes.find((s) => s.id === sessaoId)?.numero ??
-                  "nenhuma conexão escolhida"
+              ? `Marcos: ${marcosLista.join(", ") || "-"} dias · ${
+                  sessoes.find((s) => s.id === sessaoId)
+                    ? `envio por ${sessoes.find((s) => s.id === sessaoId)?.apelido ?? sessoes.find((s) => s.id === sessaoId)?.numero ?? "conexão escolhida"}`
+                    : "Avisos desligados: escolha a conexão de envio"
                 }`
               : "Carregando…"}
           </p>
@@ -506,10 +522,21 @@ function ConfigAvisos() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="cfg-marcos">Marcos (dias antes do vencimento)</Label>
-              <Input id="cfg-marcos" value={marcos} onChange={(e) => setMarcos(e.target.value)} placeholder="30, 15, 7, 1, 0" />
-              <p className="text-2xs text-muted-foreground">
-                Um aviso por marco por certificado. 0 = no dia do vencimento.
-              </p>
+              <Input
+                id="cfg-marcos"
+                value={marcos}
+                onChange={(e) => setMarcos(e.target.value)}
+                placeholder="30, 15, 7, 1, 0"
+                aria-invalid={mostrarErroMarcos || undefined}
+                className={cn(mostrarErroMarcos && "border-destructive")}
+              />
+              {mostrarErroMarcos ? (
+                <p role="alert" className="text-xs text-destructive">{erroMarcos}</p>
+              ) : (
+                <p className="text-2xs text-muted-foreground">
+                  Um aviso por marco por certificado. 0 = no dia do vencimento.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cfg-sessao">Enviar pela conexão</Label>
@@ -535,6 +562,11 @@ function ConfigAvisos() {
             <p className="text-2xs text-muted-foreground">
               Use <code>{"{cliente}"}</code> <code>{"{tipo}"}</code> <code>{"{data}"}</code> <code>{"{dias}"}</code>.
             </p>
+            {placeholdersDesconhecidos.length > 0 && (
+              <p role="alert" className="text-xs font-semibold text-warning">
+                Campo desconhecido no modelo: {placeholdersDesconhecidos.join(", ")}. Vai como texto, sem ser trocado.
+              </p>
+            )}
             <div className="rounded-lg bg-muted px-3 py-2 text-xs">
               <span className="eyebrow block mb-1">Prévia</span>
               {exemplo}

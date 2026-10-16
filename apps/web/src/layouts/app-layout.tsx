@@ -8,6 +8,7 @@ import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { Logo, LogoMark } from "@/components/logo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { OfflineBanner } from "@/components/ui/query-error";
 import { PaginaSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
@@ -173,6 +174,7 @@ export function AppLayout() {
       </Sheet>
 
       <main id="main-content" className="flex-1 min-h-0 min-w-0 flex flex-col [view-transition-name:conteudo]">
+        <OfflineBanner />
         <div
           key={location.pathname}
           className={cn(

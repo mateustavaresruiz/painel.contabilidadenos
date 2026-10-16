@@ -87,6 +87,9 @@ type Ctx = {
   cargo: Cargo | null;
   /** Lendo sessão ou colaborador. */
   carregando: boolean;
+  /** A leitura do colaborador falhou (rede/5xx): não é "sem acesso". */
+  erroSessao: boolean;
+  tentarSessaoDeNovo: () => void;
   permissoes: ReadonlySet<string>;
   tem: (p: string) => boolean;
   sair: () => Promise<void>;
@@ -151,9 +154,12 @@ export function ColaboradorProvider({ children }: { children: ReactNode }) {
 
   const eu = euQuery.data?.eu ?? null;
   const carregando = sessao === undefined || (!!userId && euQuery.isLoading);
+  const erroSessao = !!userId && euQuery.isError && !euQuery.data;
+  const refetchEu = euQuery.refetch;
+  const tentarSessaoDeNovo = useCallback(() => void refetchEu(), [refetchEu]);
   const valor = useMemo<Ctx>(
-    () => ({ sessao, eu, euId: eu?.id ?? null, cargo, carregando, permissoes, tem, sair }),
-    [sessao, eu, cargo, carregando, permissoes, tem, sair],
+    () => ({ sessao, eu, euId: eu?.id ?? null, cargo, carregando, erroSessao, tentarSessaoDeNovo, permissoes, tem, sair }),
+    [sessao, eu, cargo, carregando, erroSessao, tentarSessaoDeNovo, permissoes, tem, sair],
   );
 
   return <ColaboradorContext.Provider value={valor}>{children}</ColaboradorContext.Provider>;

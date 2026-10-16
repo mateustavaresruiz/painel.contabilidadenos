@@ -43,6 +43,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
+import { QueryError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -62,7 +63,7 @@ import { ListaSkeleton, Skeleton, SkeletonTableRow } from "@/components/ui/skele
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
+import { useColaboradores, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatTelefone, hojeISO } from "@/lib/format";
 import {
@@ -188,8 +189,9 @@ function ListaAba() {
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
-  const { data: tipos = [] } = useSolicitacaoTipos();
-  const { data = [], isLoading, isPlaceholderData } = useSolicitacoes({
+  const tiposQ = useSolicitacaoTipos();
+  const tipos = tiposQ.data ?? [];
+  const { data = [], isLoading, isError, error, refetch, isPlaceholderData } = useSolicitacoes({
     status,
     tipoId: tipoId || undefined,
     responsavelId: responsavel || undefined,
@@ -199,7 +201,8 @@ function ListaAba() {
   });
   const atualizar = useAtualizarSolicitacao();
   const excluir = useExcluirSolicitacao();
-  const mapa = useColaboradoresMap();
+  const colabsQ = useColaboradores();
+  const mapa = useMemo(() => new Map((colabsQ.data ?? []).map((c) => [c.id, c])), [colabsQ.data]);
   const [, setParams] = useSearchParams();
   // O histórico abre numa gaveta; o id fica na URL (?chamado=) para poder mandar o link.
   const abrir = (id: string) =>
@@ -219,7 +222,7 @@ function ListaAba() {
               <History />
             </Button>
             {s.chat && (
-              <Button asChild size="icon" variant="ghost" title="Abrir conversa">
+              <Button asChild size="icon" variant="ghost" title="Abrir conversa" aria-label="Abrir conversa do chamado">
                 <Link
                   to={`/whatsapp?instancia=${encodeURIComponent(s.chat.sessaoId)}&chat=${encodeURIComponent(s.chat.chatId)}`}
                 >
@@ -231,6 +234,7 @@ function ListaAba() {
               size="icon"
               variant="ghost"
               title="Excluir"
+              aria-label="Excluir chamado"
               onClick={async () => {
                 if (!(await confirmar({ titulo: "Excluir chamado?", descricao: "Some também do relatório.", confirmLabel: "Excluir", destructive: true })))
                   return;
@@ -267,6 +271,9 @@ function ListaAba() {
             <SelectItem value={TODOS}>Todos os status</SelectItem>
           </SelectContent>
         </Select>
+        {tiposQ.isError ? (
+          <QueryError compacto oque="os tipos" error={tiposQ.error} onRetry={tiposQ.refetch} />
+        ) : (
         <Select value={tipoId || TODOS} onValueChange={(v) => setTipoId(v === TODOS ? "" : v)}>
           <SelectTrigger aria-label="Tipo">
             <SelectValue />
@@ -280,6 +287,10 @@ function ListaAba() {
             ))}
           </SelectContent>
         </Select>
+        )}
+        {colabsQ.isError ? (
+          <QueryError compacto oque="a equipe" error={colabsQ.error} onRetry={colabsQ.refetch} />
+        ) : (
         <Select value={responsavel || TODOS} onValueChange={(v) => setResponsavel(v === TODOS ? "" : v)}>
           <SelectTrigger aria-label="Responsável">
             <SelectValue />
@@ -296,6 +307,7 @@ function ListaAba() {
               ))}
           </SelectContent>
         </Select>
+        )}
         <ClienteSelect value={clienteId} onChange={setClienteId} permitirTodos />
         <CampoData rotulo="De" value={de} onChange={setDe} title="Criadas a partir de" />
         <CampoData rotulo="Até" value={ate} onChange={setAte} title="Criadas até" />
@@ -311,6 +323,8 @@ function ListaAba() {
             </TableBody>
           </Table>
         </Card>
+      ) : isError && data.length === 0 ? (
+        <QueryError oque="os chamados" error={error} onRetry={refetch} />
       ) : data.length === 0 ? (
         filtrando ? (
           <EmptyState
@@ -519,7 +533,7 @@ function RelatorioAba() {
   const [p, setP] = useState<string>("mes");
   const [custom, setCustom] = useState(() => periodo("30"));
   const intervalo = p === "custom" ? custom : periodo(p);
-  const { data = [], isLoading } = useRelatorioSolicitacoes(intervalo.de, intervalo.ate);
+  const { data = [], isLoading, isError, error, refetch } = useRelatorioSolicitacoes(intervalo.de || periodo("30").de, intervalo.ate || periodo("30").ate);
   const comPedido = useMemo(() => data.filter((l) => l.total > 0), [data]);
   const total = comPedido.reduce((s, l) => s + l.total, 0);
 
@@ -561,6 +575,8 @@ function RelatorioAba() {
 
       {isLoading ? (
         <Skeleton className="h-80 w-full rounded-card" />
+      ) : isError && data.length === 0 ? (
+        <QueryError oque="o relatório" error={error} onRetry={refetch} />
       ) : comPedido.length === 0 ? (
         <EmptyState icon={BarChart3} title="Nada no período" description="Nenhum chamado aberto entre essas datas." />
       ) : (
@@ -615,7 +631,7 @@ function RelatorioAba() {
 // ---------------------------------------------------------------------------
 
 function TiposAba() {
-  const { data: tipos = [], isLoading } = useSolicitacaoTipos();
+  const { data: tipos = [], isLoading, isError, error, refetch } = useSolicitacaoTipos();
   const salvar = useSalvarSolicitacaoTipo();
   const excluir = useExcluirSolicitacaoTipo();
   const [editando, setEditando] = useState<SolicitacaoTipo | "novo" | null>(null);
@@ -644,6 +660,8 @@ function TiposAba() {
       </div>
       {isLoading ? (
         <ListaSkeleton linhas={4} />
+      ) : isError && tipos.length === 0 ? (
+        <QueryError oque="os tipos de chamado" error={error} onRetry={refetch} />
       ) : (
         <ul className="divide-y rounded-lg border bg-card">
           {tipos.map((t, i) => (
@@ -667,19 +685,19 @@ function TiposAba() {
                 />
                 Ativo
               </label>
-              <Button size="icon" variant="ghost" disabled={i === 0} onClick={() => mover(t, -1)} aria-label="Subir">
+              <Button size="icon" variant="ghost" disabled={i === 0} onClick={() => mover(t, -1)} aria-label={`Subir ${t.nome}`}>
                 <ArrowUp />
               </Button>
-              <Button size="icon" variant="ghost" disabled={i === tipos.length - 1} onClick={() => mover(t, 1)} aria-label="Descer">
+              <Button size="icon" variant="ghost" disabled={i === tipos.length - 1} onClick={() => mover(t, 1)} aria-label={`Descer ${t.nome}`}>
                 <ArrowDown />
               </Button>
-              <Button size="icon" variant="ghost" onClick={() => setEditando(t)} aria-label="Editar">
+              <Button size="icon" variant="ghost" onClick={() => setEditando(t)} aria-label={`Editar ${t.nome}`}>
                 <Pencil />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label="Excluir"
+                aria-label={`Excluir ${t.nome}`}
                 onClick={async () => {
                   if (!(await confirmar({ titulo: `Excluir "${t.nome}"?`, confirmLabel: "Excluir", destructive: true }))) return;
                   excluir.mutate(t.id, { onError: (e) => toast.error(msgErro(e)) });

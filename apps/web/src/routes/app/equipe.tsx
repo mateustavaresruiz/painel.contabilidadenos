@@ -34,6 +34,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QueryError } from "@/components/ui/query-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -123,7 +124,7 @@ function AbaPessoas({
   convidando: boolean;
   setConvidando: (v: boolean) => void;
 }) {
-  const { data = [], isLoading, error } = useColaboradores();
+  const { data = [], isLoading, error, refetch } = useColaboradores();
   const { euId } = useEu();
   const excluir = useExcluirPessoa();
   const atualizar = useAtualizarPessoa();
@@ -202,7 +203,7 @@ function AbaPessoas({
       </div>
     );
   }
-  if (error) return <p className="text-sm text-destructive">Não foi possível carregar a equipe: {msgErro(error)}</p>;
+  if (error && data.length === 0) return <QueryError oque="a equipe" error={error} onRetry={refetch} />;
 
   return (
     <>
@@ -355,9 +356,6 @@ function LinkAcessoDialog({
         {dados?.aviso && <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{dados.aviso}</p>}
         <Input readOnly value={dados?.link ?? ""} onFocus={(e) => e.currentTarget.select()} className="text-xs" />
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            Fechar
-          </Button>
           <Button onClick={() => void copiar()}>
             <Copy />
             Copiar link de acesso
@@ -373,7 +371,7 @@ function LinkAcessoDialog({
 // ---------------------------------------------------------------------------
 
 function AbaCargos({ gerenciar, novo, setNovo }: { gerenciar: boolean; novo: boolean; setNovo: (v: boolean) => void }) {
-  const { data: cargos = [], isLoading, error } = useCargos();
+  const { data: cargos = [], isLoading, error, refetch } = useCargos();
   const { data: pessoas = [] } = useColaboradores();
   const excluir = useExcluirCargo();
   const [editando, setEditando] = useState<Cargo | null>(null);
@@ -386,9 +384,9 @@ function AbaCargos({ gerenciar, novo, setNovo }: { gerenciar: boolean; novo: boo
 
   async function remover(c: Cargo) {
     const ok = await confirmar({
-      titulo: `Apagar o cargo ${c.nome}?`,
+      titulo: `Excluir o cargo ${c.nome}?`,
       descricao: "O cargo some da lista. Esta ação não pode ser desfeita.",
-      confirmLabel: "Apagar",
+      confirmLabel: "Excluir",
       destructive: true,
     });
     if (!ok) return;
@@ -396,7 +394,7 @@ function AbaCargos({ gerenciar, novo, setNovo }: { gerenciar: boolean; novo: boo
   }
 
   if (isLoading) return <Skeleton className="h-40 rounded-card" />;
-  if (error) return <p className="text-sm text-destructive">Não foi possível carregar os cargos: {msgErro(error)}</p>;
+  if (error && cargos.length === 0) return <QueryError oque="os cargos" error={error} onRetry={refetch} />;
 
   return (
     <>
@@ -425,8 +423,8 @@ function AbaCargos({ gerenciar, novo, setNovo }: { gerenciar: boolean; novo: boo
                         variant="ghost"
                         onClick={() => void remover(c)}
                         disabled={qtd > 0}
-                        title={qtd > 0 ? "Mova as pessoas deste cargo para outro antes de apagar" : "Apagar cargo"}
-                        aria-label="Apagar cargo"
+                        title={qtd > 0 ? "Mova as pessoas deste cargo para outro antes de excluir" : "Excluir cargo"}
+                        aria-label="Excluir cargo"
                       >
                         <Trash2 />
                       </Button>
@@ -589,14 +587,16 @@ function CargoForm({ cargo, somenteLeitura, onClose }: { cargo: Cargo | null; so
         })}
       </div>
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onClose}>
-          {somenteLeitura ? "Fechar" : "Cancelar"}
-        </Button>
         {!somenteLeitura && (
-          <Button type="submit" disabled={salvar.isPending}>
-            {salvar.isPending && <Loader2 className="animate-spin" />}
-            Salvar cargo
-          </Button>
+          <>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvar.isPending}>
+              {salvar.isPending && <Loader2 className="animate-spin" />}
+              Salvar cargo
+            </Button>
+          </>
         )}
       </div>
     </form>

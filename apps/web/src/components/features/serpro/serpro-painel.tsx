@@ -10,6 +10,7 @@ import { confirmar } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QueryError } from "@/components/ui/query-error";
 import { ListaSkeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ErroDaApi } from "@/lib/api";
@@ -46,9 +47,17 @@ const SITUACAO: Record<SituacaoResumo, { rotulo: string; tom: "success" | "destr
 const nomeDe = (l: LinhaResumo) => l.cliente.nomeFantasia || l.cliente.nome;
 
 /** Mensagem amigável do erro de uma consulta. */
-export function erroDeConsulta(err: unknown): string {
+export function erroDeConsulta(err: unknown, faltando?: string[]): string {
   if (err instanceof ErroDaApi && (err.status === 404 || err.status === 0)) return "A consulta ao Serpro ainda não está disponível no servidor.";
-  if (err instanceof ErroDaApi && err.status === 503) return "Falta configurar a integração com o Serpro (veja o cartão no topo de Pendências fiscais).";
+  const d = err instanceof ErroDaApi ? err.dados : null;
+  const cod = String(d?.erro ?? d?.codigo ?? d?.code ?? "").toUpperCase();
+  const naoConfigurado =
+    err instanceof ErroDaApi && (err.status === 503 || (err.status === 424 && (cod === "CONFIGURACAO" || /configur/i.test(err.message))));
+  if (naoConfigurado) {
+    return faltando?.length
+      ? `Serpro ainda não configurado: faltam ${faltando.join(", ")}.`
+      : "Serpro ainda não configurado: veja o cartão no topo de Pendências fiscais para o que falta.";
+  }
   return "Consulta não realizada: " + msgErro(err);
 }
 
@@ -57,8 +66,9 @@ function AvisoNaoConfigurado() {
   const { data, isLoading } = useSerproStatus();
   if (isLoading || data?.configurado) return null;
   return (
-    <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-      Falta configurar o gateway Integra Contador: as consultas não vão rodar até lá. O que falta aparece no cartão
+    <p role="status" className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+      Falta configurar o gateway Integra Contador: as consultas não vão rodar até lá.
+      {data?.faltando?.length ? ` Faltam: ${data.faltando.join(", ")}.` : ""} O que falta aparece no cartão
       "Integração com o Serpro" acima.
     </p>
   );
@@ -69,7 +79,7 @@ function AvisoNaoConfigurado() {
 // ---------------------------------------------------------------------------
 
 export function PainelResumoSerpro() {
-  const { data = [], isLoading, error } = useResumoFiscal();
+  const { data = [], isLoading, error, refetch } = useResumoFiscal();
   const [filtro, setFiltro] = useState<SituacaoResumo | "todos">("todos");
   const [busca, setBusca] = useState("");
   const contagem = useMemo(() => {
@@ -88,7 +98,7 @@ export function PainelResumoSerpro() {
   }, [data, filtro, busca]);
 
   if (isLoading) return <ListaSkeleton linhas={5} />;
-  if (error) return <p className="text-sm text-destructive">Não foi possível carregar o resumo: {msgErro(error)}</p>;
+  if (error && data.length === 0) return <QueryError oque="o resumo fiscal" error={error} onRetry={refetch} />;
   if (data.length === 0) return <EmptyState icon={ShieldCheck} title="Nenhum cliente ativo" description="Cadastre clientes para acompanhar a situação fiscal." />;
 
   return (
@@ -144,7 +154,7 @@ export function PainelResumoSerpro() {
                 </td>
                 <td className="px-3 py-2 hidden md:table-cell">
                   {!l.caixa ? (
-                    <span className="text-xs text-muted-foreground">não lida</span>
+                    <span className="text-xs text-muted-foreground">sem consulta</span>
                   ) : l.caixaImportantes > 0 ? (
                     <span className="inline-flex items-center gap-1 text-xs">
                       <span className="grid size-5 place-items-center rounded-full bg-destructive text-[10px] font-bold text-white">{l.caixaImportantes}</span>
@@ -181,20 +191,23 @@ function ProcuracaoBadge({ status }: { status: LinhaResumo["procuracaoStatus"] }
 export function ConsultarServicoCard({ clienteId, setClienteId }: { clienteId: string | null; setClienteId: (id: string | null) => void }) {
   const [servico, setServico] = useState<ServicoSerpro>("SITFIS");
   const consultar = useConsultarSerpro();
+  const status = useSerproStatus();
+  const naoConfigurado = !!status.data && !status.data.configurado;
   const def = SERVICOS_SERPRO.find((s) => s.valor === servico)!;
   async function rodar() {
-    if (!clienteId) return;
+    if (!clienteId || naoConfigurado) return;
     try {
       await consultar.mutateAsync({ clienteId, servico });
       toast.info("Consulta feita. O resultado está no histórico abaixo.");
     } catch (err) {
-      toast.error(erroDeConsulta(err));
+      toast.error(erroDeConsulta(err, status.data?.faltando));
     }
   }
   return (
     <Card>
       <CardContent className="p-4 sm:p-6 space-y-3">
         <h2 className="text-title-md">Consultar um cliente</h2>
+        <AvisoNaoConfigurado />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_16rem_auto] sm:items-end">
           <div className="space-y-1.5">
             <Label>Cliente</Label>
@@ -215,7 +228,11 @@ export function ConsultarServicoCard({ clienteId, setClienteId }: { clienteId: s
               ))}
             </select>
           </div>
-          <Button onClick={() => void rodar()} disabled={!clienteId || consultar.isPending} title={clienteId ? undefined : "Escolha um cliente"}>
+          <Button
+            onClick={() => void rodar()}
+            disabled={!clienteId || consultar.isPending || naoConfigurado}
+            title={naoConfigurado ? "Serpro ainda não configurado" : clienteId ? undefined : "Escolha um cliente"}
+          >
             {consultar.isPending ? <Loader2 className="animate-spin" /> : <Search />}
             Consultar
           </Button>
@@ -233,8 +250,9 @@ export function ConsultarServicoCard({ clienteId, setClienteId }: { clienteId: s
 // ---------------------------------------------------------------------------
 
 export function ProcuracoesPainel() {
-  const { data = [], isLoading } = useResumoFiscal();
+  const { data = [], isLoading, error, refetch } = useResumoFiscal();
   const consultar = useConsultarSerpro();
+  const status = useSerproStatus();
   const pode = usePermissao("serpro.consultar");
   const [filtro, setFiltro] = useState<LinhaResumo["procuracaoStatus"] | "todos">("todos");
   const [lote, setLote] = useState<{ feito: number; total: number } | null>(null);
@@ -260,7 +278,7 @@ export function ProcuracoesPainel() {
         falhas++;
         // Problema do sistema (não configurado, limite, sem rede): para o lote.
         if (err instanceof ErroDaApi && [0, 404, 429, 503].includes(err.status)) {
-          toast.error(erroDeConsulta(err));
+          toast.error(erroDeConsulta(err, status.data?.faltando));
           break;
         }
       }
@@ -272,6 +290,7 @@ export function ProcuracoesPainel() {
   }
 
   if (isLoading) return <ListaSkeleton linhas={4} />;
+  if (error && data.length === 0) return <QueryError oque="as procurações" error={error} onRetry={refetch} />;
   return (
     <div className="space-y-4">
       <AvisoNaoConfigurado />
@@ -457,7 +476,7 @@ function CartaoAgendamento({ ag, elegiveis }: { ag: AgendamentoSerpro; elegiveis
 }
 
 export function AgendamentosSerpro() {
-  const { data = [], isLoading, error } = useAgendamentosSerpro();
+  const { data = [], isLoading, error, refetch } = useAgendamentosSerpro();
   const { data: resumo = [] } = useResumoFiscal();
   const pode = usePermissao("serpro.agendar");
   const comDoc = resumo.filter((l) => (l.cliente.cpfCnpj ?? "").length >= 11);
@@ -467,7 +486,7 @@ export function AgendamentosSerpro() {
       : comDoc.length;
   const totalMes = data.filter((a) => a.ativo).reduce((s, a) => s + (a.todosAtivos ? elegiveis(a.servico) : a.clienteIds.length) * (CUSTO_SERVICO[a.servico] ?? 0.24), 0);
   if (isLoading) return <ListaSkeleton linhas={3} />;
-  if (error) return <p className="text-sm text-destructive">{msgErro(error)}</p>;
+  if (error && data.length === 0) return <QueryError oque="os agendamentos" error={error} onRetry={refetch} />;
   return (
     <div className="space-y-4">
       <AvisoNaoConfigurado />
@@ -493,9 +512,9 @@ export function AgendamentosSerpro() {
 // ---------------------------------------------------------------------------
 
 export function CustosSerpro() {
-  const { data, isLoading, error } = useCustosSerpro();
+  const { data, isLoading, error, refetch } = useCustosSerpro();
   if (isLoading) return <ListaSkeleton linhas={3} />;
-  if (error) return <p className="text-sm text-destructive">{msgErro(error)}</p>;
+  if (error && !data) return <QueryError oque="os custos" error={error} onRetry={refetch} />;
   const mesAtual = data?.meses[0];
   return (
     <div className="space-y-4">

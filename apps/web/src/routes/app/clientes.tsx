@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { QueryError } from "@/components/ui/query-error";
 import { SkeletonTableRow } from "@/components/ui/skeleton";
 import {
   SortableTableHead,
@@ -83,7 +84,7 @@ export function ClientesPage() {
     );
   }
 
-  const { data: clientes = [], isLoading, isPlaceholderData } = useClientes({ q, tipo, regime, situacao, incompletos });
+  const { data: clientes = [], isLoading, isError, error, refetch, isPlaceholderData } = useClientes({ q, tipo, regime, situacao, incompletos });
   const filtrando = !!q || !!tipo || !!regime || situacao !== "ativos" || incompletos;
 
   const acessores = useMemo(
@@ -126,13 +127,14 @@ export function ClientesPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Nome, CPF/CNPJ, e-mail ou telefone"
+            placeholder="Buscar cliente"
+            aria-label="Buscar cliente por nome, CPF/CNPJ, e-mail ou telefone"
             className="pl-8 text-base md:text-sm"
           />
         </div>
         <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-3 sm:flex">
           <Select value={tipo || TODOS} onValueChange={(v) => setParam("tipo", v === TODOS ? "" : v)}>
-            <SelectTrigger className="sm:w-[130px]" aria-label="Tipo">
+            <SelectTrigger className="sm:w-[150px] sm:shrink-0" aria-label="Tipo">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -142,7 +144,7 @@ export function ClientesPage() {
             </SelectContent>
           </Select>
           <Select value={regime || TODOS} onValueChange={(v) => setParam("regime", v === TODOS ? "" : v)}>
-            <SelectTrigger className="sm:w-[170px]" aria-label="Regime">
+            <SelectTrigger className="sm:w-[200px] sm:shrink-0" aria-label="Regime">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -155,7 +157,7 @@ export function ClientesPage() {
             </SelectContent>
           </Select>
           <Select value={situacao} onValueChange={(v) => setParam("situacao", v === "ativos" ? "" : v)}>
-            <SelectTrigger className="sm:w-[120px]" aria-label="Situação">
+            <SelectTrigger className="sm:w-[130px] sm:shrink-0" aria-label="Situação">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -196,6 +198,8 @@ export function ClientesPage() {
             <ItemCardSkeleton key={i} />
           ))}
         </ListaResponsiva>
+      ) : isError && clientes.length === 0 ? (
+        <QueryError oque="os clientes" error={error} onRetry={refetch} />
       ) : clientes.length === 0 ? (
         filtrando ? (
           <EmptyState

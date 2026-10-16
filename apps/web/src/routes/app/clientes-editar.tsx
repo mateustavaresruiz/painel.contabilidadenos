@@ -4,11 +4,14 @@ import { Link, Navigate, useParams } from "react-router-dom";
 
 import { ClienteForm } from "@/components/features/clientes/cliente-form";
 import { PageHeader } from "@/components/page-header";
-import { useCliente } from "@/lib/queries/clientes";
+import { QueryError } from "@/components/ui/query-error";
+import { usePageTitle } from "@/hooks/use-page-title";
+import { nomeExibicao, useCliente } from "@/lib/queries/clientes";
 
 export function EditarClientePage() {
   const { id } = useParams<{ id: string }>();
-  const { data: cliente, isLoading, error } = useCliente(id);
+  const { data: cliente, isLoading, error, refetch } = useCliente(id);
+  usePageTitle(cliente ? `Editar ${nomeExibicao(cliente)}` : "Editar cliente");
 
   if (!id) return <Navigate to="/clientes" replace />;
 
@@ -20,8 +23,8 @@ export function EditarClientePage() {
 
   if (error) {
     return (
-      <PageContainer className="text-sm text-destructive">
-        Erro ao carregar: {error instanceof Error ? error.message : "desconhecido"}
+      <PageContainer>
+        <QueryError oque="o cliente" error={error} onRetry={refetch} />
       </PageContainer>
     );
   }

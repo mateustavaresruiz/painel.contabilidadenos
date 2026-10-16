@@ -23,6 +23,7 @@ import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { Logo } from "@/components/logo";
 import { HexagonoMarca, MarcaDagua } from "@/components/marca-hexagono";
 import { Badge } from "@/components/ui/badge";
+import { QueryError } from "@/components/ui/query-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEstilo, type Estilo } from "@/lib/aparencia";
@@ -158,7 +159,7 @@ function useInicio() {
   const pendentes = atencao.filter((a) => a.valor > 0);
   const resumoFrase = !verNumeros
     ? "Tudo o que você precisa está no menu."
-    : q.isLoading
+    : q.isLoading || (q.isError && !d)
       ? ""
       : pendentes.length === 0
         ? "Está tudo em dia por aqui. Bom trabalho!"
@@ -181,6 +182,11 @@ export function InicioPage() {
   const dados = useInicio();
   return (
     <div className={"relative min-h-full"}>
+      {dados.q.isError && !dados.d && (
+        <div className="px-4 pt-4 sm:px-6 lg:px-8">
+          <QueryError oque="o resumo do dia" error={dados.q.error} onRetry={dados.q.refetch} />
+        </div>
+      )}
       {estilo === "A" ? <InicioMarinho {...dados} /> : <InicioColorido {...dados} />}
     </div>
   );
@@ -295,7 +301,7 @@ function InicioMarinho(p: Inicio) {
 // ---------------------------------------------------------------------------
 
 function InicioColorido(p: Inicio) {
-  const tudoEmDia = !p.q.isLoading && p.atencao.every((a) => a.valor === 0);
+  const tudoEmDia = !p.q.isLoading && !p.q.isError && p.atencao.every((a) => a.valor === 0);
   return (
     <PageContainer className="lg:space-y-8">
       <header className="relative flex flex-col gap-1.5 animate-rise">

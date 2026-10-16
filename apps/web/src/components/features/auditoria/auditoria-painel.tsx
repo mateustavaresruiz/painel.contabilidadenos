@@ -4,6 +4,7 @@ import { useState } from "react";
 import { EventosPorDia } from "@/components/features/auditoria/linha-do-tempo";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import { QueryError } from "@/components/ui/query-error";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -169,9 +170,7 @@ export function AuditoriaPainel() {
           ))}
         </div>
       ) : q.isError ? (
-        <p className="rounded-card border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Não deu para carregar a auditoria. {msgErro(q.error)}
-        </p>
+        <QueryError oque="a auditoria" error={q.error} onRetry={q.refetch} />
       ) : eventos.length === 0 ? (
         filtrando ? (
           <EmptyState

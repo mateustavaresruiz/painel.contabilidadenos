@@ -2,6 +2,7 @@ import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
+import { QueryError } from "@/components/ui/query-error";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useClientesList } from "@/lib/queries/helpers";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,7 @@ export function ClienteSelect({
   /** Mostra a opção "Todos os clientes" (filtros). */
   permitirTodos?: boolean;
 }) {
-  const { data: lista = [] } = useClientesList();
+  const { data: lista = [], isError, error, refetch } = useClientesList();
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
   const atual = lista.find((c) => c.id === value);
@@ -43,13 +44,16 @@ export function ClienteSelect({
       .slice(0, 80);
   }, [lista, busca]);
 
+  if (isError && lista.length === 0) {
+    return <QueryError compacto oque="os clientes" error={error} onRetry={refetch} />;
+  }
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
       <PopoverTrigger asChild disabled={disabled}>
         <button
           type="button"
           className={cn(
-            "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-base md:text-sm transition-colors hover:border-foreground/20",
+            "flex h-10 max-sm:h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-base md:text-sm transition-colors hover:border-foreground/20",
             "disabled:opacity-60 disabled:cursor-not-allowed",
           )}
         >

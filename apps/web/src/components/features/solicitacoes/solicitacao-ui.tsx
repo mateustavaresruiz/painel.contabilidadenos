@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
+import { QueryError } from "@/components/ui/query-error";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -186,7 +187,9 @@ export function NovaSolicitacaoDialog({
   onCriada?: (id: string) => void;
 }) {
   const { eu } = useEu();
-  const { data: tipos = [] } = useSolicitacaoTipos({ somenteAtivos: true });
+  const tiposQ = useSolicitacaoTipos({ somenteAtivos: true });
+  const tipos = tiposQ.data ?? [];
+  const [erroTipo, setErroTipo] = useState(false);
   const criar = useCriarSolicitacao();
   const qc = useQueryClient();
   const [garantindo, setGarantindo] = useState(false);
@@ -206,11 +209,12 @@ export function NovaSolicitacaoDialog({
     setDescricao(origem.descricao ?? "");
     setResponsavel(eu?.id ?? null);
     setPrazo("");
+    setErroTipo(false);
   }, [open, tipoIdInicial, origem.descricao, eu?.id]);
 
   async function salvar() {
     if (!tipoId) {
-      toast.error("Escolha o tipo do chamado.");
+      setErroTipo(true);
       return;
     }
     let clienteId = origem.clienteId ?? null;
@@ -277,8 +281,11 @@ export function NovaSolicitacaoDialog({
           )}
           <div className="space-y-1.5">
             <Label htmlFor="sol-tipo">Tipo</Label>
-            <Select value={tipoId} onValueChange={setTipoId}>
-              <SelectTrigger id="sol-tipo">
+            {tiposQ.isError && tipos.length === 0 ? (
+              <QueryError compacto oque="os tipos" error={tiposQ.error} onRetry={tiposQ.refetch} />
+            ) : (
+            <Select value={tipoId} onValueChange={(v) => { setTipoId(v); setErroTipo(false); }}>
+              <SelectTrigger id="sol-tipo" aria-invalid={erroTipo || undefined} className={cn(erroTipo && "border-destructive")}>
                 <SelectValue placeholder="Escolha o tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -289,6 +296,8 @@ export function NovaSolicitacaoDialog({
                 ))}
               </SelectContent>
             </Select>
+            )}
+            {erroTipo && <p role="alert" className="text-xs text-destructive">Escolha o tipo do chamado.</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sol-desc">Descrição</Label>

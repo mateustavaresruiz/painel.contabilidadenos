@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Chips } from "@/components/ui/chips";
 import { EmptyState } from "@/components/ui/empty-state";
+import { QueryError } from "@/components/ui/query-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -44,7 +45,7 @@ const ORIGEM_LABEL: Record<AniversarioCalculado["origem"], string> = {
 
 export function AniversariosPage() {
   usePageTitle("Aniversários");
-  const { data = [], isLoading } = useAniversarios();
+  const { data = [], isLoading, isError, error, refetch } = useAniversarios();
   const [periodo, setPeriodo] = useState<Periodo>("7");
   const [mes, setMes] = useState(new Date().getMonth());
   const [origem, setOrigem] = useState<Origem>("todos");
@@ -129,6 +130,8 @@ export function AniversariosPage() {
             </div>
           ))}
         </div>
+      ) : isError && data.length === 0 ? (
+        <QueryError oque="os aniversários" error={error} onRetry={refetch} />
       ) : ordenada.length === 0 ? (
         <EmptyState
           icon={PartyPopper}

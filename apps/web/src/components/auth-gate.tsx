@@ -1,4 +1,4 @@
-import { Lock, LogOut, UserX } from "lucide-react";
+import { Lock, LogOut, UserX, WifiOff } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 
@@ -19,15 +19,42 @@ function Carregando() {
  * com sessão mas sem Colaborador ativo amarrado, mostra "acesso não liberado".
  */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { sessao, eu, carregando } = useEu();
+  const { sessao, eu, carregando, erroSessao } = useEu();
   const { pathname, search } = useLocation();
   if (carregando) return <Carregando />;
   if (!sessao) {
     const next = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
     return <Navigate to={`/login${next}`} replace />;
   }
+  if (erroSessao) return <FalhaAoAbrir />;
   if (!eu) return <AcessoNaoLiberado email={sessao.user.email ?? null} />;
   return <>{children}</>;
+}
+
+/** A leitura do colaborador falhou (rede/servidor): não dá para dizer que não há acesso. */
+function FalhaAoAbrir() {
+  const { sair, tentarSessaoDeNovo } = useEu();
+  return (
+    <div className="min-h-dvh grid place-items-center bg-background p-4">
+      <div className="w-full max-w-md rounded-2xl border bg-card p-6 sm:p-8 animate-fade-up space-y-5" role="alert">
+        <Logo className="h-12" />
+        <div className="space-y-2">
+          <h1 className="text-title-md flex items-center gap-2">
+            <WifiOff className="size-5 text-muted-foreground" />
+            Painel indisponível
+          </h1>
+          <p className="text-sm text-muted-foreground">Não foi possível abrir o painel. Verifique a conexão.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={tentarSessaoDeNovo}>Tentar de novo</Button>
+          <Button variant="outline" onClick={() => void sair()}>
+            <LogOut />
+            Sair
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function AcessoNaoLiberado({ email }: { email: string | null }) {

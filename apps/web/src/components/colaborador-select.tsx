@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { QueryError } from "@/components/ui/query-error";
 import { useColaboradores } from "@/lib/colaborador";
 
 const NENHUM = "__nenhum__";
@@ -31,8 +32,11 @@ export function ColaboradorSelect({
   placeholder?: string;
   className?: string;
 }) {
-  const { data = [] } = useColaboradores();
+  const { data = [], isError, error, refetch } = useColaboradores();
   const lista = data.filter((c) => (c.ativo || c.id === value) && !excluirIds?.includes(c.id));
+  if (isError && data.length === 0) {
+    return <QueryError compacto oque="a equipe" error={error} onRetry={refetch} className={className} />;
+  }
   return (
     <Select
       value={value ?? (rotuloNenhum ? NENHUM : undefined)}

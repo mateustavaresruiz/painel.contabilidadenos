@@ -47,13 +47,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
+import { QueryError } from "@/components/ui/query-error";
 import { DetalheSkeleton, ListaSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
+import { useColaboradores, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
-import { maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { isValidCpf, isValidTelefone, maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { optionalEmail } from "@/lib/validations/cliente";
 import { useModulos } from "@/lib/modulos";
 import { useCertificados, useExcluirCertificado, type Certificado } from "@/lib/queries/certificados";
 import {
@@ -78,20 +80,25 @@ type Aba = (typeof ABAS)[number];
 
 export function ClienteDetalhePage() {
   const { id } = useParams<{ id: string }>();
-  const { data: cliente, isLoading, error } = useCliente(id);
+  const { data: cliente, isLoading, error, refetch } = useCliente(id);
   const podeEditar = usePermissao("clientes.editar");
   const podeExcluir = usePermissao("clientes.excluir");
   const { ativo: moduloAtivo } = useModulos();
   const mostraPortal = usePermissao("portal.gerenciar") && moduloAtivo("portalCliente");
+  const mostraFiscal = usePermissao("serpro.consultar");
   const [params, setParams] = useSearchParams();
   const abaParam = params.get("aba") as Aba | null;
-  const aba: Aba = abaParam && ABAS.includes(abaParam) && (abaParam !== "portal" || mostraPortal) ? abaParam : "dados";
+  const aba: Aba = abaParam && ABAS.includes(abaParam) && (abaParam !== "portal" || mostraPortal) && (abaParam !== "fiscal" || mostraFiscal) ? abaParam : "dados";
   usePageTitle(cliente ? nomeExibicao(cliente) : "Cliente");
 
   if (!id) return <Navigate to="/clientes" replace />;
   if (isLoading) return <DetalheSkeleton />;
   if (error) {
-    return <PageContainer className="text-sm text-destructive">Erro ao carregar: {msgErro(error)}</PageContainer>;
+    return (
+      <PageContainer>
+        <QueryError oque="o cliente" error={error} onRetry={refetch} />
+      </PageContainer>
+    );
   }
   if (!cliente) {
     return (
@@ -166,14 +173,14 @@ export function ClienteDetalhePage() {
           )
         }
       >
-        <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div>
           <TabsList>
             <TabsTrigger value="dados">Dados</TabsTrigger>
             {cliente.tipo === "PJ" && <TabsTrigger value="socios">Sócios</TabsTrigger>}
             <TabsTrigger value="certificados">Certificados</TabsTrigger>
             <TabsTrigger value="solicitacoes">Chamados</TabsTrigger>
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
-            <TabsTrigger value="fiscal">Consultas fiscais</TabsTrigger>
+            {mostraFiscal && <TabsTrigger value="fiscal">Consultas fiscais</TabsTrigger>}
             {mostraPortal && <TabsTrigger value="portal">Portal do cliente</TabsTrigger>}
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
@@ -210,6 +217,7 @@ export function ClienteDetalhePage() {
             />
           </div>
         </TabsContent>
+        {mostraFiscal && (
         <TabsContent value="fiscal" className="mt-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
@@ -220,6 +228,7 @@ export function ClienteDetalhePage() {
           <ResumoFiscalCliente clienteId={cliente.id} />
           <ConsultasFiscaisLista clienteId={cliente.id} />
         </TabsContent>
+        )}
       </Tabs>
     </PageContainer>
   );
@@ -302,7 +311,7 @@ function DadosAba({ cliente }: { cliente: Cliente }) {
 // ---------------------------------------------------------------------------
 
 function SociosAba({ clienteId }: { clienteId: string }) {
-  const { data: socios = [], isLoading } = useSocios(clienteId);
+  const { data: socios = [], isLoading, isError, error, refetch } = useSocios(clienteId);
   const excluir = useExcluirSocio(clienteId);
   const [editando, setEditando] = useState<Socio | null | "novo">(null);
 
@@ -319,6 +328,8 @@ function SociosAba({ clienteId }: { clienteId: string }) {
       </div>
       {isLoading ? (
         <ListaSkeleton linhas={3} />
+      ) : isError && socios.length === 0 ? (
+        <QueryError oque="os sócios" error={error} onRetry={refetch} />
       ) : socios.length === 0 ? (
         <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
           <Users className="size-5 mx-auto mb-2 opacity-60" />
@@ -345,13 +356,13 @@ function SociosAba({ clienteId }: { clienteId: string }) {
                     .join(" · ") || "-"}
                 </p>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => setEditando(s)} aria-label="Editar sócio">
+              <Button size="icon" variant="ghost" onClick={() => setEditando(s)} aria-label={`Editar sócio ${s.nome}`}>
                 <Pencil />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label="Excluir sócio"
+                aria-label={`Excluir sócio ${s.nome}`}
                 onClick={async () => {
                   if (!(await confirmar({ titulo: `Excluir ${s.nome}?`, confirmLabel: "Excluir", destructive: true }))) return;
                   excluir.mutate(s.id, { onError: (e) => toast.error(msgErro(e)) });
@@ -371,6 +382,14 @@ function SociosAba({ clienteId }: { clienteId: string }) {
       />
     </div>
   );
+}
+
+function CampoErro({ msg }: { msg?: string | null }) {
+  return msg ? (
+    <p role="alert" className="text-xs text-destructive">
+      {msg}
+    </p>
+  ) : null;
 }
 
 function SocioDialog({
@@ -393,6 +412,8 @@ function SocioDialog({
   const [part, setPart] = useState("");
   const [adm, setAdm] = useState(false);
   const [iniciado, setIniciado] = useState<string | null>(null);
+  const [tentou, setTentou] = useState(false);
+  const [erroNasc, setErroNasc] = useState<string | null>(null);
 
   // Preenche ao abrir (chave = id do sócio ou "novo").
   const chave = open ? (socio?.id ?? "novo") : null;
@@ -406,13 +427,26 @@ function SocioDialog({
       setEmail(socio?.email ?? "");
       setPart(socio?.participacao != null ? String(socio.participacao) : "");
       setAdm(socio?.administrador ?? false);
+      setTentou(false);
+      setErroNasc(null);
     }
   }
 
+  const p = part.trim() ? Number(part.replace(",", ".")) : null;
+  const erros = {
+    nome: nome.trim().length < 2 ? "Informe o nome do sócio." : null,
+    cpf: cpf && !isValidCpf(cpf) ? "CPF inválido." : null,
+    tel: tel && !isValidTelefone(tel) ? "Telefone incompleto (DDD + número)." : null,
+    email: email.trim() && !optionalEmail.safeParse(email).success ? "E-mail inválido." : null,
+    part: p != null && (!Number.isFinite(p) || p < 0 || p > 100) ? "A participação vai de 0 a 100." : null,
+    nasc: erroNasc,
+  };
+  const temErro = Object.values(erros).some(Boolean);
+  const ver = (k: keyof typeof erros) => (tentou ? erros[k] : null);
+
   async function enviar() {
-    if (nome.trim().length < 2) return toast.error("Informe o nome do sócio.");
-    const p = part.trim() ? Number(part.replace(",", ".")) : null;
-    if (p != null && (!Number.isFinite(p) || p < 0 || p > 100)) return toast.error("Participação entre 0 e 100.");
+    setTentou(true);
+    if (temErro) return;
     try {
       await salvar.mutateAsync({
         id: socio?.id,
@@ -432,6 +466,8 @@ function SocioDialog({
     }
   }
 
+  const inv = (k: keyof typeof erros) => (ver(k) ? "border-destructive" : undefined);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -442,27 +478,32 @@ function SocioDialog({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="so-nome">Nome *</Label>
-            <Input id="so-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+            <Input id="so-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoFocus aria-invalid={!!ver("nome") || undefined} className={inv("nome")} />
+            <CampoErro msg={ver("nome")} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="so-cpf">CPF</Label>
-            <Input id="so-cpf" inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskCpfCnpj(e.target.value).slice(0, 14))} />
+            <Input id="so-cpf" inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskCpfCnpj(e.target.value).slice(0, 14))} aria-invalid={!!ver("cpf") || undefined} className={inv("cpf")} />
+            <CampoErro msg={ver("cpf")} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="so-nasc">Data de nascimento</Label>
-            <DatePicker id="so-nasc" limpavel value={nasc} onChange={setNasc} />
+            <DatePicker id="so-nasc" limpavel value={nasc} onChange={setNasc} onErroChange={setErroNasc} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="so-tel">Telefone</Label>
-            <Input id="so-tel" inputMode="tel" value={tel} onChange={(e) => setTel(maskTelefone(e.target.value))} />
+            <Input id="so-tel" inputMode="tel" value={tel} onChange={(e) => setTel(maskTelefone(e.target.value))} aria-invalid={!!ver("tel") || undefined} className={inv("tel")} />
+            <CampoErro msg={ver("tel")} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="so-part">Participação (%)</Label>
-            <Input id="so-part" inputMode="decimal" value={part} onChange={(e) => setPart(e.target.value)} />
+            <Input id="so-part" inputMode="decimal" value={part} onChange={(e) => setPart(e.target.value)} aria-invalid={!!ver("part") || undefined} className={inv("part")} />
+            <CampoErro msg={ver("part")} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="so-email">E-mail</Label>
-            <Input id="so-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input id="so-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!ver("email") || undefined} className={inv("email")} />
+            <CampoErro msg={ver("email")} />
           </div>
           <label className="sm:col-span-2 flex items-center gap-2 text-sm">
             <input type="checkbox" checked={adm} onChange={(e) => setAdm(e.target.checked)} className="size-4 accent-[var(--primary)]" />
@@ -488,7 +529,7 @@ function SocioDialog({
 // ---------------------------------------------------------------------------
 
 function CertificadosAba({ clienteId }: { clienteId: string }) {
-  const { data = [], isLoading } = useCertificados({ clienteId });
+  const { data = [], isLoading, isError, error, refetch } = useCertificados({ clienteId });
   const excluir = useExcluirCertificado();
   const [editando, setEditando] = useState<Certificado | null | "novo">(null);
   return (
@@ -501,6 +542,8 @@ function CertificadosAba({ clienteId }: { clienteId: string }) {
       </div>
       {isLoading ? (
         <ListaSkeleton linhas={3} />
+      ) : isError && data.length === 0 ? (
+        <QueryError oque="os certificados" error={error} onRetry={refetch} />
       ) : data.length === 0 ? (
         <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
           <BadgeCheck className="size-5 mx-auto mb-2 opacity-60" />
@@ -522,13 +565,13 @@ function CertificadosAba({ clienteId }: { clienteId: string }) {
                 </p>
               </div>
               <CertificadoStatusBadge validoAte={c.validoAte} />
-              <Button size="icon" variant="ghost" onClick={() => setEditando(c)} aria-label="Editar">
+              <Button size="icon" variant="ghost" onClick={() => setEditando(c)} aria-label={`Editar certificado ${c.tipo}`}>
                 <Pencil />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label="Excluir"
+                aria-label={`Excluir certificado ${c.tipo}`}
                 onClick={async () => {
                   if (!(await confirmar({ titulo: "Excluir certificado?", confirmLabel: "Excluir", destructive: true }))) return;
                   excluir.mutate(c.id, { onError: (e) => toast.error(msgErro(e)) });
@@ -555,9 +598,10 @@ function CertificadosAba({ clienteId }: { clienteId: string }) {
 // ---------------------------------------------------------------------------
 
 function SolicitacoesAba({ clienteId }: { clienteId: string }) {
-  const { data = [], isLoading } = useSolicitacoes({ clienteId });
+  const { data = [], isLoading, isError, error, refetch } = useSolicitacoes({ clienteId });
   const atualizar = useAtualizarSolicitacao();
-  const mapa = useColaboradoresMap();
+  const { data: colabs = [] } = useColaboradores();
+  const mapa = new Map(colabs.map((c) => [c.id, c]));
   const [nova, setNova] = useState(false);
   return (
     <div className="space-y-3">
@@ -569,6 +613,8 @@ function SolicitacoesAba({ clienteId }: { clienteId: string }) {
       </div>
       {isLoading ? (
         <ListaSkeleton linhas={3} />
+      ) : isError && data.length === 0 ? (
+        <QueryError oque="os chamados" error={error} onRetry={refetch} />
       ) : data.length === 0 ? (
         <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
           <ClipboardList className="size-5 mx-auto mb-2 opacity-60" />
@@ -604,7 +650,7 @@ function SolicitacoesAba({ clienteId }: { clienteId: string }) {
 }
 
 function ConversasAba({ clienteId, telefone }: { clienteId: string; telefone: string | null }) {
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["conversas-do-cliente", clienteId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -626,14 +672,16 @@ function ConversasAba({ clienteId, telefone }: { clienteId: string; telefone: st
       }>;
     },
   });
-  const mapa = useColaboradoresMap();
+  const { data: colabs = [] } = useColaboradores();
+  const mapa = new Map(colabs.map((c) => [c.id, c]));
   if (isLoading) return <ListaSkeleton linhas={3} />;
+  if (isError && data.length === 0) return <QueryError oque="as conversas" error={error} onRetry={refetch} />;
   if (data.length === 0) {
     return (
       <p className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
         <MessageSquare className="size-5 mx-auto mb-2 opacity-60" />
         Nenhuma conversa vinculada.{" "}
-        {telefone ? "Quando o contato escrever, vincule a conversa pelo painel lateral do Atendimento." : "Cadastre o telefone para facilitar o vínculo."}
+        {telefone ? "As conversas do WhatsApp deste cliente aparecem aqui depois de vinculadas." : "Cadastre o telefone para facilitar o vínculo."}
       </p>
     );
   }

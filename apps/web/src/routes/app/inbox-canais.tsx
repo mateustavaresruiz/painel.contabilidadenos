@@ -17,6 +17,7 @@ import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { QueryError } from "@/components/ui/query-error";
 import { confirmar } from "@/components/ui/confirm-dialog";
 import {
   ConexaoCard,
@@ -66,7 +67,7 @@ type StatusUi = ConexaoStatus;
 // ===========================================================================
 
 export function WhatsappInstanciasSection({ ehDono }: { ehDono: boolean }) {
-  const { data: sessoes = [], isLoading } = useWhatsappSessoes();
+  const { data: sessoes = [], isLoading, isError, error, refetch } = useWhatsappSessoes();
   // Abrir a tela é o momento de conferir com o WAHA: status real e número
   // da instância. Sem isto, a lista mostra só o que o banco já sabia.
   useSincronizarSessoesComWaha();
@@ -98,6 +99,8 @@ export function WhatsappInstanciasSection({ ehDono }: { ehDono: boolean }) {
             Carregando…
           </CardContent>
         </Card>
+      ) : isError && sessoes.length === 0 ? (
+        <QueryError oque="as conexões" error={error} onRetry={refetch} />
       ) : sessoes.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -411,11 +414,11 @@ function WhatsappCard({
     // contra um sessao.id que tá prestes a sumir (resultava em 404).
     setQrOpen(false);
     const ok = await confirmar({
-      titulo: "Apagar instância?",
+      titulo: "Excluir instância?",
       descricao:
         "Remove a instância, todas as conversas e mensagens dela. A sessão é apagada também no servidor WAHA. Não pode ser desfeito.",
       destructive: true,
-      confirmLabel: "Apagar instância",
+      confirmLabel: "Excluir instância",
     });
     if (!ok) return;
     try {
@@ -576,7 +579,7 @@ function WhatsappCard({
           {/* Ações destrutivas — separadas das de operação, sempre à direita */}
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {/* Limpar conversas — zera o histórico no app, mantém a conexão.
-                Não aparece pra plano sem direito de apagar; "Apagar instância"
+                Não aparece pra plano sem direito de apagar; "Excluir instância"
                 fica, porque é a única saída pra trocar de número. */}
             {planoDeixaApagar ? (
             <Button
@@ -595,7 +598,7 @@ function WhatsappCard({
             </Button>
             ) : null}
 
-            {/* Apagar instância — disponível em qualquer estado */}
+            {/* Excluir instância — disponível em qualquer estado */}
             <Button
               variant="ghost"
               className="text-destructive hover:text-destructive"
@@ -608,7 +611,7 @@ function WhatsappCard({
               ) : (
                 <Trash2 className="size-4 mr-2" />
               )}
-              Apagar instância
+              Excluir instância
             </Button>
           </div>
         </>
