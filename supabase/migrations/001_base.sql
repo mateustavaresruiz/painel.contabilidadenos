@@ -12,6 +12,10 @@
 -- políticas atuais estão na 005; como funciona o login, em docs/LOGIN.md.
 -- ===========================================================================
 
+-- Controle de migrações (o scripts/migrar.mjs também cria; idempotente).
+create table if not exists public._migracao (
+  nome text primary key, "aplicadaEm" timestamptz not null default now());
+
 create extension if not exists pg_trgm;
 
 -- ---------------------------------------------------------------------------

@@ -258,11 +258,8 @@ export function useAtualizarSolicitacao() {
       id: string;
       patch: Partial<Pick<Solicitacao, "status" | "responsavelId" | "prazo" | "descricao" | "tipoId">>;
     }) => {
-      const patch: Record<string, unknown> = { ...args.patch };
-      if (args.patch.status) {
-        patch.concluidaEm = args.patch.status === "concluida" ? new Date().toISOString() : null;
-      }
-      const { error } = await supabase.from("Solicitacao").update(patch).eq("id", args.id);
+      // "concluidaEm" não vai daqui: o banco calcula pela mudança de status (migration 011).
+      const { error } = await supabase.from("Solicitacao").update(args.patch).eq("id", args.id);
       if (error) throw error;
     },
     onMutate: async (args) => {

@@ -3,6 +3,7 @@
 //
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/migrar.mjs
 //   node scripts/migrar.mjs --sql "select 1"     (consulta avulsa)
+//   node scripts/migrar.mjs --file teste.sql     (idem, lendo o SQL de um arquivo)
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -27,6 +28,12 @@ async function query(sql) {
 const i = process.argv.indexOf('--sql');
 if (i !== -1) {
   console.log(JSON.stringify(await query(process.argv[i + 1]), null, 2));
+  process.exit(0);
+}
+
+const f = process.argv.indexOf('--file');
+if (f !== -1) {
+  console.log(JSON.stringify(await query(fs.readFileSync(process.argv[f + 1], 'utf8')), null, 2));
   process.exit(0);
 }
 

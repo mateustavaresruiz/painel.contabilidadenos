@@ -19,6 +19,11 @@ export type CronSaude = {
   status: string | null;
   mensagem: string | null;
   falhas24h: number;
+  /** Último status HTTP que a função respondeu ao banco (null = ainda sem resposta registrada). */
+  httpStatus?: number | null;
+  httpEm?: string | null;
+  httpFalhou?: boolean | null;
+  httpFalhas24h?: number;
 };
 
 export type PainelSaude = {
@@ -196,7 +201,7 @@ export function useResumoSaude(opts: { whatsapp: boolean; serpro: boolean }): It
   }
 
   const crons = banco.data?.crons ?? [];
-  const falhas = crons.filter((c) => c.status === "failed" || c.falhas24h > 0).length;
+  const falhas = crons.filter((c) => c.status === "failed" || c.falhas24h > 0 || (c.httpFalhas24h ?? 0) > 0).length;
   itens.push(
     banco.isLoading
       ? { chave: "crons", nome: "Tarefas agendadas", estado: "carregando", detalhe: "Verificando" }

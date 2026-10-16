@@ -446,7 +446,7 @@ function CardSerpro() {
 function CardCrons() {
   const q = usePainelSaude();
   const crons = q.data?.crons ?? [];
-  const falhas = crons.filter((c) => c.status === "failed" || c.falhas24h > 0).length;
+  const falhas = crons.filter((c) => c.status === "failed" || c.falhas24h > 0 || (c.httpFalhas24h ?? 0) > 0).length;
   const estado: Estado = q.isLoading ? "carregando" : q.error ? "erro" : falhas > 0 ? "atencao" : "ok";
   return (
     <CardIntegracao
@@ -465,8 +465,9 @@ function CardCrons() {
       ) : (
         <ul className="divide-y divide-divider">
           {crons.map((c) => {
-            const e: Estado = !c.ativo ? "atencao" : c.status === "failed" ? "erro" : c.status ? "ok" : "carregando";
-            const rotulo = !c.ativo ? "Desativada" : c.status === "failed" ? "Falhou" : c.status ? "OK" : "Ainda não rodou";
+            const httpRuim = c.httpFalhou === true;
+            const e: Estado = !c.ativo ? "atencao" : c.status === "failed" || httpRuim ? "erro" : c.status ? "ok" : "carregando";
+            const rotulo = !c.ativo ? "Desativada" : c.status === "failed" ? "Falhou" : httpRuim ? "Função com erro" : c.status ? "OK" : "Ainda não rodou";
             return (
               <li key={c.nome} className="py-3 space-y-0.5">
                 <div className="flex items-center gap-2">
@@ -478,6 +479,8 @@ function CardCrons() {
                   {agendaEmPortugues(c.agenda)}
                   {c.ultimaExecucao ? ` · última vez ${formatDataHora(c.ultimaExecucao)}` : ""}
                   {c.falhas24h > 0 ? ` · ${c.falhas24h} falha(s) em 24h` : ""}
+                  {c.httpStatus != null ? ` · função respondeu HTTP ${c.httpStatus}` : ""}
+                  {(c.httpFalhas24h ?? 0) > 0 ? ` · ${c.httpFalhas24h} resposta(s) com erro em 24h` : ""}
                 </p>
                 {c.status === "failed" && c.mensagem && (
                   <p className="text-xs text-destructive font-mono break-words">{c.mensagem}</p>
@@ -488,7 +491,7 @@ function CardCrons() {
         </ul>
       )}
       <p className="text-2xs text-muted-foreground">
-        O status diz se o banco disparou a tarefa. O que a função respondeu aparece no log de erros (Sistema).
+        O status diz se o banco disparou a tarefa; "função respondeu" é o último HTTP que ela devolveu. Respostas com erro entram no log de erros (Sistema).
       </p>
     </CardIntegracao>
   );
