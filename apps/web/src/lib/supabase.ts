@@ -13,7 +13,11 @@ if (!url || !anonKey) {
 // navegador e é renovada sozinha; com ela o supabase-js manda o JWT do
 // usuário em toda consulta, no Storage e no Realtime, e a RLS decide o resto.
 // A chave anon sozinha não lê nada.
+// O supabase-js refaz GET com falha de rede 3 vezes (1s, 2s, 4s) e o react-query
+// mais uma: a tela ficaria ~15 s sem mostrar o erro. Quem repete é o react-query
+// (1 vez, ver main.tsx), então o erro aparece em ~2 s com o botão "Tentar de novo".
 export const supabase = createClient(url, anonKey, {
+  db: { retry: false },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
