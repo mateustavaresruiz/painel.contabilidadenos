@@ -301,7 +301,12 @@ export function criarHandler(deps: Deps) {
       body = b;
     }
     const senhaBruta = req.headers.get("x-portal-senha") ?? (typeof body.senha === "string" ? body.senha : "");
-    if (!senhaBruta) return erro("Senha obrigatória.", 401);
+    if (!senhaBruta) {
+      // Abrir o link sem senha é o caso NORMAL (a tela pede a senha): 200 sem dado nenhum,
+      // para o navegador não registrar um "erro" a cada visita. Nas rotas POST segue 401.
+      if (req.method === "GET") return resp({ senhaObrigatoria: true });
+      return erro("Senha obrigatória.", 401);
+    }
 
     // Senha comprida demais nem entra no PBKDF2 (custo); conta como erro.
     const certa = senhaBruta.length <= MAX_SENHA && (await deps.verifySenha(senhaBruta, tk.senhaHash));

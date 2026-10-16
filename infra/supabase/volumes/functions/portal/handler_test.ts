@@ -213,7 +213,9 @@ Deno.test("senha errada: 401, freio por IP+link no 6º erro e trava do LINK no 8
 
 Deno.test("sem senha = 401; senha gigante nem chega ao PBKDF2", async () => {
   const { h, st } = await montar();
-  assertEquals((await h(get(TOKEN_A))).status, 401);
+  const semSenha = await h(get(TOKEN_A));
+  assertEquals(semSenha.status, 200);
+  assertEquals(await semSenha.json(), { senhaObrigatoria: true });
   const antes = st.verificacoes;
   const r = await h(get(TOKEN_A, "x".repeat(5000)));
   assertEquals(r.status, 401);

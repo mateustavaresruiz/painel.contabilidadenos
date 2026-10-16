@@ -103,6 +103,10 @@ export function PortalPublicoPage() {
       const r = await portalCarregar(token, senha || undefined);
       switch (r.tipo) {
         case "ok":
+          if ("senhaObrigatoria" in r.dados) {
+            setFase({ t: "senha" });
+            break;
+          }
           senhaRef.current = senha;
           setFase({ t: "ok", dados: r.dados });
           break;
@@ -364,7 +368,7 @@ function Painel({ dados, token, senha, recarregar }: { dados: DadosPortal; token
 
       {/* Números */}
       <section aria-label="Resumo" className="grid grid-cols-3 gap-2.5 sm:gap-4">
-        <Numero rotulo="Em andamento" valor={abertos} cor="chamados" icone={ClipboardList} />
+        <Numero rotulo="Em aberto" valor={abertos} cor="chamados" icone={ClipboardList} />
         <Numero rotulo="Concluídas" valor={concluidos} cor="clientes" icone={CheckCircle2} />
         <Numero rotulo={certAtencao > 0 ? "Certificados a vencer" : "Certificados"} valor={certAtencao > 0 ? certAtencao : certificados.length} cor="certificados" icone={FileBadge2} />
       </section>

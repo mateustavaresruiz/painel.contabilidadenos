@@ -52,6 +52,8 @@ export type DadosPortal = {
 };
 
 /** Resultado de uma chamada: nunca lança; a tela decide pelo `tipo`. */
+export type SenhaObrigatoria = { senhaObrigatoria: true };
+
 export type Resposta<T> =
   | { tipo: "ok"; dados: T }
   | { tipo: "senha"; mensagem: string } // 401
@@ -93,7 +95,7 @@ async function chamar<T>(caminho: string, init: { method?: string; senha?: strin
   return { tipo: "falha", mensagem: "Não foi possível carregar agora. Tente de novo em instantes." };
 }
 
-export const portalCarregar = (token: string, senha?: string) => chamar<DadosPortal>(token, { senha });
+export const portalCarregar = (token: string, senha?: string) => chamar<DadosPortal | SenhaObrigatoria>(token, { senha });
 
 export const portalVerificar = (token: string, senha: string) =>
   chamar<{ ok: true }>(`${token}/verificar`, { method: "POST", corpo: { senha } });
