@@ -525,6 +525,10 @@ serve(async (req) => {
   // GET /status — o que a tela de Conexões precisa pra explicar "por que não
   // conecta" sem ninguém abrir log.
   if (action === "status" && req.method === "GET") {
+    // Mostra a URL do webhook e o estado do WAHA: só para quem vê o WhatsApp ou gerencia as conexões.
+    if (!tem(colaborador, "whatsapp.ver") && !tem(colaborador, "whatsapp.conexoes")) {
+      return semPermissao("whatsapp.ver ou whatsapp.conexoes");
+    }
     return json({
       wahaConfigurado: waha.wahaIsConfigured(),
       webhookSecretConfigurado: !!WEBHOOK_SECRET,

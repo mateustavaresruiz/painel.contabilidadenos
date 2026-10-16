@@ -374,7 +374,11 @@ export function criarHandler(deps: Deps) {
       clienteId: cli.id,
       solicitacaoId: c.id,
       resumo: `abriu um chamado pelo portal: «${nomeTipo}»`,
-      info: [{ rotulo: "Origem", valor: "Portal do cliente" }],
+      info: [
+        { rotulo: "Origem", valor: "Portal do cliente" },
+        { rotulo: "Tipo", valor: nomeTipo },
+        { rotulo: "Descrição", valor: descricao.slice(0, 500) },
+      ],
     });
     return resp({ ok: true });
   }
