@@ -139,11 +139,11 @@ export function CertificadosPage() {
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {(
           [
-            ["vencido", "Vencidos", "destructive"],
-            ["vencendo", "Vencem em 30 dias", "warning"],
-            ["ok", "Em dia", "success"],
+            ["vencido", "Vencidos", "Vencidos", "destructive"],
+            ["vencendo", "Vencem em 30 dias", "Em 30 dias", "warning"],
+            ["ok", "Em dia", "Em dia", "success"],
           ] as const
-        ).map(([k, label, variante]) => (
+        ).map(([k, label, curto, variante]) => (
           <button
             key={k}
             type="button"
@@ -155,7 +155,10 @@ export function CertificadosPage() {
             aria-pressed={status === k}
           >
             <p className="text-title-lg sm:text-title-xl font-semibold tabular-nums">{contagem[k]}</p>
-            <Badge variant={variante} className="mt-1.5 max-w-full whitespace-nowrap max-[420px]:px-2 max-[420px]:text-2xs">{label}</Badge>
+            <Badge variant={variante} className="mt-1.5 max-w-full whitespace-nowrap">
+              <span className="sm:hidden">{curto}</span>
+              <span className="max-sm:hidden">{label}</span>
+            </Badge>
           </button>
         ))}
       </div>

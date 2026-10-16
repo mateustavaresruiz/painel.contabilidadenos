@@ -68,7 +68,7 @@ function AvisoNaoConfigurado() {
   return (
     <p role="status" className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
       Falta configurar o gateway Integra Contador: as consultas não vão rodar até lá.
-      {data?.faltando?.length ? ` Faltam: ${data.faltando.join(", ")}.` : ""} O que falta aparece no cartão
+      {data?.faltando?.length ? ` Faltam: ${data.faltando.map((f) => f.replace(/\.+$/, "")).join("; ")}.` : ""} O que falta aparece no cartão
       "Integração com o Serpro" acima.
     </p>
   );

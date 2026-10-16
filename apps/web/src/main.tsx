@@ -59,6 +59,9 @@ const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
+      // Sem rede a query tenta e FALHA (vira erro com "Tentar de novo"). No modo padrão ela
+      // ficaria pausada e a lista pareceria vazia.
+      networkMode: "always",
       // O Realtime invalida o que muda; o refetch na reconexão cobre os
       // eventos perdidos durante uma queda de rede.
       refetchOnWindowFocus: false,
