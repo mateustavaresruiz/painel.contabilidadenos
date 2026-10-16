@@ -22,6 +22,7 @@
 //  - A resposta pública é montada por lista branca (payload.ts). Nada de `select *`.
 //  - Todo texto do cliente é limpo no servidor e renderizado como TEXTO na tela (nunca HTML).
 
+import { ipDoCliente } from "../_shared/client-ip.ts";
 import { handleCors } from "../_shared/cors.ts";
 import { json } from "../_shared/response.ts";
 import {
@@ -155,10 +156,9 @@ async function lerJson(req: Request): Promise<Record<string, unknown> | "grande"
   }
 }
 
-/** IP para o freio. Vem de header (forjável): é só uma camada; a trava do link não depende dele. */
+/** IP para o freio: o que a nossa cadeia de proxies viu (ver _shared/client-ip.ts), não o que o cliente mandou. */
 export function ipDe(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for") ?? "";
-  return (xff.split(",")[0] ?? "").trim().slice(0, 64) || req.headers.get("x-real-ip")?.slice(0, 64) || "desconhecido";
+  return ipDoCliente(req);
 }
 
 function formatarData(iso: string): string {

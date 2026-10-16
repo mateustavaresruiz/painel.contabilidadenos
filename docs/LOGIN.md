@@ -123,7 +123,7 @@ Quando ninguém consegue entrar (SMTP fora do ar e nenhum administrador logado):
 ```sh
 SUPABASE_URL=https://painel-supabase.at63vf.easypanel.host \
 SUPABASE_SERVICE_ROLE_KEY=<service role do env do serviço supabase> \
-node scripts/link-acesso.mjs mateustavaresruiz@gmail.com
+node scripts/link-acesso.mjs email-do-administrador@exemplo.com.br
 ```
 
 Imprime um link de uso único (15 min). Abra no navegador e pronto. Quem tiver o link

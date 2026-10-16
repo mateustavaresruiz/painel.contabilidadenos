@@ -18,6 +18,7 @@ import { handleCors } from "../_shared/cors.ts";
 import { badRequest, errorResponse, forbidden, json, notFound } from "../_shared/response.ts";
 import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
+import { ipDoCliente } from "../_shared/client-ip.ts";
 import { dentroDoLimite } from "../_shared/rate-limit.ts";
 import { createChallenge, verifySolution } from "npm:altcha-lib@2.6.0/v1";
 
@@ -30,11 +31,6 @@ async function liberado(): Promise<boolean> {
   const { data } = await supabaseAdmin.from("Config").select("valor").eq("chave", "modulos").maybeSingle();
   const v = (data?.valor ?? {}) as Record<string, unknown>;
   return v.loginSemVerificacao !== false;
-}
-
-function ipDe(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for") ?? "";
-  return xff.split(",")[0].trim() || req.headers.get("x-real-ip") || "desconhecido";
 }
 
 serve(async (req) => {
@@ -58,7 +54,7 @@ serve(async (req) => {
     return forbidden("Entrada só com o e-mail está desligada. Use o link ou o código enviado por e-mail.");
   }
 
-  const ip = ipDe(req);
+  const ip = ipDoCliente(req);
   const porIp = await dentroDoLimite({ action: "entrar", sujeito: `ip:${ip}`, max: 10, windowSecs: 300 });
   const global = await dentroDoLimite({ action: "entrar", sujeito: "global", max: 60, windowSecs: 300 });
   if (!porIp || !global) return errorResponse("Muitas tentativas. Espere alguns minutos.", 429);
