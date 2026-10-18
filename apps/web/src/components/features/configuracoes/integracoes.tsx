@@ -19,7 +19,7 @@ import {
   useWhatsappStatus,
   type Estado,
 } from "@/lib/queries/saude";
-import { useEmailStatus, useTestarEmail } from "@/lib/queries/equipe";
+import { useEmailStatus, useTestarEmail, type EmailStatus } from "@/lib/queries/equipe";
 import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -154,22 +154,23 @@ function CardBanco() {
 
 // ---------------------------------------------------------------------------
 
-/** Painel do servidor de e-mail (Stalwart, app "email" no Easypanel). */
+/** Painel do servidor de e-mail próprio (Stalwart, app "email" no Easypanel). */
 const STALWART_ADMIN = "https://painel-email.at63vf.easypanel.host";
+/** Onde a conta do Google Workspace gera a senha de app (precisa da verificação em 2 etapas). */
+const GOOGLE_SENHAS_DE_APP = "https://myaccount.google.com/apppasswords";
 
-const CHECKLIST_EMAIL: string[] = [
-  "No Stalwart: criar o domínio contabilidadenos.com.br e gerar a chave DKIM.",
-  "No DNS do domínio: MX apontando para o servidor, SPF (TXT v=spf1), DKIM (TXT que o Stalwart mostra) e DMARC (TXT _dmarc).",
-  "Na Hostinger (VPS): configurar o DNS reverso (PTR) do IP para o nome do servidor de e-mail.",
-  "A Hostinger pode bloquear a porta 25 de saída: sem ela o servidor não entrega para Gmail e outros. Peça a liberação ou use um relay (SMTP de terceiros).",
-  "Criar no Stalwart uma conta só para o painel (ex.: painel@contabilidadenos.com.br) e usar o usuário e a senha dela.",
-  "No Easypanel, serviço supabase: preencher SMTP_HOST, SMTP_PORT (587), SMTP_USER, SMTP_PASS e SMTP_ADMIN_EMAIL, e reimplantar. Passo a passo em docs/LOGIN.md.",
-];
+const PROVEDOR_EMAIL: Record<NonNullable<EmailStatus["provedor"]>, string> = {
+  google: "Google Workspace (Gmail)",
+  "google-relay": "Google Workspace (relay SMTP)",
+  stalwart: "Servidor próprio (Stalwart)",
+  outro: "Outro servidor",
+};
 
 function CardEmail() {
   const q = useEmailStatus();
   const testar = useTestarEmail();
   const d = q.data;
+  const avisos = d?.avisos ?? [];
   const estado: Estado = q.isLoading
     ? "carregando"
     : q.error
@@ -178,7 +179,9 @@ function CardEmail() {
         ? "atencao"
         : d.portaAbre === false
           ? "erro"
-          : "ok";
+          : avisos.length > 0 || d.tls === false || d.erroConexao
+            ? "atencao"
+            : "ok";
   const rotulo = !q.isLoading && !q.error && !d?.configurado ? "Não configurado" : undefined;
   return (
     <CardIntegracao
@@ -195,36 +198,83 @@ function CardEmail() {
         <p className="text-sm text-destructive">A função equipe não respondeu: {msgErro(q.error)}</p>
       ) : d ? (
         <dl className="divide-y divide-divider">
-          <Linha rotulo="SMTP">{d.configurado ? `${d.host}:${d.porta}` : "Sem servidor (SMTP_HOST vazio)"}</Linha>
+          <Linha rotulo="SMTP">
+            {d.configurado ? (
+              <>
+                {d.host}:{d.porta}
+                {d.provedor && <span className="block text-xs text-muted-foreground">{PROVEDOR_EMAIL[d.provedor]}</span>}
+              </>
+            ) : (
+              "Sem servidor (SMTP_HOST vazio)"
+            )}
+          </Linha>
           {d.configurado && (
-            <Linha rotulo="Servidor responde">{d.portaAbre ? "Sim" : "Não: a porta não abriu"}</Linha>
+            <Linha rotulo="Servidor responde">
+              {d.portaAbre ? (d.erroConexao ? `Abre, mas: ${d.erroConexao}` : "Sim") : (d.erroConexao ?? "Não: a porta não abriu")}
+            </Linha>
+          )}
+          {d.configurado && d.portaAbre && (
+            <Linha rotulo="Criptografia">
+              {d.tls == null ? "Não verificada" : d.tls ? (d.porta === 465 ? "TLS direto (465)" : "STARTTLS oferecido") : "Sem TLS: use a porta 587"}
+            </Linha>
           )}
           <Linha rotulo="Usuário do SMTP">{d.usuarioConfigurado ? "Configurado" : "Não configurado"}</Linha>
+          {d.senhaDefinida != null && (
+            <Linha rotulo="Senha do SMTP">{d.senhaDefinida ? "Preenchida" : "Vazia"}</Linha>
+          )}
           <Linha rotulo="Remetente">{d.remetente ? `${d.nomeRemetente ?? ""} <${d.remetente}>` : "Não definido"}</Linha>
-          <Linha rotulo="Rede interna (painel_email)">{d.redeInterna.painel_email ? "Alcançável" : "Não alcançável"}</Linha>
+          {d.provedor === "stalwart" && (
+            <Linha rotulo="Rede interna (painel_email)">{d.redeInterna.painel_email ? "Alcançável" : "Não alcançável"}</Linha>
+          )}
         </dl>
       ) : null}
-      {!d?.configurado && (
+      {avisos.length > 0 && (
+        <ul className="rounded-md bg-muted px-3 py-2 text-xs text-warning list-disc pl-7 space-y-1">
+          {avisos.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+      )}
+      {d && !d.configurado && (
         <p className="text-sm text-muted-foreground">
-          Enquanto o e-mail não funciona, o login continua possível: em Equipe, use "Gerar link de acesso" para
-          cada pessoa.
+          Recomendado: mandar pelo <strong className="text-foreground">Google Workspace</strong> que o escritório já usa
+          (passos abaixo). Enquanto isso, o login continua possível: em Equipe, "Gerar link de acesso" para cada pessoa.
         </p>
       )}
-      <details className="text-sm">
-        <summary className="cursor-pointer text-primary text-xs">O que configurar</summary>
+      <details className="text-sm" open={!!d && !d.configurado}>
+        <summary className="cursor-pointer text-primary text-xs">Como configurar pelo Google Workspace (recomendado)</summary>
         <ol className="mt-3 list-decimal pl-5 space-y-1.5 text-xs text-muted-foreground">
-          {CHECKLIST_EMAIL.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
+          <li>
+            Crie (ou escolha) uma conta do Workspace só para o painel, ex.: <Codigo>painel@contabilidadenos.com.br</Codigo>.
+            Pode ser um usuário comum; não precisa de caixa de entrada vigiada.
+          </li>
+          <li>
+            Nessa conta, ligue a verificação em 2 etapas e gere uma <strong className="text-foreground">senha de app</strong>{" "}
+            (Conta Google &gt; Segurança &gt; Senhas de app, nome "Painel Denos"). São 16 letras; guarde sem os espaços.
+          </li>
+          <li>
+            No Easypanel, projeto <Codigo>painel</Codigo>, serviço <Codigo>supabase</Codigo>, Ambiente:{" "}
+            <Codigo>SMTP_HOST=smtp.gmail.com</Codigo>, <Codigo>SMTP_PORT=587</Codigo>,{" "}
+            <Codigo>SMTP_USER</Codigo> e <Codigo>SMTP_ADMIN_EMAIL</Codigo> = a conta (o mesmo endereço),{" "}
+            <Codigo>SMTP_PASS</Codigo> = a senha de app. Salve e reimplante.
+          </li>
+          <li>Volte aqui, clique em Verificar e em "Enviar e-mail de teste" (vai para o seu e-mail).</li>
+          <li>
+            Funcionou? Em Configurações &gt; Módulos, desligue "Entrar só com o e-mail".
+          </li>
         </ol>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Alternativa sem senha de app: o relay do Workspace (<Codigo>smtp-relay.gmail.com</Codigo>, porta 587), liberado
+          pelo administrador no Admin Console (Gmail &gt; Roteamento &gt; Serviço de redirecionamento SMTP) para o IP{" "}
+          <Codigo>187.127.26.230</Codigo>, com <Codigo>SMTP_USER</Codigo> e <Codigo>SMTP_PASS</Codigo> vazios. Detalhes em
+          docs/LOGIN.md.
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          O servidor próprio (Stalwart, app <Codigo>email</Codigo> no Easypanel) deixa de ser necessário e pode ser removido
+          depois que o Google estiver enviando.
+        </p>
       </details>
       <div className="flex flex-wrap gap-2">
-        <Button asChild size="sm" variant="secondary">
-          <a href={STALWART_ADMIN} target="_blank" rel="noreferrer">
-            <ExternalLink />
-            Abrir o Stalwart
-          </a>
-        </Button>
         {d?.configurado && (
           <Button
             size="sm"
@@ -239,6 +289,22 @@ function CardEmail() {
           >
             {testar.isPending ? <Loader2 className="animate-spin" /> : <Mail />}
             Enviar e-mail de teste
+          </Button>
+        )}
+        {(!d?.configurado || d.provedor === "google") && (
+          <Button asChild size="sm" variant="secondary">
+            <a href={GOOGLE_SENHAS_DE_APP} target="_blank" rel="noreferrer">
+              <ExternalLink />
+              Senhas de app do Google
+            </a>
+          </Button>
+        )}
+        {d?.provedor === "stalwart" && (
+          <Button asChild size="sm" variant="secondary">
+            <a href={STALWART_ADMIN} target="_blank" rel="noreferrer">
+              <ExternalLink />
+              Abrir o Stalwart
+            </a>
           </Button>
         )}
       </div>

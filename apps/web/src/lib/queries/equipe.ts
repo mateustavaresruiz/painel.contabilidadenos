@@ -144,11 +144,22 @@ export type EmailStatus = {
   configurado: boolean;
   host: string | null;
   porta: number;
+  /** Deduzido do host (smtp.gmail.com = google). null sem host. */
+  provedor?: "google" | "google-relay" | "stalwart" | "outro" | null;
   usuarioConfigurado: boolean;
+  /** SMTP_PASS preenchido? null = o servidor ainda não informa. */
+  senhaDefinida?: boolean | null;
   remetente: string | null;
   nomeRemetente: string | null;
   /** null = não testado (sem host). */
   portaAbre: boolean | null;
+  /** Primeira linha da saudação do servidor (220 ...). */
+  saudacao?: string | null;
+  /** 587: oferece STARTTLS; 465: TLS direto abriu. null = não verificado. */
+  tls?: boolean | null;
+  erroConexao?: string | null;
+  /** Problemas de configuração (frases prontas para a tela). */
+  avisos?: string[];
   redeInterna: { painel_email: boolean };
 };
 

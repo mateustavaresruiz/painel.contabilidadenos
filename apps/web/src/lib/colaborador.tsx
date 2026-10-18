@@ -147,8 +147,10 @@ export function ColaboradorProvider({ children }: { children: ReactNode }) {
   );
   const tem = useCallback((p: string) => permissoes.has(p), [permissoes]);
 
+  // "Sair" encerra só ESTE navegador (scope local). O padrão do supabase-js é
+  // global e derrubaria a pessoa no celular e em qualquer outro computador.
   const sair = useCallback(async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     qc.clear();
   }, [qc]);
 

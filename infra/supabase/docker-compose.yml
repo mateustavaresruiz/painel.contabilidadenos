@@ -160,6 +160,10 @@ services:
 
       # GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
       # GOTRUE_SMTP_MAX_FREQUENCY: 1s
+      # Painel Denos: SMTP pelo Google Workspace (docs/LOGIN.md > E-mail pelo Google Workspace).
+      # Vazio (SMTP_HOST="") = o Auth não manda e-mail nenhum. Gmail: smtp.gmail.com:587
+      # (STARTTLS) com a conta e uma senha de app; o remetente (SMTP_ADMIN_EMAIL) tem de
+      # ser a mesma conta. O EHLO sai com o nome público do Auth (FQDN), como o relay exige.
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
       GOTRUE_SMTP_HOST: ${SMTP_HOST}
       GOTRUE_SMTP_PORT: ${SMTP_PORT}
@@ -181,11 +185,14 @@ services:
       GOTRUE_MAILER_TEMPLATES_CONFIRMATION: ${MAILER_TEMPLATES_CONFIRMATION:-}
       GOTRUE_MAILER_TEMPLATES_INVITE: ${MAILER_TEMPLATES_INVITE:-}
       GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: ${MAILER_TEMPLATES_EMAIL_CHANGE:-}
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: ${MAILER_TEMPLATES_RECOVERY:-}
+      GOTRUE_MAILER_TEMPLATES_REAUTHENTICATION: ${MAILER_TEMPLATES_REAUTHENTICATION:-}
       GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: ${MAILER_SUBJECTS_MAGIC_LINK:-Seu acesso ao Painel Denos}
       GOTRUE_MAILER_SUBJECTS_CONFIRMATION: ${MAILER_SUBJECTS_CONFIRMATION:-Seu acesso ao Painel Denos}
       GOTRUE_MAILER_SUBJECTS_INVITE: ${MAILER_SUBJECTS_INVITE:-Você foi convidado para o Painel Denos}
       GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: ${MAILER_SUBJECTS_EMAIL_CHANGE:-Confirme seu novo e-mail no Painel Denos}
       GOTRUE_MAILER_SUBJECTS_RECOVERY: ${MAILER_SUBJECTS_RECOVERY:-Seu acesso ao Painel Denos}
+      GOTRUE_MAILER_SUBJECTS_REAUTHENTICATION: ${MAILER_SUBJECTS_REAUTHENTICATION:-Código de confirmação do Painel Denos}
 
       # Freios do Auth. Sem GOTRUE_RATE_LIMIT_HEADER, o GoTrue conta pelo IP
       # de quem conecta nele, que é o gateway: os limites "por IP" viram
@@ -509,13 +516,15 @@ services:
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
       ALTCHA_HMAC_KEY: ${ALTCHA_HMAC_KEY:-}
       # Login (function equipe): URL do painel para o link de acesso e o SMTP
-      # só para dizer à tela se está configurado. A senha do SMTP NÃO vem.
+      # só para dizer à tela se está configurado. A senha do SMTP NÃO vem: só
+      # SMTP_PASS_DEFINIDA ("sim" quando SMTP_PASS está preenchido).
       SITE_URL: ${SITE_URL:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-}
       SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-}
+      SMTP_PASS_DEFINIDA: ${SMTP_PASS:+sim}
     command:
       [
         "start",

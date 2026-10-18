@@ -16,7 +16,8 @@
 //   DELETE /equipe/:id                → apaga o Colaborador e o usuário do Auth
 //   POST   /equipe/:id/link           → link de acesso de uso único (expira)
 //   POST   /equipe/:id/enviar-acesso  → manda o e-mail de acesso (precisa SMTP)
-//   GET    /equipe/email              → SMTP configurado? (sem segredo)
+//   GET    /equipe/email              → SMTP configurado? servidor responde, oferece
+//                                        STARTTLS? avisos de configuração (sem segredo)
 //   POST   /equipe/email/teste        → manda um e-mail de acesso para quem pede
 //
 // 🔴 Link e e-mail usam o MESMO token do Auth: gerar um link invalida o que
@@ -34,6 +35,7 @@ import { serve } from "../_shared/serve.ts";
 import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
 import { esquecerUsuario, exigirColaborador, tem } from "../_shared/acesso.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
+import { avisosSmtp, provedorSmtp, sondarSmtp } from "../_shared/smtp-diagnostico.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -44,6 +46,11 @@ const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") ?? "587") || 587;
 const SMTP_USER = (Deno.env.get("SMTP_USER") ?? "").trim();
 const SMTP_ADMIN_EMAIL = (Deno.env.get("SMTP_ADMIN_EMAIL") ?? "").trim();
 const SMTP_SENDER_NAME = (Deno.env.get("SMTP_SENDER_NAME") ?? "").trim();
+/** "sim" quando SMTP_PASS está preenchido no serviço (a senha em si não vem). */
+const SMTP_PASS_DEFINIDA: boolean | null = (() => {
+  const v = Deno.env.get("SMTP_PASS_DEFINIDA");
+  return v === undefined ? null : v.trim() === "sim";
+})();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,7 +99,18 @@ async function enviarEmailDeAcesso(email: string): Promise<{ ok: boolean; erro?:
     const j = JSON.parse(t);
     msg = j.msg ?? j.message ?? j.error_description ?? j.error ?? msg;
   } catch { /* texto cru */ }
-  return { ok: false, erro: r.status === 429 ? "Muitos e-mails em pouco tempo. Tente em 1 minuto." : msg };
+  if (r.status === 429) return { ok: false, erro: "Muitos e-mails em pouco tempo. Tente em 1 minuto." };
+  // O GoTrue responde só "Error sending ... email"; o motivo do servidor SMTP
+  // (senha recusada, remetente não permitido, IP fora do relay) fica no log dele.
+  if (r.status >= 500 || /error sending/i.test(msg)) {
+    return {
+      ok: false,
+      erro: "o Auth não conseguiu enviar pelo SMTP. Confira SMTP_USER, SMTP_PASS (no Gmail, a senha de app), " +
+        "o remetente (SMTP_ADMIN_EMAIL igual ao usuário) e a porta 587. O motivo exato aparece no log do " +
+        "serviço supabase (container auth) no Easypanel.",
+    };
+  }
+  return { ok: false, erro: msg };
 }
 
 /** O usuário do Auth com esse e-mail (para reaproveitar num convite refeito). */
@@ -120,7 +138,7 @@ function erroDoBanco(e: { message?: string; code?: string } | null): Response | 
   throw e;
 }
 
-/** Diagnóstico do SMTP: o host resolve e a porta responde? */
+/** Diagnóstico do SMTP: a porta abre, o servidor saúda, oferece TLS? A config faz sentido? */
 async function diagnosticoSmtp() {
   const resolve = async (host: string) => {
     try {
@@ -130,29 +148,33 @@ async function diagnosticoSmtp() {
       return false;
     }
   };
-  let portaAbre: boolean | null = null;
-  if (smtpConfigurado()) {
-    try {
-      const conn = await Promise.race([
-        Deno.connect({ hostname: SMTP_HOST, port: SMTP_PORT }),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
-      ]);
-      conn.close();
-      portaAbre = true;
-    } catch {
-      portaAbre = false;
-    }
-  }
+  const [sonda, painelEmail] = await Promise.all([
+    smtpConfigurado() ? sondarSmtp(SMTP_HOST, SMTP_PORT, 5000) : Promise.resolve(null),
+    resolve("painel_email"),
+  ]);
   return {
     configurado: smtpConfigurado(),
     host: SMTP_HOST || null,
     porta: SMTP_PORT,
+    provedor: provedorSmtp(SMTP_HOST),
     usuarioConfigurado: SMTP_USER.length > 0,
+    /** null = o env do serviço ainda não diz (SMTP_PASS_DEFINIDA ausente). */
+    senhaDefinida: SMTP_PASS_DEFINIDA,
     remetente: SMTP_ADMIN_EMAIL || null,
     nomeRemetente: SMTP_SENDER_NAME || null,
-    portaAbre,
-    // O app "email" do Easypanel visto pela rede interna do Supabase.
-    redeInterna: { painel_email: await resolve("painel_email") },
+    portaAbre: sonda ? sonda.portaAbre : null,
+    saudacao: sonda?.saudacao ?? null,
+    tls: sonda?.tls ?? null,
+    erroConexao: sonda?.erro ?? null,
+    avisos: avisosSmtp({
+      host: SMTP_HOST,
+      porta: SMTP_PORT,
+      usuario: SMTP_USER,
+      remetente: SMTP_ADMIN_EMAIL,
+      senhaDefinida: SMTP_PASS_DEFINIDA,
+    }),
+    // O app "email" (Stalwart) do Easypanel visto pela rede interna do Supabase.
+    redeInterna: { painel_email: painelEmail },
   };
 }
 

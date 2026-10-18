@@ -75,7 +75,7 @@ export async function api<T>(path: string, opts: FetchOptions = {}): Promise<T> 
     // Mensagens amigáveis para os códigos que o backend do painel usa.
     if (res.status === 429) msg = "Muitas ações seguidas. Espere alguns segundos e tente de novo.";
     // Sessão revogada (desativação, logout em outro lugar): volta ao login.
-    if (res.status === 401) void supabase.auth.signOut();
+    if (res.status === 401) void supabase.auth.signOut({ scope: "local" });
     throw new ErroDaApi(msg, res.status, dados);
   }
 
