@@ -319,6 +319,21 @@ export async function getQr(name: string): Promise<string> {
   throw new Error("Resposta inesperada do QR");
 }
 
+/**
+ * Pareamento por código (alternativa ao QR): o WAHA pede ao WhatsApp um código
+ * de 8 caracteres que a pessoa digita no celular em Aparelhos conectados →
+ * Conectar com número de telefone. Só vale com a sessão em SCAN_QR_CODE.
+ */
+export async function requestPairingCode(name: string, phoneNumber: string): Promise<string> {
+  const result = await waha<{ code?: string }>(
+    `/api/${encodeURIComponent(name)}/auth/request-code`,
+    { method: "POST", body: { phoneNumber }, timeoutMs: 20_000, idempotente: false },
+  );
+  const code = typeof result === "object" && result ? result.code : undefined;
+  if (!code) throw new Error("Resposta inesperada do pareamento por código");
+  return code;
+}
+
 // ===========================================================================
 // Profile
 // ===========================================================================

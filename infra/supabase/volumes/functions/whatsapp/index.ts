@@ -28,6 +28,7 @@
 //     POST   /sessoes/:id/restart
 //     POST   /sessoes/:id/logout
 //     GET    /sessoes/:id/qr
+//     POST   /sessoes/:id/pairing-code    → { telefone } código de pareamento (alternativa ao QR)
 //     POST   /sessoes/:id/refresh-webhook → para → PUT config → inicia
 //     POST   /sessoes/:id/limpar-conversas
 //     PUT    /sessoes/:id/foto            → foto INTERNA { dataUrl }
@@ -119,6 +120,7 @@ import {
   mesmoNumeroWhatsapp,
   numeroWhatsappValido,
   onlyDigits,
+  telefonePareamento,
   variantesNumeroWhatsapp,
 } from "../_shared/phone-utils.ts";
 
@@ -415,6 +417,16 @@ function rotaSemWaha(method: string, sub: string[]): boolean {
 type LimiteRota = { acao: string; max: number; janelaS: number; mensagem: string };
 
 function limiteDaRota(method: string, sub: string[]): LimiteRota | null {
+  // Código de pareamento: o WhatsApp limita pedidos seguidos e bloqueia o
+  // número por um tempo. 5 por 10 minutos sobra para errar o telefone.
+  if (sub[0] === "sessoes" && sub[2] === "pairing-code" && method === "POST") {
+    return {
+      acao: "whatsapp:pairing-code",
+      max: 5,
+      janelaS: 600,
+      mensagem: "Muitos códigos pedidos em pouco tempo. Aguarde alguns minutos ou use o QR code.",
+    };
+  }
   if (sub[0] !== "messages") return null;
 
   // Envio: 120/min. Um atendente rápido manda ~20 por minuto; o escritório
@@ -472,7 +484,7 @@ function permissaoDaRota(method: string, sub: string[]): string {
   if (a === "sessoes") {
     if (sub.length === 1) return method === "POST" ? "whatsapp.conexoes" : "whatsapp.ver";
     if (sub.length === 2) return method === "DELETE" ? "whatsapp.conexoes" : "whatsapp.ver";
-    if (sub.length === 3 && ["start", "stop", "restart", "logout", "refresh-webhook", "qr", "foto"].includes(b ?? "")) {
+    if (sub.length === 3 && ["start", "stop", "restart", "logout", "refresh-webhook", "qr", "pairing-code", "foto"].includes(b ?? "")) {
       return "whatsapp.conexoes";
     }
     if (b === "limpar-conversas") return "whatsapp.apagar_mensagens";
@@ -938,6 +950,21 @@ serve(async (req) => {
         return json({ qr: dataUrl });
       } catch (err) {
         return wahaErrorResponse(err, "qr");
+      }
+    }
+
+    // POST /sessoes/:id/pairing-code  { telefone }
+    // Alternativa ao QR para quem abre o painel no próprio celular que vai
+    // conectar (não dá para escanear a tela do próprio aparelho).
+    if (action === "sessoes" && sub.length === 3 && sub[2] === "pairing-code" && req.method === "POST" && sessao) {
+      const body = await req.json().catch(() => null);
+      const telefone = telefonePareamento(typeof body?.telefone === "string" ? body.telefone : "");
+      if (!telefone) return badRequest("Informe o número com DDD (ex.: 11 98765-4321).");
+      try {
+        const code = await waha.requestPairingCode(sessao.nome, telefone);
+        return json({ code });
+      } catch (err) {
+        return wahaErrorResponse(err, "pairing-code");
       }
     }
 

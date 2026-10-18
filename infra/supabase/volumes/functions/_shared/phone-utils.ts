@@ -55,6 +55,18 @@ export function numeroWhatsappValido(numero: string): boolean {
 }
 
 /**
+ * Telefone para o pareamento por código (WAHA `auth/request-code`): só
+ * dígitos, formato internacional. Aceita o número brasileiro digitado sem o
+ * 55 (DDD + 8/9 dígitos) e o completo; devolve null se não parecer telefone.
+ */
+export function telefonePareamento(entrada: string | null | undefined): string | null {
+  const d = onlyDigits(entrada);
+  if (d.length === 10 || d.length === 11) return `55${d}`;
+  if (numeroWhatsappValido(d)) return d;
+  return null;
+}
+
+/**
  * As grafias que representam o MESMO aparelho: o número como veio e, se
  * couber, a versão com ou sem o nono dígito.
  *
