@@ -2,7 +2,6 @@ import { PageContainer } from "@/components/page-container";
 import {
   BadgeCheck,
   BellRing,
-  ChevronDown,
   FlaskConical,
   History,
   Loader2,
@@ -22,9 +21,17 @@ import { ImportarPlanilhaBotao } from "@/components/features/importar/importar-p
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ItemCard, ListaResponsiva } from "@/components/ui/lista-responsiva";
-import { Card, CardContent } from "@/components/ui/card";
+import { ItemCard, ItemCardSkeleton, ListaResponsiva } from "@/components/ui/lista-responsiva";
 import { confirmar } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FiltrosResponsivos, type FiltroAtivo } from "@/components/ui/filtros-responsivos";
 import { Input } from "@/components/ui/input";
@@ -46,9 +53,10 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/ui/query-error";
-import { ListaSkeleton } from "@/components/ui/skeleton";
+import { Skeleton, SkeletonTableRow } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { ErroDaApi } from "@/lib/api";
+import { CAMPOS_MODELO, modeloEfetivo } from "@/lib/aviso-certificado";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatTelefone } from "@/lib/format";
 import {
@@ -66,17 +74,18 @@ import {
   useConfig,
   useExcluirCertificado,
   useSalvarConfig,
+  useModeloPadraoAviso,
   useSimularAvisos,
   type Certificado,
 } from "@/lib/queries/certificados";
+import { nomeExibicao, razaoSocialDeApoio } from "@/lib/queries/clientes";
+import { normalizarBusca, plural } from "@/lib/texto";
 import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { usePermissao } from "@/lib/colaborador";
 
 const TODOS = "__todos__";
-const MODELO_PADRAO =
-  "Olá, {cliente}! O certificado digital {tipo} vence em {data} ({dias}). Fale com a gente para renovar e não ficar sem emitir notas e guias. Contabilidade Denos";
 
 export function CertificadosPage() {
   usePageTitle("Certificados digitais");
@@ -86,11 +95,13 @@ export function CertificadosPage() {
   const podeEditar = usePermissao("certificados.editar");
   const podeAvisos = usePermissao("certificados.configurar_avisos");
   const [busca, setBusca] = useState("");
-  // ?status=vencido|vencendo|ok (links da Visão geral) já abre filtrado.
+  // ?status=vencido|vencendo|ok ou ?vence=30 (links do Início) já abre filtrado.
   const [status, setStatus] = useState<string>(() => {
     const s = params.get("status");
+    if (params.get("vence") === "30") return "vencendo";
     return s === "vencido" || s === "vencendo" || s === "ok" ? s : TODOS;
   });
+  const [configAberta, setConfigAberta] = useState(false);
   const [tipo, setTipo] = useState<string>(TODOS);
   const [editando, setEditando] = useState<Certificado | "novo" | null>(null);
   const [historico, setHistorico] = useState<string | null>(null);
@@ -101,14 +112,14 @@ export function CertificadosPage() {
   }, [novoPara, podeEditar]);
 
   const filtrados = useMemo(() => {
-    const t = busca.trim().toLowerCase();
+    const t = normalizarBusca(busca);
     return data.filter((c) => {
       if (status !== TODOS && statusCertificado(c.validoAte) !== status) return false;
       if (tipo !== TODOS && c.tipo !== tipo) return false;
       if (!t) return true;
       return [c.cliente?.nome, c.cliente?.nomeFantasia, c.titular, c.emissora, c.documento]
         .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(t));
+        .some((v) => normalizarBusca(String(v)).includes(t));
     });
   }, [data, busca, status, tipo]);
 
@@ -131,13 +142,21 @@ export function CertificadosPage() {
         title="Certificados digitais"
         description="Validade dos certificados dos clientes e aviso automático pelo WhatsApp."
         actions={
-          podeEditar ? (
+          podeEditar || podeAvisos ? (
             <div className="flex flex-wrap gap-2">
-              <ImportarPlanilhaBotao alvo="certificados" />
+              {podeAvisos && (
+                <Button variant="outline" onClick={() => setConfigAberta(true)}>
+                  <Settings2 />
+                  Configurar avisos
+                </Button>
+              )}
+              {podeEditar && <ImportarPlanilhaBotao alvo="certificados" />}
+              {podeEditar && (
               <Button onClick={() => setEditando("novo")}>
                 <Plus />
                 Novo certificado
               </Button>
+              )}
             </div>
           ) : undefined
         }
@@ -219,7 +238,23 @@ export function CertificadosPage() {
       </FiltrosResponsivos>
 
       {isLoading ? (
-        <ListaSkeleton linhas={5} />
+        // Mesma moldura e altura de linha da lista: nada pula quando ela chega.
+        <ListaResponsiva
+          corte="xl"
+          tabela={
+            <Table>
+              <TableBody>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonTableRow key={i} cols={7} alta />
+                ))}
+              </TableBody>
+            </Table>
+          }
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ItemCardSkeleton key={i} />
+          ))}
+        </ListaResponsiva>
       ) : isError && data.length === 0 ? (
         <QueryError oque="os certificados" error={error} onRetry={refetch} />
       ) : filtrados.length === 0 ? (
@@ -282,7 +317,7 @@ export function CertificadosPage() {
         </ListaResponsiva>
       )}
 
-      {podeAvisos && <ConfigAvisos />}
+      {podeAvisos && <ConfigAvisosDialog open={configAberta} onOpenChange={setConfigAberta} />}
 
       <CertificadoDialog
         open={editando !== null}
@@ -304,7 +339,7 @@ function CardCertificado({ c, aberto, onHistorico, onEditar, onExcluir }: Parame
   return (
     <>
       <ItemCard
-        titulo={c.cliente ? c.cliente.nomeFantasia || c.cliente.nome : "-"}
+        titulo={c.cliente ? nomeExibicao(c.cliente) : "-"}
         subtitulo={[c.tipo, c.titular, c.emissora].filter(Boolean).join(" · ")}
         selo={<CertificadoStatusBadge validoAte={c.validoAte} />}
         meta={[
@@ -361,9 +396,16 @@ function FragmentLinha({
       <TableRow>
         <TableCell className="font-medium">
           {c.cliente ? (
-            <Link to={`/clientes/${c.clienteId}?aba=certificados`} className="hover:underline">
-              {c.cliente.nomeFantasia || c.cliente.nome}
-            </Link>
+            <div className="min-w-0 max-w-[280px]">
+              <Link to={`/clientes/${c.clienteId}?aba=certificados`} className="block truncate hover:underline" title={nomeExibicao(c.cliente)}>
+                {nomeExibicao(c.cliente)}
+              </Link>
+              {razaoSocialDeApoio(c.cliente) && (
+                <span className="block truncate text-2xs font-normal text-muted-foreground" title={c.cliente.nome}>
+                  {c.cliente.nome}
+                </span>
+              )}
+            </div>
           ) : (
             "-"
           )}
@@ -440,29 +482,44 @@ function HistoricoAvisos({ certificadoId }: { certificadoId: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Configuração do aviso automático
+// Configuração do aviso automático (diálogo aberto pelo cabeçalho)
 // ---------------------------------------------------------------------------
 
-function ConfigAvisos() {
+function ConfigAvisosDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden max-sm:content-stretch">
+        <DialogHeader>
+          <DialogTitle>Aviso automático pelo WhatsApp</DialogTitle>
+          <DialogDescription>Marcos, número de envio e mensagem do aviso de vencimento.</DialogDescription>
+        </DialogHeader>
+        {open && <ConfigAvisos onSalvo={() => onOpenChange(false)} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfigAvisos({ onSalvo }: { onSalvo: () => void }) {
   const marcosQ = useConfig<number[]>(CONFIG_MARCOS, [30, 15, 7, 1, 0]);
   const sessaoQ = useConfig<string | null>(CONFIG_SESSAO, null);
-  const modeloQ = useConfig<string>(CONFIG_MODELO, MODELO_PADRAO);
+  const modeloQ = useConfig<string | null>(CONFIG_MODELO, null);
+  const padraoQ = useModeloPadraoAviso();
   const { data: sessoes = [] } = useWhatsappSessoes();
   const salvar = useSalvarConfig();
   const simular = useSimularAvisos();
-  const [aberto, setAberto] = useState(false);
   const [marcos, setMarcos] = useState("");
   const [sessaoId, setSessaoId] = useState<string>("__nenhuma__");
   const [modelo, setModelo] = useState("");
   const [carregado, setCarregado] = useState(false);
+  const padrao = modeloEfetivo(null, padraoQ.data);
 
   useEffect(() => {
-    if (carregado || marcosQ.isLoading || sessaoQ.isLoading || modeloQ.isLoading) return;
+    if (carregado || marcosQ.isLoading || sessaoQ.isLoading || modeloQ.isLoading || padraoQ.isLoading) return;
     setMarcos((marcosQ.data ?? []).join(", "));
     setSessaoId(sessaoQ.data ?? "__nenhuma__");
-    setModelo(modeloQ.data ?? MODELO_PADRAO);
+    setModelo(modeloEfetivo(modeloQ.data, padraoQ.data));
     setCarregado(true);
-  }, [carregado, marcosQ.isLoading, sessaoQ.isLoading, modeloQ.isLoading, marcosQ.data, sessaoQ.data, modeloQ.data]);
+  }, [carregado, marcosQ.isLoading, sessaoQ.isLoading, modeloQ.isLoading, padraoQ.isLoading, marcosQ.data, sessaoQ.data, modeloQ.data, padraoQ.data]);
 
   // Cada item tem de ser um inteiro de 0 a 365; o que não for é apontado, não descartado em silêncio.
   const marcosTokens = marcos.split(/[,;\s]+/).filter(Boolean);
@@ -475,16 +532,17 @@ function ConfigAvisos() {
         ? `Valor inválido: ${marcosInvalidos.join(", ")}. Use números inteiros de 0 a 365, separados por vírgula.`
         : null;
   const placeholdersDesconhecidos = [
-    ...new Set((modelo.match(/\{[^{}\s]*\}/g) ?? []).filter((p) => !["{cliente}", "{tipo}", "{data}", "{dias}"].includes(p))),
+    ...new Set((modelo.match(/\{[^{}\s]*\}/g) ?? []).filter((p) => !(CAMPOS_MODELO as readonly string[]).includes(p))),
   ];
   const [tentouSalvar, setTentouSalvar] = useState(false);
   const mostrarErroMarcos = !!erroMarcos && (tentouSalvar || marcosInvalidos.length > 0);
   const exemploData = new Date(Date.now() + 15 * 86_400_000);
-  const exemplo = aplicarModelo(modelo || MODELO_PADRAO, {
+  const exemplo = aplicarModelo(modelo.trim() ? modelo : padrao, {
     cliente: "Padaria Bom Pão",
     tipo: "e-CNPJ A1",
     validoAte: `${exemploData.getFullYear()}-${String(exemploData.getMonth() + 1).padStart(2, "0")}-${String(exemploData.getDate()).padStart(2, "0")}`,
   });
+  const sessaoEscolhida = sessoes.find((s) => s.id === sessaoId);
 
   async function gravar() {
     setTentouSalvar(true);
@@ -493,9 +551,10 @@ function ConfigAvisos() {
       await salvar.mutateAsync([
         { chave: CONFIG_MARCOS, valor: [...new Set(marcosLista)].sort((a, b) => b - a) },
         { chave: CONFIG_SESSAO, valor: sessaoId === "__nenhuma__" ? null : sessaoId },
-        { chave: CONFIG_MODELO, valor: modelo.trim() || MODELO_PADRAO },
+        { chave: CONFIG_MODELO, valor: modelo.trim() || padrao },
       ]);
-      toast.info("Configuração dos avisos salva.");
+      toast.success("Avisos salvos");
+      onSalvo();
     } catch (err) {
       toast.error(msgErro(err));
     }
@@ -514,151 +573,160 @@ function ConfigAvisos() {
   const naoPublicada = erroSim instanceof ErroDaApi && (erroSim.status === 404 || erroSim.status === 0);
 
   return (
-    <Card>
-      <button
-        type="button"
-        onClick={() => setAberto((v) => !v)}
-        className="w-full flex items-center gap-3 p-5 text-left"
-        aria-expanded={aberto}
-      >
-        <Settings2 className="size-5 text-bronze" />
-        <div className="flex-1">
-          <h2 className="text-base">Aviso automático pelo WhatsApp</h2>
-          <p className="text-xs text-muted-foreground">
-            {carregado
-              ? `Marcos: ${marcosLista.join(", ") || "-"} dias · ${
-                  sessoes.find((s) => s.id === sessaoId)
-                    ? `envio por ${sessoes.find((s) => s.id === sessaoId)?.apelido ?? sessoes.find((s) => s.id === sessaoId)?.numero ?? "conexão escolhida"}`
-                    : "Avisos desligados: escolha a conexão de envio"
-                }`
-              : "Carregando…"}
-          </p>
-        </div>
-        <ChevronDown className={cn("size-4 transition-transform", aberto && "rotate-180")} />
-      </button>
-      {aberto && (
-        <CardContent className="px-5 pb-5 pt-0 space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <>
+      <div className="-mx-6 min-h-0 space-y-4 overflow-y-auto px-6 max-sm:-mx-4 max-sm:px-4">
+        {!carregado ? (
+          <div className="space-y-3" aria-busy="true">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-28 w-full" />
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              {sessaoEscolhida
+                ? `Envio pela conexão ${sessaoEscolhida.apelido ?? sessaoEscolhida.numero ?? sessaoEscolhida.nome}${sessaoEscolhida.status !== "WORKING" ? " (desconectada agora)" : ""}.`
+                : "Avisos desligados: escolha a conexão de envio."}
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="cfg-marcos">Marcos (dias antes do vencimento)</Label>
+                <Input
+                  id="cfg-marcos"
+                  value={marcos}
+                  onChange={(e) => setMarcos(e.target.value)}
+                  placeholder="30, 15, 7, 1, 0"
+                  aria-invalid={mostrarErroMarcos || undefined}
+                  className={cn("text-base fino:text-sm", mostrarErroMarcos && "border-destructive")}
+                />
+                {mostrarErroMarcos ? (
+                  <p role="alert" className="text-xs text-destructive">{erroMarcos}</p>
+                ) : (
+                  <p className="text-2xs text-muted-foreground">
+                    Um aviso por marco por certificado. 0 = no dia do vencimento.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cfg-sessao">Enviar pela conexão</Label>
+                <Select value={sessaoId} onValueChange={setSessaoId}>
+                  <SelectTrigger id="cfg-sessao">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__nenhuma__">Nenhuma (avisos desligados)</SelectItem>
+                    {sessoes.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.apelido ?? s.numero ?? s.nome}
+                        {s.status !== "WORKING" ? " (desconectada)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cfg-marcos">Marcos (dias antes do vencimento)</Label>
-              <Input
-                id="cfg-marcos"
-                value={marcos}
-                onChange={(e) => setMarcos(e.target.value)}
-                placeholder="30, 15, 7, 1, 0"
-                aria-invalid={mostrarErroMarcos || undefined}
-                className={cn(mostrarErroMarcos && "border-destructive")}
-              />
-              {mostrarErroMarcos ? (
-                <p role="alert" className="text-xs text-destructive">{erroMarcos}</p>
-              ) : (
-                <p className="text-2xs text-muted-foreground">
-                  Um aviso por marco por certificado. 0 = no dia do vencimento.
+              <div className="flex items-end justify-between gap-2">
+                <Label htmlFor="cfg-modelo">Modelo da mensagem</Label>
+                {modelo.trim() !== padrao && (
+                  <button type="button" onClick={() => setModelo(padrao)} className="text-2xs font-semibold text-primary hover:underline">
+                    Voltar ao padrão
+                  </button>
+                )}
+              </div>
+              <Textarea id="cfg-modelo" rows={3} value={modelo} onChange={(e) => setModelo(e.target.value)} className="text-base fino:text-sm" />
+              <p className="text-2xs text-muted-foreground">
+                Use <code>{"{cliente}"}</code> <code>{"{tipo}"}</code> <code>{"{data}"}</code> <code>{"{dias}"}</code>.
+              </p>
+              {placeholdersDesconhecidos.length > 0 && (
+                <p role="alert" className="text-xs font-semibold text-warning">
+                  Campo desconhecido no modelo: {placeholdersDesconhecidos.join(", ")}. Vai como texto, sem ser trocado.
                 </p>
               )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cfg-sessao">Enviar pela conexão</Label>
-              <Select value={sessaoId} onValueChange={setSessaoId}>
-                <SelectTrigger id="cfg-sessao">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__nenhuma__">Nenhuma (avisos desligados)</SelectItem>
-                  {sessoes.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.apelido ?? s.numero ?? s.nome}
-                      {s.status !== "WORKING" ? " (desconectada)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cfg-modelo">Modelo da mensagem</Label>
-            <Textarea id="cfg-modelo" rows={3} value={modelo} onChange={(e) => setModelo(e.target.value)} />
-            <p className="text-2xs text-muted-foreground">
-              Use <code>{"{cliente}"}</code> <code>{"{tipo}"}</code> <code>{"{data}"}</code> <code>{"{dias}"}</code>.
-            </p>
-            {placeholdersDesconhecidos.length > 0 && (
-              <p role="alert" className="text-xs font-semibold text-warning">
-                Campo desconhecido no modelo: {placeholdersDesconhecidos.join(", ")}. Vai como texto, sem ser trocado.
-              </p>
-            )}
-            <div className="rounded-lg bg-muted px-3 py-2 text-xs">
-              <span className="eyebrow block mb-1">Prévia</span>
-              {exemplo}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={gravar} disabled={salvar.isPending || !carregado}>
-              {salvar.isPending ? <Loader2 className="animate-spin" /> : <Save />}
-              Salvar configuração
-            </Button>
-            <Button variant="outline" onClick={rodarSimulacao} disabled={simular.isPending}>
-              {simular.isPending ? <Loader2 className="animate-spin" /> : <FlaskConical />}
-              Simular avisos de hoje
-            </Button>
-            <span className="text-2xs text-muted-foreground">A simulação não envia nada.</span>
-          </div>
-          {erroSim ? (
-            <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
-              {naoPublicada
-                ? "A rotina de avisos (crons/certificados-avisos) ainda não está publicada no servidor. Quando estiver, a simulação mostra aqui quem receberia aviso hoje."
-                : `A simulação falhou: ${msgErro(erroSim)}`}
-            </p>
-          ) : simular.data !== undefined ? (
-            lista ? (
-              <div className="space-y-2">
-              <SessaoSimulacao res={simular.data} />
-              {lista.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhum aviso seria enviado hoje.</p>
-              ) : (
-                <ul className="divide-y rounded-md border text-xs">
-                  {lista.map((item, i) => (
-                    <li key={item.certificadoId ?? i} className="px-3 py-2 space-y-0.5">
-                      <p className="font-medium">
-                        {item.cliente ?? "Cliente"} · {item.tipo ?? ""}{" "}
-                        {item.marco != null ? `· marco ${item.marco}` : ""}
-                        {item.telefone ? ` · ${formatTelefone(item.telefone)}` : ""}
-                      </p>
-                      {(item.texto ?? item.mensagem) && (
-                        <p className="text-muted-foreground">{item.texto ?? item.mensagem}</p>
-                      )}
-                      {item.status === "sem_telefone" && <p className="text-warning">Sem telefone para avisar.</p>}
-                      {item.motivo && <p className="text-warning">{item.motivo}</p>}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <div className="rounded-lg bg-muted px-3 py-2 text-xs" data-testid="previa-aviso">
+                <span className="eyebrow block mb-1">Prévia</span>
+                {exemplo}
               </div>
-            ) : (
-              <pre className="max-h-60 overflow-auto rounded-md bg-muted p-3 text-2xs whitespace-pre-wrap">
-                {JSON.stringify(simular.data, null, 2)}
-              </pre>
-            )
-          ) : null}
-          <ProximosVencimentos />
-        </CardContent>
-      )}
-    </Card>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" onClick={rodarSimulacao} disabled={simular.isPending}>
+                {simular.isPending ? <Loader2 className="animate-spin" /> : <FlaskConical />}
+                Simular avisos de hoje
+              </Button>
+              <span className="text-2xs text-muted-foreground">A simulação usa a configuração salva e não envia nada.</span>
+            </div>
+            {erroSim ? (
+              <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
+                {naoPublicada
+                  ? "A rotina de avisos ainda não está publicada no servidor. Quando estiver, a simulação mostra aqui quem receberia aviso hoje."
+                  : `A simulação falhou: ${msgErro(erroSim)}`}
+              </p>
+            ) : simular.data !== undefined ? (
+              lista ? (
+                <div className="space-y-2">
+                  <SessaoSimulacao res={simular.data} escolhida={!!sessaoQ.data} />
+                  {lista.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Nenhum aviso seria enviado hoje.</p>
+                  ) : (
+                    <ul className="divide-y rounded-md border text-xs" data-testid="simulacao-avisos">
+                      {lista.map((item, i) => (
+                        <li key={item.certificadoId ?? i} className="px-3 py-2 space-y-0.5">
+                          <p className="font-medium">
+                            {item.cliente ?? "Cliente"} · {item.tipo ?? ""}{" "}
+                            {item.marco != null ? `· marco ${item.marco}` : ""}
+                            {item.telefone ? ` · ${formatTelefone(item.telefone)}` : ""}
+                          </p>
+                          {(item.texto ?? item.mensagem) && (
+                            <p className="text-muted-foreground">{item.texto ?? item.mensagem}</p>
+                          )}
+                          {item.status === "sem_telefone" && <p className="text-warning">Sem telefone para avisar.</p>}
+                          {item.motivo && <p className="text-warning">{item.motivo}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <pre className="max-h-60 overflow-auto rounded-md bg-muted p-3 text-2xs whitespace-pre-wrap">
+                  {JSON.stringify(simular.data, null, 2)}
+                </pre>
+              )
+            ) : null}
+            <ProximosVencimentos />
+          </>
+        )}
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="ghost">Cancelar</Button>
+        </DialogClose>
+        <Button onClick={gravar} disabled={salvar.isPending || !carregado}>
+          {salvar.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+          Salvar
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
 
 /** Por qual número a rotina mandaria (ou por que não mandaria). */
-function SessaoSimulacao({ res }: { res: unknown }) {
+function SessaoSimulacao({ res, escolhida }: { res: unknown; escolhida: boolean }) {
   const r = (res ?? {}) as { sessao?: { nome?: string } | null; wahaConfigurado?: boolean; motivo?: string };
   if (r.wahaConfigurado === false)
     return <p className="text-xs text-warning">O WhatsApp (WAHA) não está configurado no servidor: nada seria enviado.</p>;
   if (r.sessao === null)
-    return <p className="text-xs text-warning">Nenhuma conexão de WhatsApp conectada para enviar os avisos.</p>;
+    return (
+      <p className="text-xs text-warning">
+        {escolhida
+          ? "A conexão escolhida não está conectada agora: nada seria enviado."
+          : "Avisos desligados: escolha a conexão de envio."}
+      </p>
+    );
   if (r.sessao?.nome) return <p className="text-xs text-muted-foreground">Envio pela conexão {r.sessao.nome}.</p>;
   if (r.motivo) return <p className="text-xs text-muted-foreground">{r.motivo}</p>;
   return null;
 }
 
-/** Lista local dos que entram em marco hoje (pela config na tela), útil mesmo sem o cron. */
+/** Lista local dos que entram em marco hoje (pela config salva), útil mesmo sem o cron. */
 function ProximosVencimentos() {
   const { data = [] } = useCertificados();
   const marcosQ = useConfig<number[]>(CONFIG_MARCOS, [30, 15, 7, 1, 0]);
@@ -666,8 +734,8 @@ function ProximosVencimentos() {
   if (hoje.length === 0) return null;
   return (
     <p className="text-xs text-muted-foreground">
-      Pela configuração salva, {hoje.length} certificado(s) estão num marco hoje:{" "}
-      {hoje.map((c) => c.cliente?.nomeFantasia || c.cliente?.nome).join(", ")}.
+      Pela configuração salva, {plural(hoje.length, "certificado está", "certificados estão")} num marco hoje:{" "}
+      {hoje.map((c) => nomeExibicao(c.cliente)).join(", ")}.
     </p>
   );
 }

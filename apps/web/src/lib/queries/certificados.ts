@@ -4,6 +4,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import { CHAVE_MODELO, CHAVE_MODELO_PADRAO, montarTextoAviso } from "@/lib/aviso-certificado";
 import { parsePgDate } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 
@@ -180,7 +181,7 @@ export function useAvisosCertificado(certificadoId: string | undefined) {
 
 export const CONFIG_MARCOS = "certificado.marcos";
 export const CONFIG_SESSAO = "certificado.sessaoId";
-export const CONFIG_MODELO = "certificado.modelo";
+export const CONFIG_MODELO = CHAVE_MODELO;
 
 export function useConfig<T>(chave: string, padrao: T) {
   return useQuery({
@@ -251,18 +252,18 @@ export function extrairListaSimulacao(res: unknown): SimulacaoAviso[] | null {
   return null;
 }
 
-/** Aplica o modelo de mensagem com os placeholders {cliente} {tipo} {data} {dias}. */
+/**
+ * Texto do aviso como a rotina do servidor manda: a mesma regra
+ * (lib/aviso-certificado.ts, cópia idêntica da usada pela function crons).
+ */
 export function aplicarModelo(
   modelo: string,
   dados: { cliente: string; tipo: string; validoAte: string },
 ): string {
-  const d = diasRestantes(dados.validoAte);
-  const data = parsePgDate(dados.validoAte)?.toLocaleDateString("pt-BR") ?? dados.validoAte;
-  const dias =
-    d < 0 ? `venceu há ${-d} dia${d === -1 ? "" : "s"}` : d === 0 ? "vence hoje" : `faltam ${d} dia${d === 1 ? "" : "s"}`;
-  return modelo
-    .replaceAll("{cliente}", dados.cliente)
-    .replaceAll("{tipo}", dados.tipo)
-    .replaceAll("{data}", data)
-    .replaceAll("{dias}", dias);
+  return montarTextoAviso(modelo, { ...dados, dias: diasRestantes(dados.validoAte) });
+}
+
+/** Modelo padrão do aviso (Config certificado.modeloPadrao, a mesma que a rotina lê). */
+export function useModeloPadraoAviso() {
+  return useConfig<string | null>(CHAVE_MODELO_PADRAO, null);
 }
