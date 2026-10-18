@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePageTitle } from "@/hooks/use-page-title";
+import googleG from "@/assets/google-g.svg?raw";
 import { useEu } from "@/lib/colaborador";
+import { entrarComGoogle, useLoginConfig } from "@/lib/login-google";
 import { registrarLogin } from "@/lib/queries/auditoria";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -79,6 +81,43 @@ function saudacao(): string {
   if (h < 12) return "Bom dia";
   if (h < 18) return "Boa tarde";
   return "Boa noite";
+}
+
+/**
+ * Botão "Entrar com Google" pelas regras de marca do Google: fundo branco,
+ * borda #747775, texto #1F1F1F, logo "G" oficial (src/assets/google-g.svg,
+ * do kit "Sign in with Google") à esquerda. Fica branco também no tema
+ * escuro (as regras aceitam o botão claro sobre fundo escuro).
+ */
+function BotaoGoogle({ onErro }: { onErro: (msg: string) => void }) {
+  const [indo, setIndo] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={indo}
+      onClick={async () => {
+        setIndo(true);
+        const erro = await entrarComGoogle();
+        // Com sucesso o navegador já está indo para o Google.
+        if (erro) {
+          onErro(erro);
+          setIndo(false);
+        }
+      }}
+      className={cn(
+        "login-botao flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#747775] bg-white px-4",
+        "text-[15px] font-medium text-[#1F1F1F] transition-[transform,background-color] hover:bg-[#F8F9FA]",
+        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 disabled:opacity-60",
+      )}
+    >
+      {indo ? (
+        <Loader2 className="size-5 animate-spin text-[#1F1F1F]" />
+      ) : (
+        <span className="inline-flex size-5 shrink-0" dangerouslySetInnerHTML={{ __html: googleG }} />
+      )}
+      Entrar com Google
+    </button>
+  );
 }
 
 /** Atraso em cascata para a entrada dos blocos. */
@@ -179,6 +218,8 @@ export function LoginPage() {
   const codigoRef = useRef<HTMLInputElement>(null);
   const altchaRef = useRef<WidgetAltcha>(null);
   const [altcha, setAltcha] = useState("");
+  // Sem resposta (ou Google desligado no Auth), o botão simplesmente não aparece.
+  const google = useLoginConfig().data?.google === true;
 
   // O widget avisa quando resolveu o desafio (prova de trabalho no navegador).
   useEffect(() => {
@@ -367,6 +408,17 @@ export function LoginPage() {
                     {!enviando && espera === 0 && <ArrowRight className="login-seta" />}
                   </Button>
                 </div>
+
+                {google && (
+                  <div className="login-sobe space-y-4" style={cascata(5)}>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
+                      <span className="h-px flex-1 bg-border" />
+                      ou
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
+                    <BotaoGoogle onErro={setErro} />
+                  </div>
+                )}
               </form>
             ) : (
               <form onSubmit={verificar} className="space-y-7" noValidate>

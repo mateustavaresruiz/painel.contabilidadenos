@@ -8,6 +8,10 @@
 // SMTP estiver funcionando, DESLIGUE: o login volta a ser só por link/código.
 //
 //   GET  /entrar → desafio ALTCHA (prova de trabalho; o navegador resolve)
+//   GET  /entrar/config → { google, soEmail }: o que a tela de entrada mostra.
+//        google = o Auth está com o provedor Google ligado (lido do próprio
+//        GoTrue em /auth/v1/settings); soEmail = esta entrada está ligada.
+//        Público e sem nada além desses dois booleanos.
 //   POST /entrar { email, altcha } → { token_hash } que a tela troca por sessão com
 //        verifyOtp({ token_hash, type: 'magiclink' }), o mesmo caminho do link.
 //
@@ -24,6 +28,7 @@ import { normalizarEmail, padraoIlikeExato } from "../_shared/email-exato.ts";
 import { createChallenge, verifySolution } from "npm:altcha-lib@2.6.0/v1";
 
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ALTCHA_KEY = Deno.env.get("ALTCHA_HMAC_KEY") ?? "";
 
 /** A chave vale enquanto não for desligada explicitamente. */
@@ -33,8 +38,36 @@ async function liberado(): Promise<boolean> {
   return v.loginSemVerificacao !== false;
 }
 
+/** O que o GoTrue diz dos provedores (cache curto: a tela de entrada chama a cada visita). */
+let cacheGoogle: { valor: boolean; ate: number } | null = null;
+async function googleLigado(): Promise<boolean> {
+  if (cacheGoogle && cacheGoogle.ate > Date.now()) return cacheGoogle.valor;
+  let valor = false;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/settings`, {
+      headers: { apikey: ANON_KEY },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (r.ok) {
+      const j = (await r.json()) as { external?: Record<string, unknown> };
+      valor = j.external?.google === true;
+    }
+  } catch (err) {
+    console.error("entrar: /auth/v1/settings falhou", err);
+  }
+  cacheGoogle = { valor, ate: Date.now() + 60_000 };
+  return valor;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return handleCors(req);
+  const sub = new URL(req.url).pathname.split("/").filter(Boolean).slice(1).join("/");
+  if (sub === "config") {
+    if (req.method !== "GET") return notFound();
+    const [google, soEmail] = await Promise.all([googleLigado(), liberado().catch(() => false)]);
+    return json({ google, soEmail }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (sub) return notFound();
   if (!ALTCHA_KEY) {
     console.error("entrar: ALTCHA_HMAC_KEY ausente");
     return errorResponse("Serviço indisponível.", 503);

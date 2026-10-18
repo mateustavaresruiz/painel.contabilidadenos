@@ -1,7 +1,10 @@
+import { ShieldAlert } from "lucide-react";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { msgErro } from "@/lib/erro";
+import { useLoginConfig } from "@/lib/login-google";
 import {
   MODULOS_PRINCIPAIS,
   SUBFUNCOES,
@@ -20,6 +23,7 @@ import { cn } from "@/lib/utils";
 export function ConfigModulos() {
   const { modulos, carregando } = useModulos();
   const salvar = useSalvarModulos();
+  const googleLigado = useLoginConfig().data?.google === true;
 
   function alternar(chave: ModuloChave, valor: boolean) {
     salvar.mutate(
@@ -77,8 +81,15 @@ export function ConfigModulos() {
             {SUBFUNCOES.map((s) => {
               const pai = MODULOS_PRINCIPAIS.find((m) => m.chave === s.pai);
               const paiLigado = modulos[s.pai];
+              const recomendarDesligar =
+                s.chave === "loginSemVerificacao" && googleLigado && modulos[s.chave] && paiLigado;
               return (
                 <Linha
+                  aviso={
+                    recomendarDesligar
+                      ? "O login com Google já está configurado: recomendamos desligar a entrada só com o e-mail. Quem souber o e-mail de alguém da equipe consegue entrar como ele; com o Google, cada pessoa entra com a própria conta."
+                      : undefined
+                  }
                   key={s.chave}
                   id={`sub-${s.chave}`}
                   nome={s.nome}
@@ -103,6 +114,7 @@ function Linha({
   checked,
   onChange,
   disabled,
+  aviso,
 }: {
   id: string;
   nome: string;
@@ -110,14 +122,24 @@ function Linha({
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  /** Recomendação mostrada abaixo da linha (ex.: desligar o login só com e-mail). */
+  aviso?: string;
 }) {
   return (
-    <li className={cn("flex items-center gap-4 py-3", disabled && !checked && "opacity-70")}>
-      <label htmlFor={id} className="flex-1 min-w-0 cursor-pointer">
-        <span className="block text-sm font-semibold">{nome}</span>
-        <span className="block text-xs text-muted-foreground">{descricao}</span>
-      </label>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={nome} />
+    <li className={cn("py-3", disabled && !checked && "opacity-70")}>
+      <div className="flex items-center gap-4">
+        <label htmlFor={id} className="flex-1 min-w-0 cursor-pointer">
+          <span className="block text-sm font-semibold">{nome}</span>
+          <span className="block text-xs text-muted-foreground">{descricao}</span>
+        </label>
+        <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={nome} />
+      </div>
+      {aviso && (
+        <p role="note" className="mt-2 flex gap-2 rounded-md bg-warning/10 px-3 py-2 text-xs text-foreground">
+          <ShieldAlert className="size-4 shrink-0 text-warning" aria-hidden />
+          {aviso}
+        </p>
+      )}
     </li>
   );
 }

@@ -166,6 +166,99 @@ não manda e-mail nenhum (finge que mandou) e o login funciona só pelo link de 
    "Servidor responde: Sim". Use **Enviar e-mail de teste** (manda um e-mail de acesso
    para quem clicou).
 
+## Login com Google
+
+Botão **Entrar com Google** na tela de entrada. Está pronto, mas **desligado** até o dono criar
+as credenciais no Google Cloud (`GOOGLE_ENABLED=false`): enquanto isso o botão não aparece e o
+login funciona exatamente como antes. Configurações > Integrações > **Login com Google** mostra
+"Configurado" ou "Não configurado" e repete os passos abaixo.
+
+### Passo a passo (dono, uma vez)
+
+1. Abra **console.cloud.google.com** com a conta Google do escritório. Crie um projeto
+   (ex.: "Painel Denos") ou use o mesmo do backup.
+2. **APIs e serviços > Tela de consentimento OAuth** (na versão nova: "Google Auth Platform >
+   Branding / Público"):
+   - **Tipo de usuário**:
+     - *Interno* só deixa entrar contas do Workspace do escritório. Não serve hoje:
+       `mateustavaresruiz@gmail.com` (e qualquer Gmail pessoal) ficaria de fora.
+     - *Externo + Em teste*: o Google só deixa passar até 100 "usuários de teste" cadastrados
+       à mão no console (cada pessoa nova da equipe teria de entrar lá também) e mostra um
+       aviso de "app não verificado". Serve para experimentar, não para o dia a dia.
+     - *Externo + Em produção* (**recomendado**): qualquer conta Google pode chegar à tela
+       do Google, mas **só entra no painel quem está cadastrado em Equipe** (quem decide é o
+       nosso Auth, não o Google). Com só os escopos básicos (`openid`, `email`, `profile`)
+       o Google **não pede verificação** do app; aparece só o nome do app e o e-mail de suporte.
+   - Nome do app "Painel Denos", e-mail de suporte do escritório, domínio autorizado
+     `easypanel.host` se o console pedir. Escopos: só `openid`, `.../auth/userinfo.email` e
+     `.../auth/userinfo.profile`. Clique em **Publicar app**.
+3. **Credenciais > Criar credenciais > ID do cliente OAuth > Aplicativo da Web**:
+   - Origens JavaScript autorizadas: `https://painel-web.at63vf.easypanel.host`
+   - URIs de redirecionamento autorizados: `https://painel-supabase.at63vf.easypanel.host/auth/v1/callback`
+4. Copie o **ID do cliente** e a **Chave secreta do cliente** e mande para quem cuida do
+   painel por um canal privado (nunca em grupo ou chamado). Ou faça o passo 5 você mesmo.
+5. **Easypanel > painel > supabase > Ambiente**, e depois **Implantar**:
+
+   | Variável | Valor |
+   |---|---|
+   | `GOOGLE_CLIENT_ID` | o ID do cliente (`....apps.googleusercontent.com`) |
+   | `GOOGLE_SECRET` | a chave secreta do cliente |
+   | `GOOGLE_ENABLED` | `true` |
+
+   Não mexa em `DISABLE_SIGNUP` (fica `true`) nem em `ENABLE_EMAIL_AUTOCONFIRM` (fica `false`, ver abaixo).
+6. Configurações > Integrações > Login com Google > **Verificar**: deve dizer "Configurado"
+   (a function `entrar` guarda a resposta por 1 minuto). Teste com a sua conta.
+7. Depois que todos entrarem pelo Google, desligue **Entrar só com o e-mail (provisório)** em
+   Configurações > Módulos (a tela mostra a recomendação quando o Google está ligado).
+
+🔴 Quando o painel ganhar o domínio próprio, troque no Google Cloud a origem e o URI de
+redirecionamento pelos endereços novos (e o `API_EXTERNAL_URL`/`SITE_URL` do Supabase), senão o
+Google recusa com `redirect_uri_mismatch`.
+
+### Como funciona
+
+- O compose passa ao serviço `auth` `GOTRUE_EXTERNAL_GOOGLE_ENABLED/CLIENT_ID/SECRET` a partir
+  de `GOOGLE_ENABLED/GOOGLE_CLIENT_ID/GOOGLE_SECRET`, e
+  `GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI = ${API_EXTERNAL_URL}/callback`
+  (= `https://painel-supabase.at63vf.easypanel.host/auth/v1/callback`).
+- A tela pergunta `GET /functions/v1/entrar/config` → `{ google, soEmail }` (público; `google`
+  vem do próprio Auth em `/auth/v1/settings`, nada mais é exposto).
+- O botão chama `signInWithOAuth({ provider: 'google', redirectTo: origem + '/auth/callback?via=google',
+  queryParams: { prompt: 'select_account' } })`. O cliente do supabase-js está em **PKCE**: a
+  volta é `/auth/callback?via=google&code=...` e a página troca o código pela sessão
+  (`exchangeCodeForSession`), que só funciona no mesmo navegador que começou o login.
+- `SITE_URL` é o painel e `ADDITIONAL_REDIRECT_URLS` já tem
+  `https://painel-web.at63vf.easypanel.host/**,http://localhost:5173/**` (dev).
+- Auditoria: depois da troca, a página chama a RPC `registrar_login_google()` (migration 015),
+  que só grava "entrou no painel (Google)" se o JWT diz que a sessão veio de OAuth
+  (`amr.method = 'oauth'`) e o usuário tem identidade `google` no Auth.
+
+### O que o Auth (GoTrue v2.196.0) faz com cada conta
+
+Conferido no código da versão em uso (`internal/models/linking.go`,
+`internal/api/external.go`):
+
+| Conta Google | Resultado |
+|---|---|
+| Mesmo e-mail de alguém da Equipe, **verificado** no Google | Ligação automática: o Auth cria uma identidade `google` no **mesmo usuário** (mesmo `auth.uid()`), então o Colaborador e as permissões são os de sempre. Nas próximas vezes ele acha a identidade direto. |
+| E-mail que não existe no Auth | Recusa: `error=access_denied`, `error_code=signup_disabled`, "Signups not allowed for this instance" (porque `DISABLE_SIGNUP=true`). A tela mostra "Esta conta Google não tem acesso ao painel. Peça a um administrador para cadastrar seu e-mail em Equipe." |
+| Pessoa desativada em Equipe (banida no Auth) | Recusa: `error_code=user_banned` → "Acesso não liberado". Se por acaso não estiver banida mas o Colaborador estiver inativo, entra e cai na tela "Acesso não liberado" de sempre. |
+| E-mail **não verificado** no Google | Tratado como e-mail desconhecido → `signup_disabled` (não liga a conta de ninguém). |
+| Pessoa cancela na tela do Google | `error=access_denied` → "O login com o Google foi cancelado." |
+
+🔴 **`ENABLE_EMAIL_AUTOCONFIRM=false` é obrigatório com o Google ligado.** No GoTrue, com
+autoconfirm `true`, qualquer e-mail vindo do provedor conta como verificado
+(`email.Verified || config.Mailer.Autoconfirm`): uma conta Google com e-mail não verificado
+seria ligada ao usuário da equipe com aquele e-mail. Foi desligado em 18/10/2026 (os usuários
+do painel são criados já confirmados pela function `equipe`, então nada muda para eles). Efeito
+colateral bom: com autoconfirm `false` o `GOTRUE_RATE_LIMIT_EMAIL_SENT` passa a valer (com
+`true` o GoTrue pulava esse limite).
+
+Ainda não testado de verdade: a ida e volta real ao Google (depende das credenciais). Ao ligar,
+testar: (1) conta da equipe entra e cai no próprio perfil; (2) Gmail não cadastrado recebe a
+mensagem de sem acesso; (3) pessoa desativada recebe "Acesso não liberado"; (4) o evento
+"entrou no painel (Google)" aparece em Configurações > Auditoria.
+
 ## Freios contra abuso
 
 - **GoTrue** (env do serviço `auth` no compose): `GOTRUE_RATE_LIMIT_EMAIL_SENT=30`

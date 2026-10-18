@@ -21,8 +21,13 @@ export const supabase = createClient(url, anonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    // O link gerado pelo Auth (action_link) volta com o token no fragmento.
-    detectSessionInUrl: true,
+    // PKCE: o "Entrar com Google" volta em /auth/callback?code=... e a troca
+    // pela sessão só funciona neste navegador (o verificador fica guardado
+    // aqui). Link e código do e-mail não mudam (verifyOtp com token_hash).
+    flowType: "pkce",
+    // Quem lê a URL é a página /auth/callback (code, token_hash, #access_token
+    // e erros), para mostrar mensagem em português em vez de falhar calado.
+    detectSessionInUrl: false,
     storageKey: "denos-auth",
   },
 });

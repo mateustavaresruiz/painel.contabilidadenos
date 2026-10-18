@@ -203,11 +203,20 @@ services:
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
 
+      # Painel Denos: "Entrar com Google" (docs/LOGIN.md > Login com Google).
+      # Dormente até o dono criar o OAuth client no Google Cloud: com
+      # GOOGLE_ENABLED=false o botão não aparece e o Auth recusa o provedor.
+      # Só entra quem já existe no Auth (DISABLE_SIGNUP=true): conta Google com
+      # o MESMO e-mail, verificado, é ligada ao usuário de sempre (mesmo id);
+      # e-mail desconhecido volta com "Signups not allowed for this instance".
+      # ENABLE_EMAIL_AUTOCONFIRM precisa ficar false: com true o Auth trata
+      # e-mail NÃO verificado do Google como verificado e ligaria a conta.
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL}/callback
+
       # Uncomment to enable OAuth / social login providers.
-      # GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED}
-      # GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      # GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_SECRET}
-      # GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL}/callback
 
       # GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GITHUB_ENABLED}
       # GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
