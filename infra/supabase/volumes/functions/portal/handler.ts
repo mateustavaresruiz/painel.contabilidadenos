@@ -220,7 +220,7 @@ export function criarHandler(deps: Deps) {
       await auditarSemFalhar({
         acao: "link_gerado",
         clienteId,
-        resumo: `gerou o link do portal do cliente (${expira === null ? "sem expiração" : `vale até ${formatarData(expira)}`})`,
+        resumo: `gerou o link do portal de «${cli.nome}» (${expira === null ? "sem expiração" : `vale até ${formatarData(expira)}`})`,
         info: [{ rotulo: "Validade", valor: validadeDias === null ? "Sem expiração" : `${validadeDias} dias` }],
       });
       return resp({
@@ -235,13 +235,13 @@ export function criarHandler(deps: Deps) {
       const senhaClara = deps.gerarSenha();
       const n = await repo.trocarSenha(clienteId, await deps.hashSenha(senhaClara));
       if (n === 0) return erro("Nenhum link ativo. Gere um link primeiro.");
-      await auditarSemFalhar({ acao: "senha_regenerada", clienteId, resumo: "gerou uma senha nova para o portal do cliente" });
+      await auditarSemFalhar({ acao: "senha_regenerada", clienteId, resumo: `gerou uma senha nova para o portal de «${cli.nome}»` });
       return resp({ senha: senhaClara });
     }
 
     if (acao === "revogar") {
       const n = await repo.revogarAtivos(clienteId);
-      if (n > 0) await auditarSemFalhar({ acao: "link_revogado", clienteId, resumo: "revogou o link do portal do cliente" });
+      if (n > 0) await auditarSemFalhar({ acao: "link_revogado", clienteId, resumo: `revogou o link do portal de «${cli.nome}»` });
       return resp({ ok: true });
     }
 
@@ -252,7 +252,9 @@ export function criarHandler(deps: Deps) {
       await auditarSemFalhar({
         acao: "config",
         clienteId,
-        resumo: body.mostrarSituacaoFiscal ? "ligou a situação fiscal no portal do cliente" : "desligou a situação fiscal no portal do cliente",
+        resumo: body.mostrarSituacaoFiscal
+          ? `ligou a situação fiscal no portal de «${cli.nome}»`
+          : `desligou a situação fiscal no portal de «${cli.nome}»`,
       });
       return resp({ ok: true, mostrarSituacaoFiscal: body.mostrarSituacaoFiscal });
     }

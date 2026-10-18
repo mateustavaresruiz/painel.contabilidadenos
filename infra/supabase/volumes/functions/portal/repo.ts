@@ -164,8 +164,10 @@ export const repoReal: Repo = {
 
   // ---- escritório ----
   async clienteBasico(id) {
-    const { data } = await supabaseAdmin.from("Cliente").select("id, nome").eq("tenantId", TENANT_ID).eq("id", id).maybeSingle();
-    return (data as { id: string; nome: string } | null) ?? null;
+    const { data } = await supabaseAdmin.from("Cliente").select('id, nome, "nomeFantasia"').eq("tenantId", TENANT_ID).eq("id", id).maybeSingle();
+    const c = data as { id: string; nome: string; nomeFantasia: string | null } | null;
+    // Nome de exibição (o mesmo do painel): nome fantasia quando houver.
+    return c ? { id: c.id, nome: c.nomeFantasia?.trim() || c.nome } : null;
   },
 
   async listarTokens(clienteId) {

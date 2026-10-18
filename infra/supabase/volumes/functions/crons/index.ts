@@ -29,6 +29,7 @@ import { enviarTexto } from "../_shared/whatsapp-envio.ts";
 import { onlyDigits } from "../_shared/phone-utils.ts";
 import { serproAgendado } from "./serpro-agendado.ts";
 import { avisoBloqueado, STATUS_RETENTAVEIS } from "./avisos-regra.ts";
+import { CHAVE_MODELO, CHAVE_MODELO_PADRAO, modeloEfetivo, montarTextoAviso } from "../_shared/aviso-certificado.ts";
 
 function checkCronSecret(req: Request): boolean {
   const got = req.headers.get("x-cron-secret") ?? "";
@@ -300,23 +301,8 @@ function somarDias(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function textoDias(dias: number): string {
-  if (dias <= 0) return "vence hoje";
-  if (dias === 1) return "em 1 dia";
-  return `em ${dias} dias`;
-}
-
-const MODELO_PADRAO =
-  "Olá, {cliente}! O certificado digital {tipo} vence em {data} ({dias}). Fale com a gente para renovar. Contabilidade Denos";
-
-function montarTexto(modelo: string, v: { cliente: string; tipo: string; validoAte: string; dias: number }): string {
-  const [a, m, d] = v.validoAte.slice(0, 10).split("-");
-  return modelo
-    .replaceAll("{cliente}", v.cliente)
-    .replaceAll("{tipo}", v.tipo)
-    .replaceAll("{data}", `${d}/${m}/${a}`)
-    .replaceAll("{dias}", textoDias(v.dias));
-}
+// Texto do aviso: regra única em _shared/aviso-certificado.ts (a mesma da prévia
+// da tela). Modelo padrão na Config `certificado.modeloPadrao`.
 
 /** Telefone de cadastro → dígitos com DDI (número BR sem 55 ganha 55). */
 function telefoneComDdi(raw: string | null | undefined): string | null {
@@ -329,7 +315,7 @@ async function lerConfig(): Promise<{ marcos: number[]; sessaoId: string | null;
   const { data, error } = await supabaseAdmin
     .from("Config")
     .select("chave, valor")
-    .in("chave", ["certificado.marcos", "certificado.sessaoId", "certificado.modelo"]);
+    .in("chave", ["certificado.marcos", "certificado.sessaoId", CHAVE_MODELO, CHAVE_MODELO_PADRAO]);
   if (error) throw error;
   const cfg = new Map((data ?? []).map((r) => [r.chave as string, r.valor as unknown]));
   const marcosRaw = cfg.get("certificado.marcos");
@@ -337,9 +323,7 @@ async function lerConfig(): Promise<{ marcos: number[]; sessaoId: string | null;
     .map(Number)
     .filter((n) => Number.isInteger(n) && n >= 0);
   const sessaoId = typeof cfg.get("certificado.sessaoId") === "string" ? cfg.get("certificado.sessaoId") as string : null;
-  const modelo = typeof cfg.get("certificado.modelo") === "string" && (cfg.get("certificado.modelo") as string).trim()
-    ? cfg.get("certificado.modelo") as string
-    : MODELO_PADRAO;
+  const modelo = modeloEfetivo(cfg.get(CHAVE_MODELO), cfg.get(CHAVE_MODELO_PADRAO));
   return { marcos: [...new Set(marcos)].sort((a, b) => a - b), sessaoId, modelo };
 }
 
@@ -421,7 +405,7 @@ async function certificadosAvisos(dryRun: boolean) {
       dias,
       marco,
       telefone: telefoneComDdi((c.telefoneAviso as string | null) || cli.telefone),
-      texto: montarTexto(modelo, { cliente: nomeCliente, tipo: c.tipo as string, validoAte: c.validoAte as string, dias }),
+      texto: montarTextoAviso(modelo, { cliente: nomeCliente, tipo: c.tipo as string, validoAte: c.validoAte as string, dias }),
     });
   }
 
