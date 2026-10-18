@@ -50,6 +50,7 @@ export const AniversariosPage = pagina(() => import("@/routes/app/aniversarios")
 export const CertificadosPage = pagina(() => import("@/routes/app/certificados"), "CertificadosPage");
 export const PendenciasFiscaisPage = pagina(() => import("@/routes/app/pendencias-fiscais"), "PendenciasFiscaisPage");
 export const EquipePage = pagina(() => import("@/routes/app/equipe"), "EquipePage");
+export const PerfilColaboradorPage = pagina(() => import("@/routes/app/equipe-perfil"), "PerfilColaboradorPage");
 export const ConfiguracoesPage = pagina(() => import("@/routes/app/configuracoes"), "ConfiguracoesPage");
 
 /** Caminho do menu → chunk da página (pré-carga no hover/foco do item). */

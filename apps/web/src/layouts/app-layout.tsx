@@ -1,4 +1,4 @@
-import { Check, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
+import { Check, LogOut, Menu, UserRound, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
 import { Suspense, useCallback, useEffect, useState, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -16,6 +16,7 @@ import { useAplicarEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
 import { useContadorChamados, useContadorWhatsapp } from "@/lib/queries/contadores";
 import { useModulos } from "@/lib/modulos";
+import { useAnunciarPresencaPainel } from "@/lib/presenca-painel";
 import { useTheme } from "@/lib/use-theme";
 import { cn } from "@/lib/utils";
 import { preCarregar } from "@/routes/paginas";
@@ -103,6 +104,8 @@ export function AppLayout() {
   const [buscaAberta, setBuscaAberta] = useState(false);
   const abrirBusca = useCallback(() => setBuscaAberta(true), []);
   useAtalhoBusca(abrirBusca);
+  // "Online agora" no perfil da equipe (presença do Realtime, nada no banco).
+  useAnunciarPresencaPainel(useEu().euId);
 
   // Radix não fecha sozinho quando só o pathname muda.
   useEffect(() => {
@@ -452,6 +455,16 @@ function EuBotao({ compacto, recolhida, naSidebar, comNome }: { compacto?: boole
           ))}
         </div>
         <div className="border-t border-divider pt-1">
+          {eu && (
+            <Link
+              to={`/equipe/${eu.id}`}
+              onClick={() => setAberto(false)}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 text-xs transition-colors hover:bg-accent"
+            >
+              <UserRound className="size-4 text-muted-foreground" />
+              Meu perfil
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => {

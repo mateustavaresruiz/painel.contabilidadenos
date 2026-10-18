@@ -2,11 +2,12 @@ import { formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowRight, Bot, ChevronDown, History, Loader2, MessageSquareQuote } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useColaboradoresMap } from "@/lib/colaborador";
+import { useColaboradoresMap, useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { parsePgTimestamp } from "@/lib/format";
 import {
@@ -100,17 +101,32 @@ function Detalhes({ ev }: { ev: AuditoriaEvento }) {
   );
 }
 
+/**
+ * Caminho do perfil de quem agiu, se quem está vendo pode abrir (auditoria.ver
+ * vê todos; os demais, só o próprio). O banco confere de novo (migration 016).
+ */
+export function usePerfilDoAtor(atorId: string | null | undefined): string | null {
+  const { euId, tem } = useEu();
+  if (!atorId) return null;
+  return tem("auditoria.ver") || atorId === euId ? `/equipe/${atorId}` : null;
+}
+
 /** Uma linha do histórico: quem, o quê, quando e (expandindo) o antes/depois. */
 export function EventoItem({
   ev,
   mostrarModulo = false,
+  semLinkAtor = false,
   className,
 }: {
   ev: AuditoriaEvento;
   mostrarModulo?: boolean;
+  /** Já está no perfil da pessoa: o nome não vira link. */
+  semLinkAtor?: boolean;
   className?: string;
 }) {
   const [aberto, setAberto] = useState(false);
+  const perfil = usePerfilDoAtor(ev.atorId);
+  const linkPerfil = semLinkAtor ? null : perfil;
   const comentario = ev.acao === "comentario" && !!ev.detalhes?.texto;
   const expansivel = temDetalhes(ev.detalhes);
   const ator = ev.atorNome ?? (ev.modulo === "portal" ? "Cliente (portal)" : "Sistema");
@@ -118,10 +134,23 @@ export function EventoItem({
 
   return (
     <li className={cn("flex gap-3 py-3", className)}>
-      <AtorAvatar ev={ev} />
+      {linkPerfil ? (
+        <Link to={linkPerfil} className="h-fit shrink-0 rounded-full" aria-label={`Perfil de ${ator}`} tabIndex={-1}>
+          <AtorAvatar ev={ev} />
+        </Link>
+      ) : (
+        <AtorAvatar ev={ev} />
+      )}
       <div className="min-w-0 flex-1">
         <p className="text-sm leading-snug [text-wrap:pretty]">
-          <span className="font-semibold">{ator}</span> {ev.resumo}
+          {linkPerfil ? (
+            <Link to={linkPerfil} className="font-semibold hover:text-primary hover:underline" title={`Abrir o perfil de ${ator}`}>
+              {ator}
+            </Link>
+          ) : (
+            <span className="font-semibold">{ator}</span>
+          )}{" "}
+          {ev.resumo}
         </p>
         {comentario && (
           <div className="mt-1.5 flex gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-sm">
@@ -159,9 +188,11 @@ export function EventoItem({
 export function EventosPorDia({
   eventos,
   mostrarModulo,
+  semLinkAtor,
 }: {
   eventos: AuditoriaEvento[];
   mostrarModulo?: boolean;
+  semLinkAtor?: boolean;
 }) {
   const grupos: { dia: string; itens: AuditoriaEvento[] }[] = [];
   for (const ev of eventos) {
@@ -180,7 +211,7 @@ export function EventosPorDia({
           </h4>
           <ul className="divide-y divide-border/60">
             {g.itens.map((ev) => (
-              <EventoItem key={ev.id} ev={ev} mostrarModulo={mostrarModulo} />
+              <EventoItem key={ev.id} ev={ev} mostrarModulo={mostrarModulo} semLinkAtor={semLinkAtor} />
             ))}
           </ul>
         </section>

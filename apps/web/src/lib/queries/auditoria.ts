@@ -111,6 +111,7 @@ export const ACAO_LABEL: Record<string, string> = {
   criada: "Criou conexão",
   renomeada: "Renomeou conexão",
   login: "Entrou no painel",
+  sessoes_encerradas: "Encerrou as sessões",
 };
 
 export const ACOES_AUDITORIA = Object.entries(ACAO_LABEL)

@@ -1,5 +1,6 @@
 import { PageContainer } from "@/components/page-container";
 import {
+  Activity,
   Copy,
   KeyRound,
   Link2,
@@ -14,7 +15,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { ColaboradorForm } from "@/components/colaborador-form";
@@ -125,7 +126,9 @@ function AbaPessoas({
   setConvidando: (v: boolean) => void;
 }) {
   const { data = [], isLoading, error, refetch } = useColaboradores();
-  const { euId } = useEu();
+  const { euId, tem } = useEu();
+  // Perfil: administrador (auditoria.ver) abre o de todos; os demais, só o próprio.
+  const abrePerfil = (c: Colaborador) => tem("auditoria.ver") || c.id === euId;
   const excluir = useExcluirPessoa();
   const atualizar = useAtualizarPessoa();
   const gerarLink = useGerarLinkAcesso();
@@ -214,10 +217,26 @@ function AbaPessoas({
           {data.map((c) => (
             <li key={c.id} className={cn("rounded-card border bg-card flex flex-col transition-opacity", !c.ativo && "opacity-60")}>
               <div className="flex items-start gap-3 p-5 pb-4">
-                <ColaboradorAvatar nome={c.nome} cor={c.cor} size="md" />
+                {abrePerfil(c) ? (
+                  <Link to={`/equipe/${c.id}`} className="shrink-0 rounded-full" tabIndex={-1} aria-hidden>
+                    <ColaboradorAvatar nome={c.nome} cor={c.cor} size="md" />
+                  </Link>
+                ) : (
+                  <ColaboradorAvatar nome={c.nome} cor={c.cor} size="md" />
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-semibold truncate">{c.nome}</span>
+                    {abrePerfil(c) ? (
+                      <Link
+                        to={`/equipe/${c.id}`}
+                        className="text-sm font-semibold truncate hover:text-primary hover:underline"
+                        title={`Abrir o perfil de ${c.nome}`}
+                      >
+                        {c.nome}
+                      </Link>
+                    ) : (
+                      <span className="text-sm font-semibold truncate">{c.nome}</span>
+                    )}
                     {c.id === euId && <Badge variant="secondary">você</Badge>}
                     {!c.ativo && <Badge variant="outline">inativo</Badge>}
                   </p>
@@ -253,15 +272,23 @@ function AbaPessoas({
                   </div>
                 )}
               </div>
-              {gerenciar && (
+              {(gerenciar || abrePerfil(c)) && (
                 <div className="mt-auto flex flex-wrap items-center gap-1 border-t border-divider px-3 py-2">
-                  {c.ativo && c.email && (
+                  {abrePerfil(c) && (
+                    <Button asChild size="sm" variant="ghost">
+                      <Link to={`/equipe/${c.id}`}>
+                        <Activity />
+                        Ver perfil
+                      </Link>
+                    </Button>
+                  )}
+                  {gerenciar && c.ativo && c.email && (
                     <Button size="sm" variant="ghost" onClick={() => void linkDeAcesso(c)} disabled={gerarLink.isPending}>
                       <Link2 />
                       Gerar link de acesso
                     </Button>
                   )}
-                  {c.ativo && c.email && email?.configurado && (
+                  {gerenciar && c.ativo && c.email && email?.configurado && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -278,7 +305,7 @@ function AbaPessoas({
                       Enviar acesso
                     </Button>
                   )}
-                  {c.id !== euId && (
+                  {gerenciar && c.id !== euId && (
                     <Button
                       size="sm"
                       variant="ghost"

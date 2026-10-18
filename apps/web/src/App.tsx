@@ -23,6 +23,7 @@ import {
   InicioPage,
   NovoClientePage,
   PendenciasFiscaisPage,
+  PerfilColaboradorPage,
 } from "@/routes/paginas";
 
 // Portal do cliente (público): chunk próprio, sem o painel junto.
@@ -94,6 +95,9 @@ export function App() {
           <Route path="certificados" element={<Pagina modulo="certificados" permissao="certificados.ver"><CertificadosPage /></Pagina>} />
           <Route path="pendencias-fiscais" element={<Pagina modulo="pendenciasFiscais" permissao="serpro.consultar"><PendenciasFiscaisPage /></Pagina>} />
           <Route path="equipe" element={<Pagina modulo="equipe" permissao={["equipe.ver", "equipe.gerenciar"]}><EquipePage /></Pagina>} />
+          {/* Perfil: sem portão de permissão aqui. O próprio perfil todo mundo abre; o dos outros, só com
+              auditoria.ver. Quem decide são as RPCs perfil_* (migration 016); a página mostra "Sem acesso". */}
+          <Route path="equipe/:id" element={<PerfilColaboradorPage />} />
           <Route path="configuracoes" element={<Pagina permissao={["configuracoes.gerenciar", "whatsapp.conexoes", "auditoria.ver"]}><ConfiguracoesPage /></Pagina>} />
 
           <Route path="atendimento" element={<Redireciona para="/whatsapp" />} />
