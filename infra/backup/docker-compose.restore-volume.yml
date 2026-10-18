@@ -1,0 +1,26 @@
+# Restauração de UM volume (docs/BACKUP.md, "Restaurar um volume").
+# Serviço Compose temporário "backup-restaura" (rootPath /infra/backup, este arquivo).
+# Env: as mesmas do "backup" (BACKUP_PASSPHRASE) + ALVO_VOLUME (nome Docker real
+# do volume, ex. painel_waha_sessions) + ORIGEM (ex. waha-sessions) + CONFIRMA=sim.
+# Pare o serviço dono do volume antes; destrua este serviço depois.
+
+services:
+  restore-volume:
+    build: .
+    image: painel-backup-ferramenta:local
+    restart: "no"
+    command: ["sh", "/scripts/restore-volume.sh"]
+    env_file: .env
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - painel-backups:/backups:ro
+      - alvo:/alvo
+
+volumes:
+  painel-backups:
+    external: true
+    name: painel-backups
+  alvo:
+    external: true
+    name: ${ALVO_VOLUME:?defina ALVO_VOLUME}

@@ -24,7 +24,7 @@ services:
 
   restore-test:
     build: .
-    image: painel-backup:local
+    image: painel-backup-ferramenta:local
     restart: "no"
     command: ["restore-test"]
     env_file: .env
