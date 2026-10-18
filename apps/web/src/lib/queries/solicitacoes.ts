@@ -8,19 +8,26 @@ import { supabase } from "@/lib/supabase";
 
 export type SolicitacaoStatus = "aberta" | "em_andamento" | "concluida" | "cancelada";
 
+// Os valores do banco ficam no feminino ("solicitação"); na tela é "chamado",
+// então os rótulos vão no masculino.
 export const STATUS_SOLICITACAO: { value: SolicitacaoStatus; label: string }[] = [
-  { value: "aberta", label: "Aberta" },
+  { value: "aberta", label: "Aberto" },
   { value: "em_andamento", label: "Em andamento" },
-  { value: "concluida", label: "Concluída" },
-  { value: "cancelada", label: "Cancelada" },
+  { value: "concluida", label: "Concluído" },
+  { value: "cancelada", label: "Cancelado" },
 ];
 
 export const STATUS_SOLICITACAO_LABEL: Record<SolicitacaoStatus, string> = {
-  aberta: "Aberta",
+  aberta: "Aberto",
   em_andamento: "Em andamento",
-  concluida: "Concluída",
-  cancelada: "Cancelada",
+  concluida: "Concluído",
+  cancelada: "Cancelado",
 };
+
+/** Prazo vencido e ainda em aberto. */
+export function chamadoAtrasado(s: Pick<Solicitacao, "prazo" | "status">, hoje: string): boolean {
+  return !!s.prazo && s.prazo < hoje && (s.status === "aberta" || s.status === "em_andamento");
+}
 
 export type SolicitacaoTipo = {
   id: string;
@@ -155,7 +162,9 @@ export function useExcluirSolicitacaoTipo() {
 // ---------------------------------------------------------------------------
 
 export type SolicitacoesFiltros = {
-  status?: SolicitacaoStatus | "abertas" | "";
+  /** "atrasadas": em aberto com o prazo vencido (`hoje` = AAAA-MM-DD local). */
+  status?: SolicitacaoStatus | "abertas" | "atrasadas" | "";
+  hoje?: string;
   tipoId?: string;
   responsavelId?: string;
   clienteId?: string;
@@ -178,6 +187,8 @@ export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
         .order("criadoEm", { ascending: false })
         .limit(500);
       if (filtros.status === "abertas") q = q.in("status", ["aberta", "em_andamento"]);
+      else if (filtros.status === "atrasadas")
+        q = q.in("status", ["aberta", "em_andamento"]).lt("prazo", filtros.hoje ?? new Date().toISOString().slice(0, 10));
       else if (filtros.status) q = q.eq("status", filtros.status);
       if (filtros.tipoId) q = q.eq("tipoId", filtros.tipoId);
       if (filtros.responsavelId === "sem") q = q.is("responsavelId", null);
@@ -256,7 +267,9 @@ export function useAtualizarSolicitacao() {
   return useMutation({
     mutationFn: async (args: {
       id: string;
-      patch: Partial<Pick<Solicitacao, "status" | "responsavelId" | "prazo" | "descricao" | "tipoId">>;
+      patch: Partial<Pick<Solicitacao, "status" | "responsavelId" | "prazo" | "descricao" | "tipoId" | "clienteId">>;
+      /** Só para a tela (otimista): o tipo/cliente embutidos que combinam com o patch. */
+      exibir?: Partial<Pick<Solicitacao, "tipo" | "cliente">>;
     }) => {
       // "concluidaEm" não vai daqui: o banco calcula pela mudança de status (migration 011).
       const { error } = await supabase.from("Solicitacao").update(args.patch).eq("id", args.id);
@@ -264,13 +277,15 @@ export function useAtualizarSolicitacao() {
     },
     onMutate: async (args) => {
       await qc.cancelQueries({ queryKey: ["solicitacoes"] });
-      const snaps = qc.getQueriesData<Solicitacao[]>({ queryKey: ["solicitacoes"] });
+      const snaps = qc.getQueriesData<Solicitacao[] | Solicitacao | null>({ queryKey: ["solicitacoes"] });
+      const novo = { ...args.patch, ...args.exibir };
       for (const [key, data] of snaps) {
-        if (!Array.isArray(data)) continue;
-        qc.setQueryData<Solicitacao[]>(
-          key,
-          data.map((s) => (s.id === args.id ? { ...s, ...args.patch } : s)),
-        );
+        if (Array.isArray(data)) {
+          qc.setQueryData<Solicitacao[]>(key, data.map((s) => (s.id === args.id ? { ...s, ...novo } : s)));
+        } else if (data && data.id === args.id) {
+          // A gaveta ("solicitacoes", "um", id) também muda na hora.
+          qc.setQueryData<Solicitacao>(key, { ...data, ...novo });
+        }
       }
       return { snaps };
     },

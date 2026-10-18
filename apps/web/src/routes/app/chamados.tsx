@@ -24,6 +24,7 @@ import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import {
   NovaSolicitacaoDialog,
   StatusSolicitacaoSelect,
+  useTrocarStatusChamado,
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -68,9 +69,9 @@ import { useColaboradores, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatTelefone, hojeISO } from "@/lib/format";
 import {
+  chamadoAtrasado,
   contatoDoChamado,
   STATUS_SOLICITACAO,
-  useAtualizarSolicitacao,
   useExcluirSolicitacao,
   useExcluirSolicitacaoTipo,
   useRelatorioSolicitacoes,
@@ -81,6 +82,7 @@ import {
   type SolicitacaoStatus,
   type SolicitacaoTipo,
 } from "@/lib/queries/solicitacoes";
+import { plural } from "@/lib/texto";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -183,8 +185,14 @@ export function ChamadosPage() {
 // Lista
 // ---------------------------------------------------------------------------
 
+type FiltroStatus = SolicitacaoStatus | "abertas" | "atrasadas" | "";
+
 function ListaAba() {
-  const [status, setStatus] = useState<SolicitacaoStatus | "abertas" | "">("abertas");
+  const [params, setParams] = useSearchParams();
+  // ?filtro=atrasados (Início) já abre nos atrasados.
+  const [status, setStatus] = useState<FiltroStatus>(() => (params.get("filtro") === "atrasados" ? "atrasadas" : "abertas"));
+  const hoje = hojeISO();
+  const podeGerenciar = usePermissao("chamados.gerenciar");
   const [tipoId, setTipoId] = useState("");
   const [responsavel, setResponsavel] = useState<string>("");
   const [clienteId, setClienteId] = useState<string | null>(null);
@@ -194,17 +202,17 @@ function ListaAba() {
   const tipos = tiposQ.data ?? [];
   const { data = [], isLoading, isError, error, refetch, isPlaceholderData } = useSolicitacoes({
     status,
+    hoje,
     tipoId: tipoId || undefined,
     responsavelId: responsavel || undefined,
     clienteId: clienteId ?? undefined,
     de: de || undefined,
     ate: ate || undefined,
   });
-  const atualizar = useAtualizarSolicitacao();
+  const { trocar } = useTrocarStatusChamado();
   const excluir = useExcluirSolicitacao();
   const colabsQ = useColaboradores();
   const mapa = useMemo(() => new Map((colabsQ.data ?? []).map((c) => [c.id, c])), [colabsQ.data]);
-  const [, setParams] = useSearchParams();
   // O histórico abre numa gaveta; o id fica na URL (?chamado=) para poder mandar o link.
   const abrir = (id: string) =>
     setParams(
@@ -231,6 +239,7 @@ function ListaAba() {
                 </Link>
               </Button>
             )}
+            {podeGerenciar && (
             <Button
               size="icon"
               variant="ghost"
@@ -244,6 +253,7 @@ function ListaAba() {
             >
               <Trash2 />
             </Button>
+            )}
     </>
   );
   function limparFiltros() {
@@ -259,7 +269,12 @@ function ListaAba() {
   if (status !== "abertas")
     ativos.push({
       id: "status",
-      rotulo: status ? STATUS_SOLICITACAO.find((x) => x.value === status)?.label ?? "Status" : "Todos os status",
+      rotulo:
+        status === "atrasadas"
+          ? "Atrasados"
+          : status
+            ? STATUS_SOLICITACAO.find((x) => x.value === status)?.label ?? "Status"
+            : "Todos os status",
       onRemover: () => setStatus("abertas"),
     });
   if (tipoId) ativos.push({ id: "tipo", rotulo: tipos.find((t) => t.id === tipoId)?.nome ?? "Tipo", onRemover: () => setTipoId("") });
@@ -280,12 +295,13 @@ function ListaAba() {
         onLimpar={limparFiltros}
         className="grid grid-cols-1 gap-2 rounded-card border bg-card p-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
       >
-        <Select value={status || TODOS} onValueChange={(v) => setStatus(v === TODOS ? "" : (v as SolicitacaoStatus | "abertas"))}>
+        <Select value={status || TODOS} onValueChange={(v) => setStatus(v === TODOS ? "" : (v as FiltroStatus))}>
           <SelectTrigger aria-label="Status">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="abertas">Em aberto</SelectItem>
+            <SelectItem value="atrasadas">Atrasados</SelectItem>
             {STATUS_SOLICITACAO.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
@@ -341,7 +357,7 @@ function ListaAba() {
           <Table>
             <TableBody>
               {Array.from({ length: 6 }).map((_, i) => (
-                <SkeletonTableRow key={i} cols={5} />
+                <SkeletonTableRow key={i} cols={6} alta />
               ))}
             </TableBody>
           </Table>
@@ -387,12 +403,15 @@ function ListaAba() {
                 {data.map((s) => {
                   const resp = s.responsavelId ? mapa.get(s.responsavelId) : undefined;
                   const criador = s.criadoPorId ? mapa.get(s.criadoPorId) : undefined;
-                  const atrasada =
-                    !!s.prazo && s.prazo < hojeISO() && (s.status === "aberta" || s.status === "em_andamento");
+                  const atrasada = chamadoAtrasado(s, hoje);
                   return (
                     <TableRow
                       key={s.id}
-                      className="cursor-pointer"
+                      className="cursor-pointer focus-visible:outline-none focus-visible:bg-muted/60 focus-visible:shadow-[inset_3px_0_0_var(--primary)]"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && e.target === e.currentTarget) abrir(s.id);
+                      }}
                       onClick={(e) => {
                         // Só o que não é controle (botão, link, status) abre a gaveta.
                         if ((e.target as HTMLElement).closest("button, a, [role=combobox], [role=listbox], [role=option]")) return;
@@ -425,15 +444,10 @@ function ListaAba() {
                       </TableCell>
                       <TableCell className={cn("text-sm whitespace-nowrap", atrasada && "text-destructive font-medium")}>
                         {s.prazo ? formatData(s.prazo) : "-"}
-                        {atrasada && <Badge variant="destructive" className="ml-1.5">atrasada</Badge>}
+                        {atrasada && <Badge variant="destructive" className="ml-1.5">atrasado</Badge>}
                       </TableCell>
                       <TableCell>
-                        <StatusSolicitacaoSelect
-                          value={s.status}
-                          onChange={(st) =>
-                            atualizar.mutate({ id: s.id, patch: { status: st } }, { onError: (e) => toast.error(msgErro(e)) })
-                          }
-                        />
+                        <StatusSolicitacaoSelect value={s.status} onChange={(st) => trocar(s.id, s.status, st)} />
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-0.5">
@@ -449,8 +463,7 @@ function ListaAba() {
         >
           {data.map((s) => {
             const resp = s.responsavelId ? mapa.get(s.responsavelId) : undefined;
-            const atrasada =
-              !!s.prazo && s.prazo < hojeISO() && (s.status === "aberta" || s.status === "em_andamento");
+            const atrasada = chamadoAtrasado(s, hoje);
             return (
               <ItemCard
                 key={s.id}
@@ -459,7 +472,7 @@ function ListaAba() {
                 subtitulo={subtituloContato(s)}
                 selo={
                   atrasada ? (
-                    <Badge variant="destructive">atrasada</Badge>
+                    <Badge variant="destructive">atrasado</Badge>
                   ) : s.cliente?.provisorio ? (
                     <CadastroIncompletoBadge />
                   ) : s.origem === "portal" ? (
@@ -475,12 +488,7 @@ function ListaAba() {
                 acoes={
                   <>
                     <div className="min-w-0 flex-1">
-                      <StatusSolicitacaoSelect
-                          value={s.status}
-                          onChange={(st) =>
-                            atualizar.mutate({ id: s.id, patch: { status: st } }, { onError: (e) => toast.error(msgErro(e)) })
-                          }
-                        />
+                      <StatusSolicitacaoSelect value={s.status} onChange={(st) => trocar(s.id, s.status, st)} />
                     </div>
                     {acoesDe(s)}
                   </>
@@ -490,7 +498,7 @@ function ListaAba() {
           })}
         </ListaResponsiva>
       )}
-      {data.length > 0 && <p className="text-xs text-muted-foreground">{data.length} chamado(s)</p>}
+      {data.length > 0 && <p className="text-xs text-muted-foreground">{plural(data.length, "chamado", "chamados")}</p>}
     </div>
   );
 }
@@ -592,7 +600,7 @@ function RelatorioAba() {
         )}
         <p className="text-sm text-muted-foreground pb-2 sm:ml-auto">
           {formatData(intervalo.de)} a {formatData(intervalo.ate)} · <strong className="text-foreground">{total}</strong>{" "}
-          chamado(s)
+          {plural(total, "chamado", "chamados", { semNumero: true })}
         </p>
       </div>
 
@@ -622,7 +630,7 @@ function RelatorioAba() {
                     <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="text-right">Em aberto</TableHead>
-                    <TableHead className="text-right">Concluídas</TableHead>
+                    <TableHead className="text-right">Concluídos</TableHead>
                     <TableHead className="text-right">%</TableHead>
                   </TableRow>
                 </TableHeader>

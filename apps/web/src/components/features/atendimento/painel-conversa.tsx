@@ -22,6 +22,7 @@ import { VincularClienteDialog } from "@/components/features/inbox/vincular-clie
 import {
   NovaSolicitacaoDialog,
   StatusSolicitacaoSelect,
+  useTrocarStatusChamado,
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/ui/confirm-dialog";
@@ -40,7 +41,7 @@ import {
   useClientesPorTelefone,
   useSocios,
 } from "@/lib/queries/clientes";
-import { useAtualizarSolicitacao, useSolicitacoes } from "@/lib/queries/solicitacoes";
+import { useSolicitacoes } from "@/lib/queries/solicitacoes";
 import { useVincularChatCliente, type WhatsappChat } from "@/lib/queries/whatsapp";
 import { toast } from "@/lib/toast";
 
@@ -319,7 +320,7 @@ function CertificadosSecao({ clienteId }: { clienteId: string }) {
 
 function SolicitacoesSecao({ chatRowId, onNova }: { chatRowId: string; onNova: () => void }) {
   const { data = [], isLoading } = useSolicitacoes({ chatRowId, status: "abertas" });
-  const atualizar = useAtualizarSolicitacao();
+  const { trocar, pendente } = useTrocarStatusChamado();
   return (
     <Secao
       titulo="Chamados abertos"
@@ -347,13 +348,8 @@ function SolicitacoesSecao({ chatRowId, onNova }: { chatRowId: string; onNova: (
                 <p className="flex-1 min-w-0 text-xs font-medium">{s.tipo?.nome ?? "Chamado"}</p>
                 <StatusSolicitacaoSelect
                   value={s.status}
-                  disabled={atualizar.isPending}
-                  onChange={(status) =>
-                    atualizar.mutate(
-                      { id: s.id, patch: { status } },
-                      { onError: (e) => toast.error(msgErro(e)) },
-                    )
-                  }
+                  disabled={pendente}
+                  onChange={(status) => trocar(s.id, s.status, status)}
                 />
               </div>
               {s.descricao && <p className="text-2xs text-muted-foreground line-clamp-3">{s.descricao}</p>}

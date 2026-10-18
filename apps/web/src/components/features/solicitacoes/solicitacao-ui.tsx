@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { ColaboradorSelect } from "@/components/colaborador-select";
+import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +32,7 @@ import { garantirClienteDaConversa } from "@/lib/queries/clientes";
 import {
   STATUS_SOLICITACAO,
   STATUS_SOLICITACAO_LABEL,
+  useAtualizarSolicitacao,
   useCriarSolicitacao,
   useSolicitacaoTipos,
   type SolicitacaoStatus,
@@ -73,6 +75,35 @@ export function StatusSolicitacaoBadge({
       {STATUS_SOLICITACAO_LABEL[status]}
     </span>
   );
+}
+
+/**
+ * Troca o status de um chamado (otimista). Ao concluir, um aviso curto com
+ * "Desfazer" volta ao status anterior.
+ */
+export function useTrocarStatusChamado() {
+  const atualizar = useAtualizarSolicitacao();
+  function trocar(id: string, de: SolicitacaoStatus, para: SolicitacaoStatus) {
+    if (de === para) return;
+    atualizar.mutate(
+      { id, patch: { status: para } },
+      {
+        onError: (e) => toast.error(msgErro(e)),
+        onSuccess: () => {
+          if (para !== "concluida") return;
+          toast("Chamado concluído", {
+            duration: 6000,
+            action: {
+              label: "Desfazer",
+              onClick: () =>
+                atualizar.mutate({ id, patch: { status: de } }, { onError: (e) => toast.error(msgErro(e)) }),
+            },
+          });
+        },
+      },
+    );
+  }
+  return { trocar, pendente: atualizar.isPending };
 }
 
 /** Troca de status inline (select compacto pintado pelo status). */
@@ -252,6 +283,10 @@ export function NovaSolicitacaoDialog({
   // Chamado aberto da conversa sem cliente: o banco vincula pelo telefone ou
   // cria um cadastro provisório com o nome e o número do WhatsApp.
   const semCliente = !!origem.chatRowId && !origem.clienteId && !origem.grupo;
+  // Fora da conversa (página de Chamados, atalho do Início, ficha do cliente):
+  // o cliente se escolhe aqui. Na conversa, ele vem da própria conversa.
+  const escolheCliente = !origem.chatRowId;
+  const [clienteEscolhido, setClienteEscolhido] = useState<string | null>(null);
   const [tipoId, setTipoId] = useState<string>("");
   const [descricao, setDescricao] = useState("");
   const [responsavel, setResponsavel] = useState<string | null>(null);
@@ -265,14 +300,15 @@ export function NovaSolicitacaoDialog({
     setResponsavel(eu?.id ?? null);
     setPrazo("");
     setErroTipo(false);
-  }, [open, tipoIdInicial, origem.descricao, eu?.id]);
+    setClienteEscolhido(origem.clienteId ?? null);
+  }, [open, tipoIdInicial, origem.descricao, origem.clienteId, eu?.id]);
 
   async function salvar() {
     if (!tipoId) {
       setErroTipo(true);
       return;
     }
-    let clienteId = origem.clienteId ?? null;
+    let clienteId = escolheCliente ? clienteEscolhido : (origem.clienteId ?? null);
     let provisorio: { nome: string } | null = null;
     if (origem.chatRowId && !clienteId) {
       setGarantindo(true);
@@ -302,11 +338,8 @@ export function NovaSolicitacaoDialog({
         mensagemId: origem.mensagemId ?? null,
         criadoPorId: eu?.id ?? null,
       });
-      toast.info(
-        provisorio
-          ? `Chamado aberto. Criamos um cadastro provisório para ${provisorio.nome}; complete depois em Clientes.`
-          : "Chamado aberto.",
-      );
+      if (provisorio) toast.info(`Chamado aberto. Criamos um cadastro provisório para ${provisorio.nome}; complete depois em Clientes.`);
+      else toast.success("Chamado aberto");
       onCriada?.(r.id);
       onOpenChange(false);
     } catch (err) {
@@ -324,7 +357,7 @@ export function NovaSolicitacaoDialog({
               ? "A partir desta mensagem. Fica ligado à conversa e ao cliente."
               : origem.chatRowId
                 ? "Fica ligado a esta conversa e ao cliente vinculado."
-                : "Registre o pedido do cliente."}
+                : "Registre o pedido e o cliente que pediu."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -333,6 +366,12 @@ export function NovaSolicitacaoDialog({
               <Info className="mt-px size-3.5 shrink-0" aria-hidden />
               Vamos criar um cadastro provisório com o nome e o número do WhatsApp.
             </p>
+          )}
+          {escolheCliente && (
+            <div className="space-y-1.5">
+              <Label htmlFor="sol-cliente">Cliente</Label>
+              <ClienteSelect id="sol-cliente" value={clienteEscolhido} onChange={setClienteEscolhido} placeholder="Sem cliente (escolha se houver)" limpavel />
+            </div>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="sol-tipo">Tipo</Label>

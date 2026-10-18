@@ -1,14 +1,24 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { CalendarDays, ClipboardList, Loader2, MessageSquare, Send, X } from "lucide-react";
-import { useState } from "react";
+import { CalendarDays, ClipboardList, Loader2, MessageSquare, Save, Send, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
+import { ColaboradorSelect } from "@/components/colaborador-select";
 import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
+import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import { HistoricoLista } from "@/components/features/auditoria/linha-do-tempo";
-import { StatusSolicitacaoSelect } from "@/components/features/solicitacoes/solicitacao-ui";
+import { StatusSolicitacaoSelect, useTrocarStatusChamado } from "@/components/features/solicitacoes/solicitacao-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Sheet, SheetBody, SheetContent, SheetHeader } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +27,15 @@ import { corModulo } from "@/lib/cores-modulo";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatTelefone, hojeISO } from "@/lib/format";
 import { useComentarChamado } from "@/lib/queries/auditoria";
-import { contatoDoChamado, useAtualizarSolicitacao, useSolicitacao } from "@/lib/queries/solicitacoes";
+import { useClientesList } from "@/lib/queries/helpers";
+import {
+  chamadoAtrasado,
+  contatoDoChamado,
+  useAtualizarSolicitacao,
+  useSolicitacao,
+  useSolicitacaoTipos,
+  type Solicitacao,
+} from "@/lib/queries/solicitacoes";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +46,10 @@ const MAX_COMENTARIO = 2000;
  * linha do tempo completa (quem fez o quê, com o antes e o depois). A linha do
  * tempo vem da auditoria do banco (migration 009), então vale para qualquer
  * jeito de mexer no chamado.
+ *
+ * Quem tem `chamados.gerenciar` edita responsável, prazo, cliente, tipo e
+ * descrição aqui mesmo (o banco só deixa essa pessoa mudar esses campos; o
+ * responsável sem a permissão muda só o status).
  */
 export function ChamadoDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {
   return (
@@ -47,15 +69,12 @@ export function ChamadoDrawer({ id, onClose }: { id: string | null; onClose: () 
 function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: s, isLoading } = useSolicitacao(id);
   const mapa = useColaboradoresMap();
-  const atualizar = useAtualizarSolicitacao();
+  const { trocar, pendente } = useTrocarStatusChamado();
   const podeCriar = usePermissao("chamados.criar");
+  const podeGerenciar = usePermissao("chamados.gerenciar");
 
-  const resp = s?.responsavelId ? mapa.get(s.responsavelId) : undefined;
   const criador = s?.criadoPorId ? mapa.get(s.criadoPorId) : undefined;
-  const contato = s ? contatoDoChamado(s) : null;
-  const tel = contato?.telefone ? formatTelefone(contato.telefone) : null;
-  const atrasada =
-    !!s?.prazo && s.prazo < hojeISO() && (s.status === "aberta" || s.status === "em_andamento");
+  const atrasada = !!s && chamadoAtrasado(s, hojeISO());
 
   return (
     <>
@@ -93,48 +112,13 @@ function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
           <>
             <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
               <Campo rotulo="Status">
-                <StatusSolicitacaoSelect
-                  value={s.status}
-                  disabled={atualizar.isPending}
-                  onChange={(status) =>
-                    atualizar.mutate({ id: s.id, patch: { status } }, { onError: (e) => toast.error(msgErro(e)) })
-                  }
-                />
+                <StatusSolicitacaoSelect value={s.status} disabled={pendente} onChange={(status) => trocar(s.id, s.status, status)} />
               </Campo>
-              <Campo rotulo="Prazo">
-                <span className={cn("inline-flex items-center gap-1.5", atrasada && "font-medium text-destructive")}>
-                  <CalendarDays className="size-4 text-muted-foreground" aria-hidden />
-                  {s.prazo ? formatData(s.prazo) : "Sem prazo"}
-                  {atrasada && <Badge variant="destructive">atrasada</Badge>}
-                </span>
-              </Campo>
-              <Campo rotulo="Cliente">
-                {contato?.nome || tel ? (
-                  <div className="flex min-w-0 flex-col items-start gap-0.5 leading-tight">
-                    {s.cliente ? (
-                      <Link to={`/clientes/${s.cliente.id}`} className="font-medium text-primary hover:underline">
-                        {contato?.nome}
-                      </Link>
-                    ) : (
-                      <span className="font-medium">{contato?.nome ?? tel}</span>
-                    )}
-                    {tel && tel !== contato?.nome && <span className="text-xs tabular-nums text-muted-foreground">{tel}</span>}
-                    {contato?.provisorio && <CadastroIncompletoBadge className="mt-0.5" />}
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground">Sem cliente</span>
-                )}
-              </Campo>
-              <Campo rotulo="Responsável">
-                {resp ? (
-                  <span className="inline-flex items-center gap-2">
-                    <ColaboradorAvatar nome={resp.nome} cor={resp.cor} size="xs" />
-                    {resp.nome}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">Sem responsável</span>
-                )}
-              </Campo>
+              {podeGerenciar ? (
+                <CamposEditaveis s={s} atrasada={atrasada} />
+              ) : (
+                <CamposLeitura s={s} atrasada={atrasada} />
+              )}
               {s.chat && (
                 <Campo rotulo="Origem" className="sm:col-span-2">
                   <Button asChild size="sm" variant="outline">
@@ -147,10 +131,14 @@ function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
                   </Button>
                 </Campo>
               )}
-              {s.descricao && (
-                <Campo rotulo="Descrição" className="sm:col-span-2">
-                  <p className="whitespace-pre-wrap break-words">{s.descricao}</p>
-                </Campo>
+              {podeGerenciar ? (
+                <DescricaoEditavel s={s} />
+              ) : (
+                s.descricao && (
+                  <Campo rotulo="Descrição" className="sm:col-span-2">
+                    <p className="whitespace-pre-wrap break-words">{s.descricao}</p>
+                  </Campo>
+                )
               )}
             </dl>
 
@@ -171,10 +159,214 @@ function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-function Campo({ rotulo, children, className }: { rotulo: string; children: React.ReactNode; className?: string }) {
+/** Prazo, cliente e responsável só para ler (quem não gerencia chamados). */
+function CamposLeitura({ s, atrasada }: { s: Solicitacao; atrasada: boolean }) {
+  const mapa = useColaboradoresMap();
+  const resp = s.responsavelId ? mapa.get(s.responsavelId) : undefined;
+  return (
+    <>
+      <Campo rotulo="Prazo">
+        <span className={cn("inline-flex items-center gap-1.5", atrasada && "font-medium text-destructive")}>
+          <CalendarDays className="size-4 text-muted-foreground" aria-hidden />
+          {s.prazo ? formatData(s.prazo) : "Sem prazo"}
+          {atrasada && <Badge variant="destructive">atrasado</Badge>}
+        </span>
+      </Campo>
+      <Campo rotulo="Cliente">
+        <ClienteLeitura s={s} />
+      </Campo>
+      <Campo rotulo="Responsável">
+        {resp ? (
+          <span className="inline-flex items-center gap-2">
+            <ColaboradorAvatar nome={resp.nome} cor={resp.cor} size="xs" />
+            {resp.nome}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Sem responsável</span>
+        )}
+      </Campo>
+    </>
+  );
+}
+
+function ClienteLeitura({ s }: { s: Solicitacao }) {
+  const contato = contatoDoChamado(s);
+  const tel = contato.telefone ? formatTelefone(contato.telefone) : null;
+  if (!contato.nome && !tel) return <span className="text-muted-foreground">Sem cliente</span>;
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-0.5 leading-tight">
+      {s.cliente ? (
+        <Link to={`/clientes/${s.cliente.id}`} className="font-medium text-primary hover:underline">
+          {contato.nome}
+        </Link>
+      ) : (
+        <span className="font-medium">{contato.nome ?? tel}</span>
+      )}
+      {tel && tel !== contato.nome && <span className="text-xs tabular-nums text-muted-foreground">{tel}</span>}
+      {contato.provisorio && <CadastroIncompletoBadge className="mt-0.5" />}
+    </div>
+  );
+}
+
+/** Tipo, prazo, cliente e responsável editáveis (chamados.gerenciar). Cada troca grava na hora. */
+function CamposEditaveis({ s, atrasada }: { s: Solicitacao; atrasada: boolean }) {
+  const atualizar = useAtualizarSolicitacao();
+  const { data: tipos = [] } = useSolicitacaoTipos();
+  const { data: clientes = [] } = useClientesList();
+  const gravar = (
+    patch: Parameters<typeof atualizar.mutate>[0]["patch"],
+    exibir?: Parameters<typeof atualizar.mutate>[0]["exibir"],
+  ) => atualizar.mutate({ id: s.id, patch, exibir }, { onError: (e) => toast.error(msgErro(e)) });
+  // Tipo inativo que o chamado já usa continua na lista (senão o select fica vazio).
+  const opcoesTipo = tipos.filter((t) => t.ativo || t.id === s.tipoId);
+
+  return (
+    <>
+      <Campo rotulo="Prazo" htmlFor="ch-prazo">
+        <div className="space-y-1">
+          <PrazoEditavel prazo={s.prazo} onSalvar={(p) => gravar({ prazo: p })} />
+          {atrasada && <Badge variant="destructive">atrasado</Badge>}
+        </div>
+      </Campo>
+      <Campo rotulo="Tipo" htmlFor="ch-tipo">
+        <Select
+          value={s.tipoId}
+          onValueChange={(v) => {
+            if (v === s.tipoId) return;
+            const t = tipos.find((x) => x.id === v);
+            gravar({ tipoId: v }, t ? { tipo: { id: t.id, nome: t.nome } } : undefined);
+          }}
+        >
+          <SelectTrigger id="ch-tipo">
+            <SelectValue placeholder="Tipo do chamado" />
+          </SelectTrigger>
+          <SelectContent>
+            {opcoesTipo.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.nome}
+                {!t.ativo ? " (inativo)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Campo>
+      <Campo rotulo="Cliente" htmlFor="ch-cliente">
+        <div className="space-y-1">
+          <ClienteSelect
+            id="ch-cliente"
+            value={s.clienteId}
+            limpavel
+            placeholder="Sem cliente"
+            onChange={(v) => {
+              if (v === s.clienteId) return;
+              const c = v ? clientes.find((x) => x.id === v) : null;
+              gravar(
+                { clienteId: v },
+                { cliente: c ? { id: c.id, nome: c.nome, nomeFantasia: c.nomeFantasia, telefone: c.telefone, provisorio: false } : null },
+              );
+            }}
+          />
+          {s.cliente && (
+            <Link to={`/clientes/${s.cliente.id}`} className="text-2xs font-semibold text-primary hover:underline">
+              Abrir a ficha
+            </Link>
+          )}
+          {s.cliente?.provisorio && <CadastroIncompletoBadge />}
+        </div>
+      </Campo>
+      <Campo rotulo="Responsável" htmlFor="ch-resp">
+        <ColaboradorSelect
+          id="ch-resp"
+          value={s.responsavelId}
+          rotuloNenhum="Sem responsável"
+          onChange={(v) => {
+            if (v !== s.responsavelId) gravar({ responsavelId: v });
+          }}
+        />
+      </Campo>
+    </>
+  );
+}
+
+/**
+ * Prazo que grava sozinho. O DatePicker emite "" também no meio da digitação
+ * ("12/1"), então espera um instante e só limpa o prazo se o campo estiver
+ * vazio de verdade; data completa grava assim que fica válida.
+ */
+function PrazoEditavel({ prazo, onSalvar }: { prazo: string | null; onSalvar: (p: string | null) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [local, setLocal] = useState(prazo ?? "");
+  useEffect(() => setLocal(prazo ?? ""), [prazo]);
+  useEffect(() => {
+    if ((local || null) === prazo) return;
+    const t = setTimeout(() => {
+      if (local) onSalvar(local);
+      else if ((ref.current?.value ?? "").trim() === "") onSalvar(null);
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [local, prazo]);
+  return <DatePicker ref={ref} id="ch-prazo" limpavel value={local} onChange={setLocal} placeholder="Sem prazo" />;
+}
+
+/** Descrição com botão Salvar (só aparece quando o texto mudou). */
+function DescricaoEditavel({ s }: { s: Solicitacao }) {
+  const atualizar = useAtualizarSolicitacao();
+  const [texto, setTexto] = useState(s.descricao ?? "");
+  // Chegou versão nova do servidor (outra pessoa ou o próprio salvar): acompanha.
+  useEffect(() => setTexto(s.descricao ?? ""), [s.descricao]);
+  const mudou = texto.trim() !== (s.descricao ?? "").trim();
+
+  function salvar() {
+    atualizar.mutate(
+      { id: s.id, patch: { descricao: texto.trim() || null } },
+      { onError: (e) => toast.error(msgErro(e)), onSuccess: () => toast.success("Descrição salva") },
+    );
+  }
+
+  return (
+    <Campo rotulo="Descrição" htmlFor="ch-desc" className="sm:col-span-2">
+      <div className="space-y-2">
+        <Textarea
+          id="ch-desc"
+          rows={3}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value.slice(0, 4000))}
+          placeholder="O que o cliente pediu?"
+          className="text-base fino:text-sm"
+        />
+        {mudou && (
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setTexto(s.descricao ?? "")}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={salvar} disabled={atualizar.isPending}>
+              {atualizar.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+              Salvar
+            </Button>
+          </div>
+        )}
+      </div>
+    </Campo>
+  );
+}
+
+function Campo({
+  rotulo,
+  children,
+  className,
+  htmlFor,
+}: {
+  rotulo: string;
+  children: React.ReactNode;
+  className?: string;
+  htmlFor?: string;
+}) {
   return (
     <div className={cn("min-w-0 space-y-1", className)}>
-      <dt className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{rotulo}</dt>
+      <dt className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {htmlFor ? <label htmlFor={htmlFor}>{rotulo}</label> : rotulo}
+      </dt>
       <dd>{children}</dd>
     </div>
   );
