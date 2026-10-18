@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FiltrosResponsivos, type FiltroAtivo } from "@/components/ui/filtros-responsivos";
 import { Input } from "@/components/ui/input";
 import { ItemCard, ItemCardSkeleton, ListaResponsiva } from "@/components/ui/lista-responsiva";
 import {
@@ -86,6 +87,22 @@ export function ClientesPage() {
 
   const { data: clientes = [], isLoading, isError, error, refetch, isPlaceholderData } = useClientes({ q, tipo, regime, situacao, incompletos });
   const filtrando = !!q || !!tipo || !!regime || situacao !== "ativos" || incompletos;
+  // Chips do celular (a busca fica sempre à vista, fora da folha).
+  const ativos: FiltroAtivo[] = [];
+  if (tipo) ativos.push({ id: "tipo", rotulo: tipo === "PJ" ? "Empresas (PJ)" : "Pessoas (PF)", onRemover: () => setParam("tipo", "") });
+  if (regime) ativos.push({ id: "regime", rotulo: regime, onRemover: () => setParam("regime", "") });
+  if (situacao !== "ativos")
+    ativos.push({ id: "situacao", rotulo: situacao === "inativos" ? "Inativos" : "Ativos e inativos", onRemover: () => setParam("situacao", "") });
+  function limparFiltros() {
+    setParams(
+      (curr) => {
+        const next = new URLSearchParams(curr);
+        ["tipo", "regime", "situacao"].forEach((k) => next.delete(k));
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const acessores = useMemo(
     () => ({
@@ -121,7 +138,11 @@ export function ClientesPage() {
 
       <ModuloAbas abas={ABAS_CLIENTES} />
 
-      <div className="flex flex-col gap-2 rounded-xl border bg-card p-3 sm:flex-row sm:items-center">
+      <FiltrosResponsivos
+        className="flex flex-col gap-2 rounded-xl border bg-card p-3 sm:flex-row sm:items-center"
+        ativos={ativos}
+        onLimpar={limparFiltros}
+        antes={
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -129,9 +150,11 @@ export function ClientesPage() {
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar cliente"
             aria-label="Buscar cliente por nome, CPF/CNPJ, e-mail ou telefone"
-            className="pl-8 text-base md:text-sm"
+            className="pl-8 text-base fino:text-sm"
           />
         </div>
+        }
+      >
         <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-3 sm:flex">
           <Select value={tipo || TODOS} onValueChange={(v) => setParam("tipo", v === TODOS ? "" : v)}>
             <SelectTrigger className="sm:w-[150px] sm:shrink-0" aria-label="Tipo">
@@ -167,7 +190,7 @@ export function ClientesPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </FiltrosResponsivos>
 
       {(totalIncompletos > 0 || incompletos) && (
         <Chips

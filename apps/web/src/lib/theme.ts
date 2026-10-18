@@ -40,8 +40,11 @@ export function applyTheme(theme: Theme) {
   // autofill) ao tema — sem isso eles ficam claros no escuro e vice-versa.
   root.style.colorScheme = theme;
   // Barra do browser no mobile segue o fundo do tema.
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", THEME_COLOR[theme]);
+  // Duas metas (claro/escuro do sistema, para quem abre sem JS): as duas
+  // passam a dizer o tema escolhido no painel.
+  document
+    .querySelectorAll('meta[name="theme-color"]')
+    .forEach((meta) => meta.setAttribute("content", THEME_COLOR[theme]));
 }
 
 export function setTheme(theme: Theme) {

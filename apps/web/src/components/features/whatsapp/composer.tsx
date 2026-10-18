@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useToque } from "@/hooks/use-media-query";
 import { arquivosColados } from "@/lib/clipboard-arquivos";
 import { useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
@@ -228,6 +229,11 @@ export function Composer({
     return () => obs.disconnect();
   }, []);
 
+  // No toque (celular/tablet) o Enter do teclado virtual quebra linha, como no
+  // WhatsApp do aparelho; enviar é só pelo botão. Com teclado físico (desktop),
+  // Enter envia e Shift+Enter quebra linha, como sempre.
+  const toque = useToque();
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     enviar();
@@ -237,7 +243,7 @@ export function Composer({
     <form
       onSubmit={handleSubmit}
       onPaste={handleColar}
-      className="shrink-0 border-t bg-card/40 p-3 space-y-2"
+      className="shrink-0 border-t bg-card/40 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2"
     >
       {replyTo && (
         <div className="flex items-start gap-2 rounded-md bg-muted px-2 py-1.5 text-xs">
@@ -251,7 +257,7 @@ export function Composer({
             type="button"
             onClick={onCancelReply}
             aria-label="Cancelar resposta"
-            className="text-muted-foreground hover:text-foreground"
+            className="-my-1 -mr-1 grid size-7 toque:size-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:text-foreground"
           >
             <X className="size-3.5" />
           </button>
@@ -268,7 +274,8 @@ export function Composer({
           <button
             type="button"
             onClick={() => setArquivo(null)}
-            className="text-muted-foreground hover:text-foreground"
+            aria-label="Remover anexo"
+            className="-my-1 -mr-1 grid size-7 toque:size-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:text-foreground"
           >
             <X className="size-3.5" />
           </button>
@@ -310,7 +317,7 @@ export function Composer({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-9 shrink-0"
+              className="size-9 shrink-0 toque:size-11"
               onClick={handleAnexarClick}
               title="Anexar arquivo"
               aria-label="Anexar arquivo"
@@ -334,14 +341,16 @@ export function Composer({
                 arquivo ? "Remova o anexo pra escrever" : "Mensagem…"
               }
               rows={1}
+              enterKeyHint={toque ? "enter" : "send"}
               className={cn(
-                "flex-1 min-h-9 max-h-[200px] resize-none text-base md:text-sm transition-[height] duration-150 ease-out motion-reduce:transition-none",
+                "flex-1 min-h-9 toque:min-h-11 max-h-[200px] resize-none text-base fino:text-sm transition-[height] duration-150 ease-out motion-reduce:transition-none",
               )}
               onKeyDown={(e) => {
                 // !isComposing: não envia no meio de uma composição de IME /
                 // autocorreção (o Enter que confirma o candidato disparava
                 // envio prematuro — daí o "Enter esquisito").
                 if (
+                  !toque &&
                   e.key === "Enter" &&
                   !e.shiftKey &&
                   !e.nativeEvent.isComposing
@@ -362,7 +371,7 @@ export function Composer({
             type="submit"
             size="icon"
             aria-label="Enviar mensagem"
-            className="size-9 shrink-0"
+            className="size-9 shrink-0 toque:size-11"
             disabled={isPending}
           >
             {isPending ? (

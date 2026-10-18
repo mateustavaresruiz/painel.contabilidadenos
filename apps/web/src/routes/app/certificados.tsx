@@ -26,6 +26,7 @@ import { ItemCard, ListaResponsiva } from "@/components/ui/lista-responsiva";
 import { Card, CardContent } from "@/components/ui/card";
 import { confirmar } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FiltrosResponsivos, type FiltroAtivo } from "@/components/ui/filtros-responsivos";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -117,6 +118,12 @@ export function CertificadosPage() {
     return r;
   }, [data]);
 
+  // Chips do celular (o status também liga pelos cartões de contagem).
+  const ROTULO_STATUS: Record<string, string> = { vencido: "Vencidos", vencendo: "Vencem em 30 dias", ok: "Em dia" };
+  const ativos: FiltroAtivo[] = [];
+  if (status !== TODOS) ativos.push({ id: "status", rotulo: ROTULO_STATUS[status] ?? status, onRemover: () => setStatus(TODOS) });
+  if (tipo !== TODOS) ativos.push({ id: "tipo", rotulo: tipo, onRemover: () => setTipo(TODOS) });
+
   return (
     <PageContainer>
       <PageHeader
@@ -163,7 +170,14 @@ export function CertificadosPage() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-xl border bg-card p-3 sm:flex-row">
+      <FiltrosResponsivos
+        className="flex flex-col gap-2 rounded-xl border bg-card p-3 sm:flex-row"
+        ativos={ativos}
+        onLimpar={() => {
+          setStatus(TODOS);
+          setTipo(TODOS);
+        }}
+        antes={
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -171,9 +185,11 @@ export function CertificadosPage() {
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar certificado"
             aria-label="Buscar por cliente, titular ou emissora"
-            className="pl-8 text-base md:text-sm"
+            className="pl-8 text-base fino:text-sm"
           />
         </div>
+        }
+      >
         <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2 sm:flex">
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="sm:w-[200px] sm:shrink-0" aria-label="Status">
@@ -200,7 +216,7 @@ export function CertificadosPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </FiltrosResponsivos>
 
       {isLoading ? (
         <ListaSkeleton linhas={5} />

@@ -2,7 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   CheckCircle2,
+  Copy,
   Eraser,
+  KeyRound,
   Loader2,
   LogOut,
   MessageSquare,
@@ -35,6 +37,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDebounced } from "@/hooks/use-debounced";
+import { maskTelefone } from "@/lib/masks";
 import { usePermissao } from "@/lib/colaborador";
 import { formatInstanceNumber } from "@/components/features/whatsapp/instance-filter-bar";
 import {
@@ -44,6 +47,7 @@ import {
   useFetchQrCode,
   useLimparConversasWhatsapp,
   useLogoutWhatsappSessao,
+  usePedirCodigoPareamento,
   useRefreshWebhook,
   useRestartWhatsappSessao,
   useStartWhatsappSessao,
@@ -638,6 +642,20 @@ function ConectarWhatsappDialog({
   const stop = useStopWhatsappSessao(sessao.id);
   const fetchQr = useFetchQrCode(sessao.id);
   const startCalledRef = useRef(false);
+  // Alternativa ao QR: código de pareamento pelo número de telefone.
+  const [modo, setModo] = useState<"qr" | "codigo">("qr");
+  const [telefone, setTelefone] = useState(() =>
+    sessao.numero ? maskTelefone(sessao.numero.replace(/^55/, "")) : "",
+  );
+  const pedirCodigo = usePedirCodigoPareamento(sessao.id);
+  const codigo = pedirCodigo.data?.code ?? null;
+  useEffect(() => {
+    if (!open) {
+      setModo("qr");
+      pedirCodigo.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Ao abrir com sessão STOPPED/FAILED, dispara o start uma única vez.
   useEffect(() => {
@@ -663,13 +681,14 @@ function ConectarWhatsappDialog({
   }, [open, sessao.status]);
 
   // Em SCAN_QR_CODE: busca QR imediato + re-busca a cada 25s (WAHA expira ~30s).
+  // Pausa no modo código: o QR não é usado e não precisa ser renovado.
   useEffect(() => {
-    if (!open || sessao.status !== "SCAN_QR_CODE") return;
+    if (!open || sessao.status !== "SCAN_QR_CODE" || modo !== "qr") return;
     fetchQr.mutate();
     const id = setInterval(() => fetchQr.mutate(), 25_000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, sessao.status]);
+  }, [open, sessao.status, modo]);
 
   // Auto-close ao conectar com sucesso.
   useEffect(() => {
@@ -707,11 +726,76 @@ function ConectarWhatsappDialog({
         <DialogHeader>
           <DialogTitle>Conectar WhatsApp</DialogTitle>
           <DialogDescription>
-            Use o WhatsApp do seu celular pra escanear o QR code abaixo e
-            conectar esta instância.
+            {modo === "qr"
+              ? "Use o WhatsApp do seu celular pra escanear o QR code abaixo e conectar esta instância."
+              : "Sem câmera à mão (ou abrindo o painel no próprio celular)? Receba um código e digite no WhatsApp."}
           </DialogDescription>
         </DialogHeader>
 
+        {modo === "codigo" ? (
+          <div className="space-y-4 py-2">
+            {!aguardandoQr ? (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Iniciando sessão…
+              </p>
+            ) : codigo ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2 rounded-card border bg-card px-4 py-5">
+                  <span className="font-mono text-3xl font-semibold tracking-[0.2em]" aria-label={`Código ${codigo}`}>
+                    {codigo}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="toque:size-11"
+                    aria-label="Copiar código"
+                    onClick={() => {
+                      void navigator.clipboard
+                        ?.writeText(codigo.replace(/-/g, ""))
+                        .then(() => toast.success("Código copiado."))
+                        .catch(() => {});
+                    }}
+                  >
+                    <Copy />
+                  </Button>
+                </div>
+                <ol className="space-y-1 text-xs text-muted-foreground">
+                  <li>1. Abra o WhatsApp no celular deste número</li>
+                  <li>2. Toque em Mais opções › Aparelhos conectados › Conectar um aparelho</li>
+                  <li>3. Toque em &ldquo;Conectar com número de telefone&rdquo;</li>
+                  <li>4. Digite o código acima</li>
+                </ol>
+              </div>
+            ) : (
+              <form
+                className="space-y-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  pedirCodigo.mutate(telefone, {
+                    onError: (err) => toast.error(err instanceof Error ? err.message : String(err)),
+                  });
+                }}
+              >
+                <Label htmlFor="pareamento-telefone">Número do WhatsApp que vai conectar</Label>
+                <Input
+                  id="pareamento-telefone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel-national"
+                  placeholder="(11) 98765-4321"
+                  value={telefone}
+                  onChange={(e) => setTelefone(maskTelefone(e.target.value))}
+                />
+                <Button type="submit" className="w-full" disabled={pedirCodigo.isPending || telefone.replace(/\D/g, "").length < 10}>
+                  {pedirCodigo.isPending ? <Loader2 className="animate-spin" /> : <KeyRound />}
+                  Receber código
+                </Button>
+              </form>
+            )}
+          </div>
+        ) : (
         <div className="flex flex-col items-center gap-4 py-2">
           <div className="size-64 grid place-items-center bg-card rounded-md border">
             {aguardandoQr && sessao.qrCodeBase64 ? (
@@ -748,9 +832,21 @@ function ConectarWhatsappDialog({
             </ol>
           ) : null}
         </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            setModo((m) => (m === "qr" ? "codigo" : "qr"));
+            pedirCodigo.reset();
+          }}
+          className="mx-auto -my-1 min-h-11 px-2 text-sm font-medium text-primary hover:underline"
+        >
+          {modo === "qr" ? "Conectar com número de telefone" : "Voltar para o QR code"}
+        </button>
 
         <DialogFooter className="sm:justify-between gap-2">
-          {aguardandoQr ? (
+          {aguardandoQr && modo === "qr" ? (
             <Button
               variant="outline"
               size="sm"

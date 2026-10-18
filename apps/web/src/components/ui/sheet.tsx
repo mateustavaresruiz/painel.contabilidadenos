@@ -170,7 +170,7 @@ export const SheetContent = forwardRef<
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close
-              className="absolute right-3 top-3 grid place-items-center size-8 rounded-md hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="absolute right-3 top-3 grid place-items-center size-8 toque:right-1.5 toque:top-1.5 toque:size-11 rounded-md hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               aria-label="Fechar"
             >
               <X className="size-4" />

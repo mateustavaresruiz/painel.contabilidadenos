@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { QueryError } from "@/components/ui/query-error";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FiltrosResponsivos, type FiltroAtivo } from "@/components/ui/filtros-responsivos";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useColaboradores } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
+import { formatData } from "@/lib/format";
 import {
   ACOES_AUDITORIA,
   exportarAuditoriaCsv,
@@ -50,6 +52,18 @@ export function AuditoriaPainel() {
     busca: buscaDebounced || undefined,
   };
   const filtrando = !!(de || ate || atorId || modulo || acao || busca);
+  // Chips do celular (a busca fica à vista, fora da folha).
+  const ativos: FiltroAtivo[] = [];
+  if (de) ativos.push({ id: "de", rotulo: `De ${formatData(de)}`, onRemover: () => setDe("") });
+  if (ate) ativos.push({ id: "ate", rotulo: `Até ${formatData(ate)}`, onRemover: () => setAte("") });
+  if (atorId)
+    ativos.push({
+      id: "ator",
+      rotulo: atorId === "sistema" ? "Sistema" : pessoas.find((x) => x.id === atorId)?.nome ?? "Pessoa",
+      onRemover: () => setAtorId(""),
+    });
+  if (modulo) ativos.push({ id: "modulo", rotulo: MODULOS_AUDITORIA.find((m) => m.valor === modulo)?.rotulo ?? modulo, onRemover: () => setModulo("") });
+  if (acao) ativos.push({ id: "acao", rotulo: ACOES_AUDITORIA.find((a) => a.valor === acao)?.rotulo ?? acao, onRemover: () => setAcao("") });
   const q = useAuditoriaFeed(filtros);
   const eventos = q.data?.pages.flat() ?? [];
 
@@ -80,7 +94,11 @@ export function AuditoriaPainel() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3 rounded-card border bg-card p-3">
+      <FiltrosResponsivos
+        className="space-y-3 rounded-card border bg-card p-3"
+        ativos={ativos}
+        onLimpar={limpar}
+        antes={
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
@@ -91,51 +109,8 @@ export function AuditoriaPainel() {
             aria-label="Buscar na auditoria"
           />
         </div>
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
-          <DatePicker value={de} onChange={setDe} limpavel placeholder="De" aria-label="A partir de" />
-          <DatePicker value={ate} onChange={setAte} limpavel placeholder="Até" aria-label="Até" />
-          <Select value={atorId || TODOS} onValueChange={(v) => setAtorId(v === TODOS ? "" : v)}>
-            <SelectTrigger aria-label="Pessoa" className="col-span-2 sm:col-span-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todas as pessoas</SelectItem>
-              <SelectItem value="sistema">Sistema (automático)</SelectItem>
-              {pessoas.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.nome}
-                  {!p.ativo ? " (inativo)" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={modulo || TODOS} onValueChange={(v) => setModulo(v === TODOS ? "" : v)}>
-            <SelectTrigger aria-label="Módulo" className="col-span-2 sm:col-span-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todos os módulos</SelectItem>
-              {MODULOS_AUDITORIA.map((m) => (
-                <SelectItem key={m.valor} value={m.valor}>
-                  {m.rotulo}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={acao || TODOS} onValueChange={(v) => setAcao(v === TODOS ? "" : v)}>
-            <SelectTrigger aria-label="Ação" className="col-span-2 sm:col-span-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-80">
-              <SelectItem value={TODOS}>Todas as ações</SelectItem>
-              {ACOES_AUDITORIA.map((a) => (
-                <SelectItem key={a.valor} value={a.valor}>
-                  {a.rotulo}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        }
+        depois={
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground" aria-live="polite">
             {q.isLoading
@@ -155,7 +130,54 @@ export function AuditoriaPainel() {
             </Button>
           </div>
         </div>
-      </div>
+        }
+      >
+        <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 xl:grid-cols-5">
+          <DatePicker value={de} onChange={setDe} limpavel placeholder="De" aria-label="A partir de" />
+          <DatePicker value={ate} onChange={setAte} limpavel placeholder="Até" aria-label="Até" />
+          <Select value={atorId || TODOS} onValueChange={(v) => setAtorId(v === TODOS ? "" : v)}>
+            <SelectTrigger aria-label="Pessoa" className="min-[480px]:col-span-2 sm:col-span-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todas as pessoas</SelectItem>
+              <SelectItem value="sistema">Sistema (automático)</SelectItem>
+              {pessoas.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nome}
+                  {!p.ativo ? " (inativo)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={modulo || TODOS} onValueChange={(v) => setModulo(v === TODOS ? "" : v)}>
+            <SelectTrigger aria-label="Módulo" className="min-[480px]:col-span-2 sm:col-span-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos os módulos</SelectItem>
+              {MODULOS_AUDITORIA.map((m) => (
+                <SelectItem key={m.valor} value={m.valor}>
+                  {m.rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={acao || TODOS} onValueChange={(v) => setAcao(v === TODOS ? "" : v)}>
+            <SelectTrigger aria-label="Ação" className="min-[480px]:col-span-2 sm:col-span-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-80">
+              <SelectItem value={TODOS}>Todas as ações</SelectItem>
+              {ACOES_AUDITORIA.map((a) => (
+                <SelectItem key={a.valor} value={a.valor}>
+                  {a.rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </FiltrosResponsivos>
 
       {q.isLoading ? (
         <div className="space-y-4 rounded-card border bg-card p-4" aria-busy="true">

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 /**
- * Para barras de abas que rolam na horizontal: marca `data-fade` ("fim",
+ * Para barras de abas e fileiras de chips que rolam na horizontal: marca `data-fade` ("fim",
  * "inicio" ou "ambos") conforme ainda haja conteúdo escondido, e o CSS
  * esmaece a borda (a aba não parece cortada no meio da palavra). Também
  * rola a aba ativa para dentro da vista ao montar e a cada troca.
@@ -30,7 +30,7 @@ export function useFadeRolagem<T extends HTMLElement>(dep?: unknown) {
   useEffect(() => {
     const n = el.current;
     if (!n) return;
-    const ativa = n.querySelector<HTMLElement>("[data-state=active],[aria-current=page]");
+    const ativa = n.querySelector<HTMLElement>("[data-state=active],[aria-current=page],[aria-checked=true]");
     if (ativa) {
       const alvo = ativa.offsetLeft - (n.clientWidth - ativa.offsetWidth) / 2;
       n.scrollLeft = Math.max(0, alvo);

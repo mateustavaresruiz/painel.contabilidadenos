@@ -548,6 +548,24 @@ export function useFetchQrCode(sessaoId: string | undefined) {
 }
 
 /**
+ * Código de pareamento (alternativa ao QR): o WhatsApp manda um código de 8
+ * caracteres para digitar no celular em Aparelhos conectados → Conectar com
+ * número de telefone. Serve quando o painel está aberto no próprio celular
+ * que vai conectar (não dá para escanear a própria tela).
+ */
+export function usePedirCodigoPareamento(sessaoId: string | undefined) {
+  return useMutation({
+    mutationFn: async (telefone: string) => {
+      if (!sessaoId) throw new Error("sessaoId obrigatório");
+      return api<{ code: string }>(
+        `/whatsapp/sessoes/${encodeURIComponent(sessaoId)}/pairing-code`,
+        { method: "POST", body: { telefone } },
+      );
+    },
+  });
+}
+
+/**
  * Re-registra o webhook no servidor WAHA. Útil quando a sessão está
  * WORKING mas mensagens novas não chegam em tempo real.
  */

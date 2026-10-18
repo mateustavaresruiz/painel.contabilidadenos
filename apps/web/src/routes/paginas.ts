@@ -74,3 +74,28 @@ export function paginaDoCaminho(to: string): Pagina | undefined {
 export function preCarregar(to: string): Promise<void> {
   return paginaDoCaminho(to)?.preload().catch(() => {}) ?? Promise.resolve();
 }
+
+type ConexaoInfo = { saveData?: boolean; effectiveType?: string };
+
+/** "Economia de dados" ligada ou rede 2G/3G (Network Information API; sem ela, false). */
+export function conexaoEconomica(): boolean {
+  const c = (navigator as Navigator & { connection?: ConexaoInfo }).connection;
+  if (!c) return false;
+  return c.saveData === true || ["slow-2g", "2g", "3g"].includes(c.effectiveType ?? "");
+}
+
+/**
+ * Pré-carga ociosa das páginas do menu (o primeiro clique já abre na hora).
+ * Em rede econômica não baixa nada por conta própria: o hover/foco do item
+ * continua pré-carregando só a página que a pessoa vai abrir. Devolve o
+ * cancelamento (para o cleanup do efeito).
+ */
+export function preCarregarOcioso(caminhos: string[]): () => void {
+  if (conexaoEconomica()) return () => {};
+  const ocioso = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500));
+  const cancelar = window.cancelIdleCallback ?? window.clearTimeout;
+  const id = ocioso(() => {
+    caminhos.forEach((c) => void preCarregar(c));
+  });
+  return () => cancelar(id);
+}

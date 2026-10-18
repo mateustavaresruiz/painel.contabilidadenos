@@ -18,8 +18,9 @@ import { useContadorChamados, useContadorWhatsapp } from "@/lib/queries/contador
 import { useModulos } from "@/lib/modulos";
 import { useAnunciarPresencaPainel } from "@/lib/presenca-painel";
 import { useTheme } from "@/lib/use-theme";
+import { useTecladoVirtual } from "@/lib/teclado-virtual";
 import { cn } from "@/lib/utils";
-import { preCarregar } from "@/routes/paginas";
+import { preCarregar, preCarregarOcioso } from "@/routes/paginas";
 
 const CHAVE_RECOLHIDA = "denos:sidebar-recolhida";
 
@@ -112,27 +113,36 @@ export function AppLayout() {
     setDrawerOpen(false);
   }, [location.pathname]);
 
-  // Pré-carga ociosa das páginas do menu: o primeiro clique já abre na hora.
+  // Pré-carga ociosa das páginas do menu: o primeiro clique já abre na hora
+  // (desligada em rede econômica, ver routes/paginas.ts).
   const caminhosMenu = NAV_APP.filter((i) => !i.modulo || ativo(i.modulo))
     .flatMap((i) => [i.to, ...(i.filhos?.map((f) => f.to) ?? [])])
     .join(",");
+  useEffect(() => preCarregarOcioso(caminhosMenu.split(",")), [caminhosMenu]);
+
+  // Quem rola é o contêiner do conteúdo, nunca o documento (index.css).
   useEffect(() => {
-    const caminhos = caminhosMenu.split(",");
-    const ocioso = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500));
-    const cancelar = window.cancelIdleCallback ?? window.clearTimeout;
-    const id = ocioso(() => {
-      caminhos.forEach((c) => void preCarregar(c));
-    });
-    return () => cancelar(id);
-  }, [caminhosMenu]);
+    document.documentElement.classList.add("casca-app");
+    return () => document.documentElement.classList.remove("casca-app");
+  }, []);
+  // iOS: a casca acompanha a área visível quando o teclado abre.
+  useTecladoVirtual();
 
   // O Atendimento ocupa a altura toda e tem scroll próprio nas colunas.
   const telaCheia = location.pathname === "/whatsapp" || location.pathname === "/whatsapp/";
+  // Conversa aberta no celular: a conversa tem o próprio cabeçalho (com
+  // Voltar), então a barra do app sai e sobra tela para as mensagens.
+  const conversaAberta = telaCheia && new URLSearchParams(location.search).has("chat");
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden lg:flex-row">
-      {/* Barra de topo: só no celular. Soma o entalhe do iPhone. */}
-      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border barra-fixa px-4 pt-safe-t h-[calc(4rem+env(safe-area-inset-top))] shrink-0">
+    <div className="relative top-[var(--vv-topo,0px)] flex h-[var(--vv-altura,100dvh)] flex-col overflow-hidden lg:flex-row">
+      {/* Barra de topo: só no celular. Soma o entalhe do iPhone (e as laterais deitado). */}
+      <header
+        className={cn(
+          "lg:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border barra-fixa pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-safe-t h-[calc(4rem+env(safe-area-inset-top))] shrink-0",
+          conversaAberta && "compacto:hidden",
+        )}
+      >
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
@@ -176,13 +186,15 @@ export function AppLayout() {
         </SheetContent>
       </Sheet>
 
-      <main id="main-content" className="flex-1 min-h-0 min-w-0 flex flex-col [view-transition-name:conteudo]">
+      <main id="main-content" className="flex-1 min-h-0 min-w-0 flex flex-col pl-safe-l pr-safe-r lg:pl-0 [view-transition-name:conteudo]">
         <OfflineBanner />
         <div
           key={location.pathname}
           className={cn(
             "flex-1 min-h-0 animate-page-enter",
-            telaCheia ? "overflow-hidden flex flex-col" : "overflow-auto overscroll-contain [container-type:inline-size]",
+            telaCheia
+              ? "overflow-hidden flex flex-col"
+              : "overflow-auto overscroll-contain pb-safe-b [container-type:inline-size]",
           )}
         >
           <Suspense fallback={telaCheia ? null : <PaginaSkeleton />}>
@@ -312,7 +324,7 @@ function ItemNav({
       aria-label={recolhida ? item.label : undefined}
       className={({ isActive }) =>
         cn(
-          "group relative flex h-10 items-center gap-2.5 rounded-lg px-1.5 text-xs transition-[color,background-color] duration-150",
+          "group relative flex h-10 toque:h-11 items-center gap-2.5 rounded-lg px-1.5 text-xs transition-[color,background-color] duration-150",
           recolhida && "justify-center",
           isActive
             ? "bg-sidebar-active text-primary font-semibold"
@@ -373,7 +385,7 @@ function ItemNav({
               onFocus={() => void preCarregar(f.to)}
               className={({ isActive }) =>
                 cn(
-                  "flex h-8 items-center rounded-md px-2.5 text-xs transition-[color,background-color] duration-150",
+                  "flex h-8 toque:h-11 items-center rounded-md px-2.5 text-xs transition-[color,background-color] duration-150",
                   isActive
                     ? "text-sidebar-foreground font-semibold bg-sidebar-hover"
                     : "text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-hover",
@@ -445,7 +457,7 @@ function EuBotao({ compacto, recolhida, naSidebar, comNome }: { compacto?: boole
               key={valor}
               type="button"
               onClick={() => setTheme(valor)}
-              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 text-xs transition-colors hover:bg-accent"
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
               aria-pressed={theme === valor}
             >
               <Icone className="size-4 text-muted-foreground" />
@@ -459,7 +471,7 @@ function EuBotao({ compacto, recolhida, naSidebar, comNome }: { compacto?: boole
             <Link
               to={`/equipe/${eu.id}`}
               onClick={() => setAberto(false)}
-              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 text-xs transition-colors hover:bg-accent"
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
             >
               <UserRound className="size-4 text-muted-foreground" />
               Meu perfil
@@ -471,7 +483,7 @@ function EuBotao({ compacto, recolhida, naSidebar, comNome }: { compacto?: boole
               setAberto(false);
               void sair();
             }}
-            className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 text-xs transition-colors hover:bg-accent"
+            className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
           >
             <LogOut className="size-4 text-muted-foreground" />
             Sair

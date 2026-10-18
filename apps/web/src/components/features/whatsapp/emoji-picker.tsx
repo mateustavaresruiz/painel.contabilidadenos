@@ -69,7 +69,7 @@ export function EmojiPicker({
           type="button"
           variant="ghost"
           size="icon"
-          className="size-9 shrink-0"
+          className="size-9 shrink-0 toque:size-11"
           disabled={disabled}
           title="Emoji"
           aria-label="Inserir emoji"

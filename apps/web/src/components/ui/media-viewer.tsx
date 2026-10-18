@@ -268,7 +268,9 @@ function MediaViewerOverlay({
     >
       {/* Barra superior */}
       <header
-        className="flex items-center gap-3 px-3 sm:px-5 h-14 shrink-0 text-white/90"
+        // Entalhe do iPhone: a barra desce o quanto a área segura pedir (e
+        // deitado, as laterais).
+        className="flex items-center gap-3 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1.25rem,env(safe-area-inset-left))] sm:pr-[max(1.25rem,env(safe-area-inset-right))] pt-safe-t h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 text-white/90"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -306,7 +308,7 @@ function MediaViewerOverlay({
                   href={url}
                   target="_blank"
                   rel="noreferrer"
-                  className="grid place-items-center size-9 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  className="grid place-items-center size-9 toque:size-11 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
                   aria-label="Abrir em nova aba"
                   title="Abrir em nova aba"
                 >
@@ -318,7 +320,7 @@ function MediaViewerOverlay({
                 download={deriveDownloadName(item, url)}
                 target="_blank"
                 rel="noreferrer"
-                className="grid place-items-center size-9 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                className="grid place-items-center size-9 toque:size-11 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
                 aria-label="Baixar"
                 title="Baixar"
               >
@@ -329,7 +331,7 @@ function MediaViewerOverlay({
           <button
             type="button"
             onClick={onClose}
-            className="grid place-items-center size-9 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="grid place-items-center size-9 toque:size-11 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
             aria-label="Fechar"
             title="Fechar (Esc)"
           >

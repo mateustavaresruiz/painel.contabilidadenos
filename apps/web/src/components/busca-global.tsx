@@ -172,15 +172,15 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
             onChange={(e) => setTermo(e.target.value)}
             onKeyDown={aoTeclar}
             placeholder="Ir para página, cliente ou conversa…"
-            className="h-14 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
+            className="h-14 min-w-0 flex-1 bg-transparent text-base fino:text-[15px] outline-none placeholder:text-muted-foreground"
             aria-label="Buscar"
             role="combobox"
             aria-expanded
             aria-controls="busca-global-lista"
             aria-activedescendant={itens[sel] ? `bg-${itens[sel]!.id}` : undefined}
           />
-          <kbd className="hidden rounded-md border border-border px-1.5 py-0.5 text-2xs text-muted-foreground sm:inline">Esc</kbd>
-          <button type="button" onClick={() => onOpenChange(false)} className="-mr-2 h-11 shrink-0 px-2 text-sm font-semibold text-primary sm:hidden">
+          <kbd className="hidden rounded-md border border-border px-1.5 py-0.5 text-2xs text-muted-foreground sm:inline toque:hidden">Esc</kbd>
+          <button type="button" onClick={() => onOpenChange(false)} className="-mr-2 h-11 shrink-0 px-2 text-sm font-semibold text-primary sm:hidden toque:inline-block">
             Cancelar
           </button>
         </div>
@@ -230,7 +230,8 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
             })
           )}
         </div>
-        <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-2xs text-muted-foreground">
+        {/* Dicas de teclado: só com teclado físico. No toque, sai a barra toda. */}
+        <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-2xs text-muted-foreground toque:hidden">
           <span><kbd className="font-sans">↑↓</kbd> navegar</span>
           <span><kbd className="font-sans">Enter</kbd> abrir</span>
           {carregando ? <span className="ml-auto">Procurando…</span> : null}

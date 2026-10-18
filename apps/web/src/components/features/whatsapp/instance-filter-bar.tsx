@@ -101,14 +101,14 @@ export function InstanceFilterBar({
                 </p>
                 {/* Pill de contagem quando filtrado pra > 1 explicitamente */}
                 {!todas && selecionadas.length > 1 && (
-                  <span className="text-[9px] font-medium bg-foreground/[0.06] text-foreground rounded-full px-1.5 py-0.5 leading-none">
+                  <span className="text-[11px] font-medium bg-foreground/[0.06] text-foreground rounded-full px-1.5 py-0.5 leading-none">
                     {selecionadas.length}
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <StatusDot status={statusAgregado} />
-                <p className="text-[10.5px] text-muted-foreground truncate leading-tight">
+                <p className="text-[11px] text-muted-foreground truncate leading-tight">
                   {todas && sessoes.length > 1
                     ? `${sessoes.length} conectadas`
                     : `${labelStatus(statusAgregado)}${principal?.numero ? ` · ${formatNumero(principal.numero)}` : ""}`}
@@ -139,7 +139,7 @@ export function InstanceFilterBar({
                 <p className="text-[13px] font-medium leading-tight">
                   Todas as instâncias
                 </p>
-                <p className="text-[10.5px] text-muted-foreground leading-tight mt-0.5">
+                <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
                   Mostra conversas de todas
                 </p>
               </div>
@@ -170,7 +170,7 @@ export function InstanceFilterBar({
                     </p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <StatusDot status={s.status} />
-                      <p className="text-[10.5px] text-muted-foreground truncate leading-tight">
+                      <p className="text-[11px] text-muted-foreground truncate leading-tight">
                         {labelStatus(s.status)}
                         {s.numero ? ` · ${formatNumero(s.numero)}` : ""}
                       </p>

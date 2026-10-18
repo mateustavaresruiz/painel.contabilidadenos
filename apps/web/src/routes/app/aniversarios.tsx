@@ -168,7 +168,7 @@ function AniversarioCard({ a }: { a: AniversarioCalculado }) {
           >
             <div>
               <div className="text-base font-semibold tabular-nums">{a.proxima.getDate()}</div>
-              <div className="text-[9px] uppercase tracking-wider">
+              <div className="text-[11px] uppercase tracking-wide">
                 {a.proxima.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
               </div>
             </div>

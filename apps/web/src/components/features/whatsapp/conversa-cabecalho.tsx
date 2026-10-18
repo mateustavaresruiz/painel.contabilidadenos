@@ -5,12 +5,15 @@
 // contato. Direita: o chip do responsável com o estado (Na fila / Em
 // atendimento / Finalizado), a ÚNICA ação principal do momento (botão azul da
 // marca), "Abrir chamado" e o menu ⋮ com o resto, em itens com rótulo.
-// No celular empilha: nome e menu em cima, chip + ação principal embaixo, e o
-// menu vira uma folha de baixo com alvos de 44 px.
+// No celular (em pé ou deitado) vira UMA linha: Voltar (44 px), avatar, nome
+// numa linha e o ⋮. O chip do responsável, a ação principal (primeiro item),
+// "Abrir chamado" e o resto vão para a folha de baixo, com alvos de 44 px:
+// a tela fica para as mensagens.
 
 import { format, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
+  ArrowLeft,
   ArrowRightLeft,
   CheckCircle2,
   Download,
@@ -29,12 +32,17 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { ColaboradorAvatar, SemResponsavelAvatar } from "@/components/colaborador-avatar";
 import { useAcoesAtendimento } from "@/components/features/atendimento/atendimento-acoes";
-import { SolicitacaoBotaoSeAtivo } from "@/components/features/solicitacoes/solicitacao-ui";
+import {
+  NovaSolicitacaoDialog,
+  SolicitacaoBotaoSeAtivo,
+  SolicitacaoTiposItem,
+  usePodeAbrirChamadoNaConversa,
+} from "@/components/features/solicitacoes/solicitacao-ui";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-media-query";
+import { useTelaCompacta } from "@/hooks/use-media-query";
 import { avatarFicticio } from "@/lib/avatar-ficticio";
 import { estadoAtendimento, type EstadoAtendimento } from "@/lib/atendimento-estado";
 import { useEu, type Colaborador } from "@/lib/colaborador";
@@ -65,13 +73,17 @@ type Props = {
   limpando: boolean;
   apagando: boolean;
   saindo: boolean;
+  /** Celular: volta para a lista de conversas. */
+  onVoltar?: () => void;
 };
 
 export function ConversaCabecalho(p: Props) {
   const { chat, grupo } = p;
   const { eu, tem } = useEu();
   const modulos = useModulos();
-  const mobile = useIsMobile();
+  const mobile = useTelaCompacta();
+  const podeChamado = usePodeAbrirChamadoNaConversa();
+  const [tipoChamado, setTipoChamado] = useState<string | null>(null);
   const acoes = useAcoesAtendimento(chat);
   const outros = usePresencaConversa(chat?.id, eu);
   const estado = estadoAtendimento(chat, eu?.id, tem, {
@@ -101,7 +113,7 @@ export function ConversaCabecalho(p: Props) {
   const botaoMenu = (
     <button
       type="button"
-      className="grid size-9 max-sm:size-11 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       aria-label="Mais ações"
     >
       <MoreVertical className="size-[18px]" />
@@ -112,20 +124,125 @@ export function ConversaCabecalho(p: Props) {
     <ResponsavelChip estado={estado} responsavel={acoes.responsavel} eu={eu} />
   ) : null;
 
+  const chamado = chat ? (
+    <SolicitacaoBotaoSeAtivo origem={{ chatRowId: chat.id, clienteId: chat.clienteId, grupo: chat.tipo === "group" }} />
+  ) : null;
+
+  // ---- Celular: uma linha só; o resto na folha de baixo -------------------
+  if (mobile) {
+    return (
+      <header className="shrink-0 border-b bg-card pt-safe-t shadow-[0_1px_3px_rgba(16,32,64,0.05)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)]">
+        <div className="flex h-14 items-center gap-1 pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))]">
+          {p.onVoltar ? (
+            <button
+              type="button"
+              onClick={p.onVoltar}
+              className="grid size-11 shrink-0 place-items-center rounded-full text-foreground transition-colors hover:bg-accent active:bg-accent"
+              aria-label="Voltar para as conversas"
+            >
+              <ArrowLeft className="size-5" />
+            </button>
+          ) : (
+            <span className="w-2 shrink-0" aria-hidden />
+          )}
+          <ConversaAvatar
+            semente={chat?.chatId ?? p.nome}
+            nome={chat?.nome}
+            grupo={grupo}
+            fotoPath={chat?.fotoPath}
+            compacto
+          />
+          <button
+            type="button"
+            onClick={() => p.onMenuAbertoChange(true)}
+            className="ml-1.5 flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left"
+            aria-label={`${p.nome}: ações da conversa`}
+          >
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="min-w-0 truncate text-[15px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
+                {p.nome}
+              </span>
+              {chat?.clienteId ? (
+                <span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium leading-none text-primary">
+                  Cliente
+                </span>
+              ) : null}
+            </span>
+            <SublinhaCompacta chat={chat} estado={comAtendimento ? estado : null} responsavel={acoes.responsavel} numero={p.numero} nome={p.nome} grupo={grupo} outros={outros.length} />
+          </button>
+          <button
+            type="button"
+            onClick={() => p.onMenuAbertoChange(true)}
+            className="grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label="Mais ações"
+          >
+            <MoreVertical className="size-5" />
+          </button>
+        </div>
+
+        <Sheet open={p.menuAberto} onOpenChange={p.onMenuAbertoChange}>
+          <SheetContent side="bottom" className="bg-card px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
+            <SheetTitle className="sr-only">Ações da conversa</SheetTitle>
+            <SheetDescription className="sr-only">Opções para esta conversa.</SheetDescription>
+            <div className="min-h-0 overflow-y-auto overscroll-contain">
+              {(chip || outros.length > 0) && (
+                <div className="flex flex-wrap items-center gap-2 px-2.5 pb-2 pt-1">
+                  {chip}
+                  <TambemAqui outros={outros} />
+                </div>
+              )}
+              {principal && (
+                <div className="px-1 pb-1.5">
+                  <Button
+                    onClick={() => {
+                      p.onMenuAbertoChange(false);
+                      principal.onClick();
+                    }}
+                    disabled={acoes.ocupado || !eu}
+                    className="h-11 w-full"
+                    title={principal.dica}
+                  >
+                    {acoes.ocupado ? <Loader2 className="animate-spin" /> : principal.icone}
+                    {principal.rotulo}
+                  </Button>
+                </div>
+              )}
+              {chat && podeChamado && (
+                <SolicitacaoTiposItem
+                  onEscolher={(id) => {
+                    p.onMenuAbertoChange(false);
+                    setTipoChamado(id);
+                  }}
+                />
+              )}
+              {menuItens}
+            </div>
+          </SheetContent>
+        </Sheet>
+        {chat && (
+          <NovaSolicitacaoDialog
+            open={!!tipoChamado}
+            onOpenChange={(o) => !o && setTipoChamado(null)}
+            tipoIdInicial={tipoChamado}
+            origem={{ chatRowId: chat.id, clienteId: chat.clienteId, grupo: chat.tipo === "group" }}
+          />
+        )}
+        {acoes.dialogoTransferir}
+      </header>
+    );
+  }
+
+  // ---- Desktop e tablet: tudo na mesma linha (como sempre) ----------------
   const botaoPrimario = principal ? (
     <Button
       onClick={principal.onClick}
       disabled={acoes.ocupado || !eu}
-      className="max-sm:min-w-[9.5rem] max-sm:flex-1 md:h-9"
+      className="md:h-9"
       title={principal.dica}
     >
       {acoes.ocupado ? <Loader2 className="animate-spin" /> : principal.icone}
       {principal.rotulo}
     </Button>
-  ) : null;
-
-  const chamado = chat ? (
-    <SolicitacaoBotaoSeAtivo origem={{ chatRowId: chat.id, clienteId: chat.clienteId, grupo: chat.tipo === "group" }} />
   ) : null;
 
   return (
@@ -144,7 +261,7 @@ export function ConversaCabecalho(p: Props) {
               {p.nome}
             </h2>
             {chat?.clienteId ? (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-medium leading-none text-primary">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium leading-none text-primary">
                 Cliente
               </span>
             ) : null}
@@ -153,48 +270,18 @@ export function ConversaCabecalho(p: Props) {
           <Sublinha chat={chat} sessao={p.sessao} numero={p.numero} nome={p.nome} grupo={grupo} />
         </div>
 
-        {/* Desktop: tudo na mesma linha. Celular: o chip e a ação descem. */}
-        <div className="hidden min-w-0 max-w-full flex-wrap items-center justify-end gap-2 md:ml-auto md:flex">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 md:ml-auto">
           {chip}
           {botaoPrimario}
           {chamado}
-          <Popover open={p.menuAberto && !mobile} onOpenChange={p.onMenuAbertoChange}>
+          <Popover open={p.menuAberto} onOpenChange={p.onMenuAbertoChange}>
             <PopoverTrigger asChild>{botaoMenu}</PopoverTrigger>
             <PopoverContent align="end" className="w-64 p-1.5">
-              {!mobile && menuItens}
+              {menuItens}
             </PopoverContent>
           </Popover>
         </div>
-
-        <div className="md:hidden">
-          <button
-            type="button"
-            onClick={() => p.onMenuAbertoChange(true)}
-            className="grid size-11 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label="Mais ações"
-          >
-            <MoreVertical className="size-5" />
-          </button>
-        </div>
-
-        {(chip || botaoPrimario || chamado) && (
-          <div className="flex w-full flex-wrap items-center gap-2 md:hidden">
-            {chip}
-            {botaoPrimario}
-            {chamado && <div className="shrink-0 [&_button]:max-sm:h-11">{chamado}</div>}
-          </div>
-        )}
       </div>
-
-      {mobile && (
-        <Sheet open={p.menuAberto} onOpenChange={p.onMenuAbertoChange}>
-          <SheetContent side="bottom" overlayClassName="md:hidden" className="md:hidden bg-card px-2 pb-3 pt-1">
-            <SheetTitle className="sr-only">Ações da conversa</SheetTitle>
-            <SheetDescription className="sr-only">Opções para esta conversa.</SheetDescription>
-            {menuItens}
-          </SheetContent>
-        </Sheet>
-      )}
       {acoes.dialogoTransferir}
     </header>
   );
@@ -285,7 +372,7 @@ export function ResponsavelChip({
           <SemResponsavelAvatar size="sm" />
         )}
         <span className="flex min-w-0 flex-col leading-tight">
-          <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             <span className={cn("size-1.5 rounded-full", tom.ponto)} aria-hidden />
             {tom.rotulo}
           </span>
@@ -421,6 +508,59 @@ function Sublinha({
   );
 }
 
+/**
+ * Sublinha do cabeçalho de uma linha (celular): o estado do atendimento
+ * (o chip foi para a folha) e a presença do contato, numa linha que corta.
+ */
+function SublinhaCompacta({
+  chat,
+  estado,
+  responsavel,
+  numero,
+  nome,
+  grupo,
+  outros,
+}: {
+  chat: WhatsappChat | undefined;
+  estado: EstadoAtendimento | null;
+  responsavel: Colaborador | undefined;
+  numero: string | null;
+  nome: string;
+  grupo: boolean;
+  outros: number;
+}) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 8_000);
+    return () => clearInterval(id);
+  }, []);
+  const pres = presencaTexto(chat);
+  const tom = estado ? TOM[estado.fase] : null;
+  const quem = !estado
+    ? null
+    : estado.fase === "fila"
+    ? null
+    : estado.meu
+    ? "você"
+    : responsavel?.nome.split(" ")[0] ?? null;
+  const telefone = !grupo && numero && formatTelefone(numero) !== nome ? formatTelefone(numero) : null;
+  return (
+    <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs leading-tight text-muted-foreground">
+      {tom && <span className={cn("size-1.5 shrink-0 rounded-full", tom.ponto)} aria-hidden />}
+      <span className="min-w-0 truncate">
+        {[
+          tom ? (quem ? `${tom.rotulo} · ${quem}` : tom.rotulo) : null,
+          pres?.ativo ? pres.texto : null,
+          !tom && !pres?.ativo ? telefone : null,
+          outros > 0 ? `+${outros} aqui` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Menu ⋮ (popover no desktop, folha de baixo no celular)
 // ---------------------------------------------------------------------------
@@ -446,7 +586,7 @@ function Item({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors disabled:opacity-50 max-sm:min-h-11",
+        "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors disabled:opacity-50 toque:min-h-11",
         perigo ? "text-destructive hover:bg-destructive/10" : "hover:bg-accent",
       )}
     >
@@ -492,7 +632,7 @@ function ItensMenu(
         </>
       )}
       {grupoVer && chat && <ConversaTagsBotao chatId={chat.id} variante="item" />}
-      {!grupo && !p.mobile && (
+      {!grupo && (
         <Item
           icone={<PanelRight />}
           rotulo={p.painelAberto ? "Esconder perfil e histórico" : "Perfil e histórico"}
@@ -535,12 +675,15 @@ function ConversaAvatar({
   nome,
   grupo,
   fotoPath,
+  compacto = false,
 }: {
   /** Identificador do chat (JID). É a semente do desenho, NUNCA o nome. */
   semente: string;
   nome?: string | null;
   grupo: boolean;
   fotoPath?: string | null;
+  /** Cabeçalho de uma linha do celular: 36 px. */
+  compacto?: boolean;
 }) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const temFoto = fotoPath && fotoPath !== "__none__";
@@ -562,7 +705,8 @@ function ConversaAvatar({
   return (
     <span
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-medium md:size-11",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-medium",
+        compacto ? "size-9" : "size-10 md:size-11",
         grupo ? "bg-foreground/[0.06] text-foreground" : "bg-primary/15 text-primary",
       )}
     >

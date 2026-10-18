@@ -172,6 +172,61 @@ export function SolicitacaoBotao({ origem }: { origem: OrigemSolicitacao }) {
   );
 }
 
+/** O módulo "chamado na conversa" está ligado e o cargo pode abrir chamado. */
+export function usePodeAbrirChamadoNaConversa(): boolean {
+  const { ativo } = useModulos();
+  const { tem } = useEu();
+  return ativo("chamadoNaConversa") && tem("chamados.criar");
+}
+
+/**
+ * "Abrir chamado" como item de menu (folha de ações da conversa no celular):
+ * toca e os tipos abrem logo abaixo, com alvos de 44 px. Quem chama guarda o
+ * diálogo (`NovaSolicitacaoDialog`), porque a folha fecha ao escolher.
+ */
+export function SolicitacaoTiposItem({ onEscolher }: { onEscolher: (tipoId: string) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const { data: tipos = [], isLoading } = useSolicitacaoTipos({ somenteAtivos: true });
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        aria-expanded={aberto}
+        className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
+      >
+        <ClipboardPlus className="size-4 text-muted-foreground" />
+        <span className="flex-1">Abrir chamado</span>
+        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", aberto && "rotate-180")} />
+      </button>
+      {aberto && (
+        <div className="ml-8 border-l border-border/70 pl-1">
+          {isLoading ? (
+            <div className="grid place-items-center py-3">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : tipos.length === 0 ? (
+            <p className="px-2 py-3 text-xs text-muted-foreground">
+              Nenhum tipo ativo. Cadastre em Chamados → Tipos de chamado.
+            </p>
+          ) : (
+            tipos.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onEscolher(t.id)}
+                className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-sm hover:bg-accent"
+              >
+                {t.nome}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Diálogo curto de novo chamado (tipo pode vir escolhido). */
 export function NovaSolicitacaoDialog({
   open,

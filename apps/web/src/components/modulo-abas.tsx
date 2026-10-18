@@ -24,7 +24,7 @@ export function ModuloAbas({ abas }: { abas: { to: string; label: string; end?: 
           end={a.end}
           className={({ isActive }) =>
             cn(
-              "inline-flex h-7 max-lg:h-9 shrink-0 items-center rounded-full px-3.5 text-xs whitespace-nowrap transition-[color,background-color,transform] duration-150 active:scale-[.97]",
+              "relative toque:after:absolute toque:after:inset-x-0 toque:after:-inset-y-1 toque:after:content-[''] inline-flex h-7 max-lg:h-9 shrink-0 items-center rounded-full px-3.5 text-xs whitespace-nowrap transition-[color,background-color,transform] duration-150 active:scale-[.97]",
               isActive ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground",
             )
           }

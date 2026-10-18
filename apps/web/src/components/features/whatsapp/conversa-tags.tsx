@@ -38,7 +38,7 @@ export function TagsDaConversa({ chatId, className }: { chatId: string; classNam
         return (
           <span
             key={t.id}
-            className={cn("rounded border px-1.5 py-0.5 text-[10px] font-medium leading-none", TAG_CLASSES[t.cor])}
+            className={cn("rounded border px-1.5 py-0.5 text-[11px] font-medium leading-none", TAG_CLASSES[t.cor])}
           >
             {t.label}
           </span>
@@ -112,7 +112,7 @@ export function ConversaTagsBotao({
         {variante === "item" ? (
           <button
             type="button"
-            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent max-sm:min-h-11"
+            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent toque:min-h-11"
           >
             <TagIcon className={cn("size-4", aplicadas.size > 0 ? "text-primary" : "text-muted-foreground")} />
             <span className="flex-1">Etiquetas</span>
@@ -192,7 +192,7 @@ export function ConversaTagsBotao({
                 {criar.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground">Criar e excluir etiqueta é do responsável e dos advogados.</p>
+            <p className="text-[11px] text-muted-foreground">Criar e excluir etiqueta é do responsável e dos advogados.</p>
           </div>
         </div>
       </PopoverContent>

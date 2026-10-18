@@ -2,11 +2,16 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover: pinta até a borda no iPhone e faz env(safe-area-*) valer. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- viewport-fit=cover: pinta até a borda no iPhone e faz env(safe-area-*) valer.
+         interactive-widget=resizes-content: no Android o teclado encolhe a página
+         (o campo de mensagem sobe junto). No iOS quem faz isso é lib/teclado-virtual.ts. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
-    <meta name="theme-color" content="#f5f5f7" />
+    <link rel="apple-touch-icon" href="/icone-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Sem JS segue o tema do sistema; com JS, lib/theme.ts escreve o tema escolhido nas duas. -->
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1d1d1f" media="(prefers-color-scheme: dark)" />
     <!-- Painel interno: fora dos buscadores. -->
     <meta name="robots" content="noindex, nofollow" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -22,8 +27,8 @@
           var r = document.documentElement;
           r.classList.toggle("dark", t === "dark");
           r.style.colorScheme = t;
-          var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute("content", t === "dark" ? "#1d1d1f" : "#f5f5f7");
+          var ms = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; i < ms.length; i++) ms[i].setAttribute("content", t === "dark" ? "#1d1d1f" : "#f5f5f7");
         } catch (e) {}
       })();
     </script>

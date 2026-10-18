@@ -238,14 +238,32 @@ export const MessageBubble = memo(function MessageBubble({
 
   // Toque longo no iPhone: o Safari do iOS não dispara "contextmenu", e o
   // menu ficava inalcançável lá (defeito 41 do adv3).
+  // Durante o toque o balão fica sem seleção de texto e sem o balão nativo do
+  // iOS (copiar/salvar imagem), senão o Safari seleciona a palavra junto com o
+  // nosso menu. Se o toque longo abriu o menu, o "click" que vem depois do
+  // dedo sair é engolido: não abre a foto nem segue o link por baixo.
   const toqueRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toqueLongoRef = useRef(false);
+  const [pressionando, setPressionando] = useState(false);
   function iniciarToque() {
     if (!temAcoes) return;
-    toqueRef.current = setTimeout(() => setMenuOpen(true), 500);
+    toqueLongoRef.current = false;
+    setPressionando(true);
+    toqueRef.current = setTimeout(() => {
+      toqueLongoRef.current = true;
+      setMenuOpen(true);
+      navigator.vibrate?.(10);
+    }, 500);
   }
   function cancelarToque() {
     if (toqueRef.current) clearTimeout(toqueRef.current);
     toqueRef.current = null;
+    setPressionando(false);
+  }
+  function soltarToque(e: React.TouchEvent) {
+    cancelarToque();
+    // Sem o click sintetizado depois do toque longo.
+    if (toqueLongoRef.current && e.cancelable) e.preventDefault();
   }
 
   async function handleReagir(emoji: string) {
@@ -324,8 +342,15 @@ export const MessageBubble = memo(function MessageBubble({
     >
       <div
         onTouchStart={iniciarToque}
-        onTouchEnd={cancelarToque}
+        onTouchEnd={soltarToque}
         onTouchMove={cancelarToque}
+        onTouchCancel={cancelarToque}
+        onClickCapture={(e) => {
+          if (!toqueLongoRef.current) return;
+          toqueLongoRef.current = false;
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         onContextMenu={(e) => {
           // Segurar no mobile / botão direito no desktop abre o menu de
           // ações (em vez do menu nativo do navegador).
@@ -334,7 +359,8 @@ export const MessageBubble = memo(function MessageBubble({
           setMenuOpen(true);
         }}
         className={cn(
-          "relative rounded-2xl text-sm transition-colors",
+          "relative rounded-2xl text-sm transition-colors toque:[-webkit-touch-callout:none]",
+          pressionando && "select-none",
           molduraLivre
             ? // Mídia sem legenda: balão transparente, foto sem moldura.
               "bg-transparent p-0 shadow-none"
@@ -510,7 +536,7 @@ export const MessageBubble = memo(function MessageBubble({
             <PopoverContent
               side="top"
               align={direita ? "end" : "start"}
-              className="w-52 p-1"
+              className="w-52 toque:w-64 p-1"
             >
               {podeReagir && (
                 <div className="flex items-center justify-between px-1 pb-1 mb-1 border-b border-border/60">
@@ -520,7 +546,7 @@ export const MessageBubble = memo(function MessageBubble({
                       type="button"
                       onClick={() => void handleReagir(e)}
                       disabled={reagir.isPending}
-                      className="size-8 grid place-items-center rounded-md text-lg hover:bg-accent disabled:opacity-50"
+                      className="size-8 toque:size-10 grid place-items-center rounded-md text-lg hover:bg-accent disabled:opacity-50"
                       aria-label={"Reagir com " + e}
                     >
                       {e}
@@ -535,7 +561,7 @@ export const MessageBubble = memo(function MessageBubble({
                     setMenuOpen(false);
                     onReply?.({ wamId: msg.wamId!, texto: previewParaReply(msg) });
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left"
                 >
                   <CornerUpLeft className="size-4 text-muted-foreground" />
                   Responder
@@ -548,7 +574,7 @@ export const MessageBubble = memo(function MessageBubble({
                     setMenuOpen(false);
                     setEditarOpen(true);
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left"
                 >
                   <Pencil className="size-4 text-muted-foreground" />
                   Editar
@@ -561,7 +587,7 @@ export const MessageBubble = memo(function MessageBubble({
                     setMenuOpen(false);
                     void handleCopiar();
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left"
                 >
                   <Copy className="size-4 text-muted-foreground" />
                   Copiar mensagem
@@ -574,7 +600,7 @@ export const MessageBubble = memo(function MessageBubble({
                     setMenuOpen(false);
                     setEncaminharOpen(true);
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left"
                 >
                   <Forward className="size-4 text-muted-foreground" />
                   Encaminhar
@@ -587,7 +613,7 @@ export const MessageBubble = memo(function MessageBubble({
                     setMenuOpen(false);
                     onCriarSolicitacao?.(msg);
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left"
                 >
                   <ClipboardPlus className="size-4 text-muted-foreground" />
                   Abrir chamado a partir desta mensagem
@@ -605,7 +631,7 @@ export const MessageBubble = memo(function MessageBubble({
                       void handleApagar();
                     }}
                     disabled={apagar.isPending}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-destructive/10 text-destructive text-left disabled:opacity-50"
+                    className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-destructive/10 text-destructive text-left disabled:opacity-50"
                   >
                     <Trash2 className="size-4" />
                     Apagar
@@ -923,7 +949,7 @@ function LocationBubble({ msg }: { msg: WhatsappMensagem }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-2 mb-1 rounded-lg border bg-background/60 px-3 py-2 hover:bg-accent/40 transition-colors min-w-[200px]"
+      className="flex items-center gap-2 mb-1 rounded-lg border bg-background/60 px-3 py-2 hover:bg-accent/40 transition-colors min-w-[min(200px,calc(78vw-4.5rem))]"
     >
       <span className="grid place-items-center size-9 rounded-full bg-foreground/[0.06] text-foreground shrink-0">
         <MapPin className="size-4" />
@@ -987,7 +1013,7 @@ function PollBubble({ msg }: { msg: WhatsappMensagem }) {
   const ring = dark ? "border-primary-foreground/50" : "border-muted-foreground/40";
 
   return (
-    <div className="mb-1 min-w-[230px] max-w-[320px] space-y-2.5">
+    <div className="mb-1 min-w-[min(230px,calc(78vw-4.5rem))] max-w-[320px] space-y-2.5">
       <div className={cn("flex items-center gap-1.5 text-2xs uppercase tracking-wide", sub)}>
         <BarChart3 className="size-3.5" />
         Enquete{p.multipleAnswers ? " · múltipla escolha" : ""}
@@ -1088,7 +1114,7 @@ function ContatoBubble({
     return <span className="text-xs text-muted-foreground italic">Contato</span>;
   }
   return (
-    <div className="mb-1 space-y-1.5 min-w-[210px]">
+    <div className="mb-1 space-y-1.5 min-w-[min(210px,calc(78vw-4.5rem))]">
       {contatos.map((c, i) => {
         // Prefere o `waid` do vCard (jid exato do WhatsApp); cai pros dígitos
         // do TEL. É o id que abre a conversa certa no app.
@@ -1413,7 +1439,7 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
 
   if (!url) {
     return (
-      <div className="flex items-center gap-2.5 mb-1 min-w-[220px] py-1.5 px-1">
+      <div className="flex items-center gap-2.5 mb-1 min-w-[min(220px,calc(78vw-4.5rem))] py-1.5 px-1">
         <div
           className={cn(
             "size-9 rounded-full grid place-items-center",
@@ -1462,7 +1488,7 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
   const pct = duracao > 0 ? posicao / duracao : 0;
 
   return (
-    <div className="flex items-center gap-3 mb-1 min-w-[240px] py-1 px-0.5">
+    <div className="flex items-center gap-3 mb-1 min-w-[min(240px,calc(78vw-4.5rem))] py-1 px-0.5">
       <button
         type="button"
         onClick={togglePlay}
@@ -1583,7 +1609,7 @@ function formatDuracao(s: number): string {
 function DocumentPreview({ msg }: { msg: WhatsappMensagem }) {
   const url = useSignedUrl(msg.mediaPath);
   return (
-    <div className="flex items-center gap-2 mb-1 min-w-[200px] bg-background/60 rounded-md p-2 border">
+    <div className="flex items-center gap-2 mb-1 min-w-[min(200px,calc(78vw-4.5rem))] bg-background/60 rounded-md p-2 border">
       <button
         type="button"
         disabled={!url}

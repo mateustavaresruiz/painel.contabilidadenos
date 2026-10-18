@@ -4,6 +4,8 @@ import { forwardRef, useEffect, useRef, useState } from "react";
 
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { useTelaCompacta } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -48,10 +50,14 @@ function maskData(v: string): string {
  * real) ou abrir o calendário (com mês e ano em lista, p. ex. aniversários).
  * Fala "AAAA-MM-DD" com o resto do código, então troca direto o
  * `<Input type="date">`. Funciona dentro de diálogo.
+ *
+ * No celular o calendário abre numa folha de baixo (o popover saía da tela
+ * e empurrava a página); no desktop, popover colado no campo.
  */
 export const DatePicker = forwardRef<HTMLInputElement, Props>(
   ({ value, onChange, placeholder = "dd/mm/aaaa", id, disabled, limpavel, className, onErroChange, ...resto }, ref) => {
     const [open, setOpen] = useState(false);
+    const compacta = useTelaCompacta();
     const [texto, setTexto] = useState(() => isoParaBr(value));
     const [erro, setErro] = useState<string | null>(null);
     // Último valor que ESTE campo emitiu: se o pai mandar outro, é mudança externa.
@@ -102,9 +108,40 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(
     const valida = !!data && isValid(data);
     const invalido = !!erro;
 
+    const calendario = (
+      <Calendar
+        grande={compacta}
+        value={valida ? data : undefined}
+        onSelect={(d) => {
+          const iso = format(d, "yyyy-MM-dd");
+          setTexto(isoParaBr(iso));
+          setErro(null);
+          emitir(iso);
+          setOpen(false);
+        }}
+        onHoje={() => {
+          const iso = format(new Date(), "yyyy-MM-dd");
+          setTexto(isoParaBr(iso));
+          setErro(null);
+          emitir(iso);
+          setOpen(false);
+        }}
+        onLimpar={
+          limpavel
+            ? () => {
+                setTexto("");
+                setErro(null);
+                emitir("");
+                setOpen(false);
+              }
+            : undefined
+        }
+      />
+    );
+
     return (
       <div>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open && !compacta} onOpenChange={setOpen}>
           <PopoverAnchor asChild>
             <div className="relative">
               <input
@@ -124,14 +161,14 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(
                   if (texto !== "" && texto.length < 10) setErro("Data incompleta (dd/mm/aaaa)");
                 }}
                 className={cn(
-                  "flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-card py-1 pl-3 text-base tabular-nums md:text-sm",
+                  "flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-card py-1 pl-3 text-base tabular-nums fino:text-sm",
                   "transition-colors placeholder:text-muted-foreground hover:border-foreground/20 disabled:cursor-not-allowed disabled:opacity-50",
-                  valida && limpavel ? "pr-16" : "pr-10",
+                  valida && limpavel ? "pr-16 toque:pr-[6rem]" : "pr-10 toque:pr-12",
                   invalido && "border-destructive",
                   className,
                 )}
               />
-              <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 toque:right-0 toque:gap-0">
                 {(texto !== "" || valida) && limpavel && !disabled && (
                   <button
                     type="button"
@@ -141,17 +178,19 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(
                       emitir("");
                     }}
                     aria-label="Limpar data"
-                    className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="grid size-6 toque:size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
                   >
                     <X className="size-3.5" />
                   </button>
                 )}
+                {/* Celular: o popover nunca abre (open && !compacta) e o gatilho
+                    só liga `open`, que abre a folha lá embaixo. */}
                 <PopoverTrigger asChild>
                   <button
                     type="button"
                     disabled={disabled}
                     aria-label="Abrir calendário"
-                    className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                    className="grid size-7 toque:size-11 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
                   >
                     <CalendarDays className="size-4" strokeWidth={1.5} />
                   </button>
@@ -160,35 +199,18 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(
             </div>
           </PopoverAnchor>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              value={valida ? data : undefined}
-              onSelect={(d) => {
-                const iso = format(d, "yyyy-MM-dd");
-                setTexto(isoParaBr(iso));
-                setErro(null);
-                emitir(iso);
-                setOpen(false);
-              }}
-              onHoje={() => {
-                const iso = format(new Date(), "yyyy-MM-dd");
-                setTexto(isoParaBr(iso));
-                setErro(null);
-                emitir(iso);
-                setOpen(false);
-              }}
-              onLimpar={
-                limpavel
-                  ? () => {
-                      setTexto("");
-                      setErro(null);
-                      emitir("");
-                      setOpen(false);
-                    }
-                  : undefined
-              }
-            />
+            {calendario}
           </PopoverContent>
         </Popover>
+        {compacta && (
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetContent side="bottom" className="items-center bg-card pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <SheetTitle className="sr-only">Escolher data</SheetTitle>
+              <SheetDescription className="sr-only">Calendário para escolher a data.</SheetDescription>
+              <div className="flex w-full justify-center overflow-y-auto">{calendario}</div>
+            </SheetContent>
+          </Sheet>
+        )}
         {erro && (
           <p role="alert" className="mt-1 text-xs text-destructive">
             {erro}

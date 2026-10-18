@@ -213,7 +213,7 @@ function CaixaComentario({ id }: { id: string }) {
         aria-label="Comentário"
       />
       <div className="flex items-center justify-between gap-3">
-        <span className="text-2xs text-muted-foreground">Ctrl + Enter envia · {texto.length}/{MAX_COMENTARIO}</span>
+        <span className="text-2xs text-muted-foreground"><span className="toque:hidden">Ctrl + Enter envia · </span>{texto.length}/{MAX_COMENTARIO}</span>
         <Button size="sm" onClick={enviar} disabled={!limpo || comentar.isPending}>
           {comentar.isPending ? <Loader2 className="animate-spin" /> : <Send />}
           Comentar

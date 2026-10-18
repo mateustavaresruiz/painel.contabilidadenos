@@ -534,7 +534,7 @@ function CartaoChamado({ c }: { c: ChamadoPortal }) {
                 {!ultimo ? <span className={cn("mx-1 h-0.5 flex-1 rounded-full", c.etapas[i + 1]?.feito ? "bg-success" : "bg-border")} aria-hidden /> : null}
               </div>
               <p className={cn("mt-1.5 text-[11px] leading-tight sm:text-xs", e.feito ? "font-medium text-foreground" : "text-muted-foreground")}>{e.rotulo}</p>
-              {e.em ? <p className="text-[10px] text-muted-foreground sm:text-[11px]">{dataBR(e.em)}</p> : null}
+              {e.em ? <p className="text-[11px] text-muted-foreground">{dataBR(e.em)}</p> : null}
             </li>
           );
         })}

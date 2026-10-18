@@ -53,7 +53,7 @@ export function ClienteSelect({
         <button
           type="button"
           className={cn(
-            "flex h-10 max-sm:h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-base md:text-sm transition-colors hover:border-foreground/20",
+            "flex h-10 max-sm:h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-base fino:text-sm transition-colors hover:border-foreground/20",
             "disabled:opacity-60 disabled:cursor-not-allowed",
           )}
         >
@@ -71,7 +71,7 @@ export function ClienteSelect({
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar…"
-            className="h-8 pl-7 text-base md:text-sm"
+            className="h-8 pl-7 text-base fino:text-sm"
           />
         </div>
         <div className="max-h-64 overflow-y-auto">

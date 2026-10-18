@@ -122,7 +122,15 @@ function CardBanco() {
             <Linha rotulo="Tempo de resposta">{q.data?.latenciaMs} ms</Linha>
             <Linha rotulo="Erros nas últimas 24h">{d.erros24h}</Linha>
             <Linha rotulo="Migrações aplicadas">
-              {d.migracoes.length} (última: {d.migracoes.at(-1)?.nome ?? "nenhuma"})
+              {/* Nome do arquivo numa linha própria, cortado com "…": antes quebrava
+                  no meio ("015_login_google.s / ql)") no celular. */}
+              <span className="block">{d.migracoes.length}</span>
+              <span
+                className="block max-w-[14rem] truncate font-mono text-xs text-muted-foreground"
+                title={d.migracoes.at(-1)?.nome}
+              >
+                última: {d.migracoes.at(-1)?.nome.replace(/\.sql$/, "") ?? "nenhuma"}
+              </span>
             </Linha>
           </dl>
           <details className="text-sm">

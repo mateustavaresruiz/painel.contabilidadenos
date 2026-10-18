@@ -219,7 +219,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
         type="button"
         variant="ghost"
         size="icon"
-        className="size-9 shrink-0"
+        className="size-9 shrink-0 toque:size-11"
         onClick={iniciar}
         disabled={disabled || iniciando}
         title="Gravar áudio"
@@ -240,7 +240,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
       <button
         type="button"
         onClick={cancelar}
-        className="grid place-items-center size-8 shrink-0 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+        className="grid place-items-center size-8 toque:size-11 shrink-0 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
         aria-label="Cancelar gravação"
         title="Cancelar"
       >
@@ -271,7 +271,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
       <Button
         type="button"
         size="icon"
-        className="size-8 shrink-0"
+        className="size-8 shrink-0 toque:size-11"
         onClick={parar}
         title="Enviar áudio"
         aria-label="Enviar áudio"

@@ -71,6 +71,8 @@ type Props = {
   chat?: WhatsappChat;
   /** Fecha o painel em mobile/tablet (em desktop fica fixo). */
   onClose?: () => void;
+  /** Celular: o mesmo conteúdo dentro de uma folha de baixo (ocupa a largura toda). */
+  emFolha?: boolean;
 };
 
 /**
@@ -96,6 +98,7 @@ export function ClientContextPanel({
   vinculando,
   chat,
   onClose,
+  emFolha = false,
 }: Props) {
   const [vincularOpen, setVincularOpen] = useState(false);
   const [novaSolicitacao, setNovaSolicitacao] = useState(false);
@@ -104,10 +107,16 @@ export function ClientContextPanel({
   const chamadoNaConversa = useModulos().ativo("chamadoNaConversa") && podeCriarChamado;
 
   return (
-    // Em mobile o painel não cabe junto da conversa — só renderiza
-    // em md+. Mobile pode acessar o cliente vinculado abrindo o
-    // cadastro direto pela lista de clientes.
-    <aside className="hidden md:flex w-80 lg:w-96 shrink-0 border-l bg-card/30 flex-col h-full min-h-0">
+    // Ao lado da conversa só em md+. No celular a conversa abre este mesmo
+    // conteúdo numa folha de baixo (emFolha), pelo item "Perfil e histórico".
+    <aside
+      className={cn(
+        "flex-col min-h-0",
+        emFolha
+          ? "flex w-full flex-1"
+          : "hidden md:flex w-80 lg:w-96 shrink-0 border-l bg-card/30 h-full",
+      )}
+    >
       <header className="px-4 h-14 shrink-0 border-b flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <MessageCircle className="size-4 text-foreground shrink-0" />
@@ -117,7 +126,7 @@ export function ClientContextPanel({
           <button
             type="button"
             onClick={onClose}
-            className="grid place-items-center size-8 rounded-md hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors -mr-2"
+            className="grid place-items-center size-8 toque:size-11 rounded-md hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors -mr-2"
             aria-label="Fechar painel"
           >
             <X className="size-4" />

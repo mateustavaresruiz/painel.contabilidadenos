@@ -129,7 +129,7 @@ export function ChatFilterChips({ ativo, onChange }: Props) {
             // (e o handler de drag-to-scroll continua no container pai).
             onPointerDown={(e) => e.stopPropagation()}
             className={cn(
-              "shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+              "shrink-0 flex items-center gap-1.5 px-2.5 py-1 toque:min-h-10 toque:px-3.5 rounded-full text-xs font-medium",
               "transition-all border",
               isAtivo
                 ? "bg-foreground text-background border-foreground shadow-sm"

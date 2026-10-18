@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
+import plugin from "tailwindcss/plugin";
 
 // Os tokens de cor são CSS vars com um valor oklch() COMPLETO
 // (ex.: --primary: oklch(0.52 0.16 255)). O modificador de opacidade do
@@ -17,6 +18,9 @@ function alpha(varName: string): string {
       ? `var(${varName})`
       : `color-mix(in srgb, var(${varName}) calc(${opacityValue} * 100%), transparent)`) as unknown as string;
 }
+
+/** Celular em pé (< md) ou deitado (pouca altura e dedo). Igual a hooks/use-media-query.ts. */
+const TELA_COMPACTA = "(max-width: 767px), (max-height: 500px) and (pointer: coarse)";
 
 export default {
   // Claro ⇄ escuro pela classe `.dark` no <html> (lib/theme.ts).
@@ -159,5 +163,19 @@ export default {
       },
     },
   },
-  plugins: [animate],
+  plugins: [
+    animate,
+    // Variantes por tipo de ponteiro e por "tela compacta" (docs/DESIGN.md):
+    //  - `toque:` dedo (celular, tablet). Alvos de 44 px, sem dicas de teclado.
+    //  - `fino:`  mouse/trackpad. Fonte de 15 px nos campos SÓ aqui: no toque o
+    //    campo fica em 16 px, senão o Safari do iOS dá zoom ao focar (inclusive
+    //    no iPad, que passa do `md`).
+    //  - `compacto:` celular em pé OU deitado (844x390 passa do `md`, mas tem
+    //    altura de celular). Espelha useTelaCompacta() de hooks/use-media-query.
+    plugin(({ addVariant }) => {
+      addVariant("toque", "@media (pointer: coarse)");
+      addVariant("fino", "@media (pointer: fine)");
+      addVariant("compacto", `@media ${TELA_COMPACTA}`);
+    }),
+  ],
 } satisfies Config;

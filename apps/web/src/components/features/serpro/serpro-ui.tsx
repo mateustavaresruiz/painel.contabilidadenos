@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { QueryError } from "@/components/ui/query-error";
 import { ListaSkeleton } from "@/components/ui/skeleton";
 import { erroDeConsulta } from "@/components/features/serpro/serpro-painel";
+import { useIsMobile } from "@/hooks/use-media-query";
 import { api, ErroDaApi } from "@/lib/api";
 import { usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
@@ -104,6 +105,11 @@ export function SerproStatusCard() {
   const { data, isLoading, error, refetch, isFetching } = useSerproStatus();
   const foraDoAr = !!error;
   const rotaInexistente = error instanceof ErroDaApi && (error.status === 404 || error.status === 0);
+  // Celular: a lista técnica (requisitos e variáveis) fica atrás de "Ver
+  // detalhes"; ocupava a primeira tela inteira antes das abas.
+  const mobile = useIsMobile();
+  const [detalhes, setDetalhes] = useState(false);
+  const mostrarDetalhes = !mobile || detalhes;
 
   return (
     <Card>
@@ -133,7 +139,7 @@ export function SerproStatusCard() {
                     ? "Integração ainda não disponível"
                     : "Integração com o Serpro não configurada"}
             </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={cn("text-sm text-muted-foreground mt-0.5", !mostrarDetalhes && "line-clamp-2")}>
               {foraDoAr
                 ? rotaInexistente
                   ? "A função do servidor (serpro) ainda não foi publicada. A tela já está pronta: quando ela entrar no ar, o status aparece aqui."
@@ -147,6 +153,17 @@ export function SerproStatusCard() {
             <span className="hidden sm:inline">Verificar</span>
           </Button>
         </div>
+        {mobile && (
+          <Button
+            variant="outline"
+            className="h-11 w-full"
+            onClick={() => setDetalhes((v) => !v)}
+            aria-expanded={detalhes}
+          >
+            {detalhes ? "Ocultar detalhes" : "Ver detalhes"}
+          </Button>
+        )}
+        {mostrarDetalhes && (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {REQUISITOS.map((r) => {
             const st = situacaoRequisito(data, r);
@@ -169,7 +186,8 @@ export function SerproStatusCard() {
             );
           })}
         </ul>
-        {data && Array.isArray(data.faltando) && data.faltando.length > 0 && (
+        )}
+        {mostrarDetalhes && data && Array.isArray(data.faltando) && data.faltando.length > 0 && (
           <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground space-y-1">
             <p>
               Variáveis que faltam definir nas funções do servidor (Easypanel → serviço das

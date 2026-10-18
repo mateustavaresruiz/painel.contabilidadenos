@@ -40,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FiltrosResponsivos, type FiltroAtivo } from "@/components/ui/filtros-responsivos";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
@@ -253,10 +254,32 @@ function ListaAba() {
     setDe("");
     setAte("");
   }
+  // Chips do celular: um por filtro fora do padrão ("Em aberto").
+  const ativos: FiltroAtivo[] = [];
+  if (status !== "abertas")
+    ativos.push({
+      id: "status",
+      rotulo: status ? STATUS_SOLICITACAO.find((x) => x.value === status)?.label ?? "Status" : "Todos os status",
+      onRemover: () => setStatus("abertas"),
+    });
+  if (tipoId) ativos.push({ id: "tipo", rotulo: tipos.find((t) => t.id === tipoId)?.nome ?? "Tipo", onRemover: () => setTipoId("") });
+  if (responsavel)
+    ativos.push({
+      id: "resp",
+      rotulo: responsavel === "sem" ? "Sem responsável" : mapa.get(responsavel)?.nome ?? "Responsável",
+      onRemover: () => setResponsavel(""),
+    });
+  if (clienteId) ativos.push({ id: "cliente", rotulo: "Cliente escolhido", onRemover: () => setClienteId(null) });
+  if (de) ativos.push({ id: "de", rotulo: `De ${formatData(de)}`, onRemover: () => setDe("") });
+  if (ate) ativos.push({ id: "ate", rotulo: `Até ${formatData(ate)}`, onRemover: () => setAte("") });
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-2 rounded-card border bg-card p-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+      <FiltrosResponsivos
+        ativos={ativos}
+        onLimpar={limparFiltros}
+        className="grid grid-cols-1 gap-2 rounded-card border bg-card p-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
+      >
         <Select value={status || TODOS} onValueChange={(v) => setStatus(v === TODOS ? "" : (v as SolicitacaoStatus | "abertas"))}>
           <SelectTrigger aria-label="Status">
             <SelectValue />
@@ -311,7 +334,7 @@ function ListaAba() {
         <ClienteSelect value={clienteId} onChange={setClienteId} permitirTodos />
         <CampoData rotulo="De" value={de} onChange={setDe} title="Criadas a partir de" />
         <CampoData rotulo="Até" value={ate} onChange={setAte} title="Criadas até" />
-      </div>
+      </FiltrosResponsivos>
 
       {isLoading ? (
         <Card aria-busy="true">

@@ -199,10 +199,23 @@ export function InicioPage() {
 function InicioMarinho(p: Inicio) {
   return (
     <PageContainer className="lg:space-y-8">
-      <section
-        className="relative overflow-hidden rounded-card text-white shadow-card animate-rise"
-        style={{ backgroundImage: "url(/login-predio.jpg)", backgroundSize: "cover", backgroundPosition: "center 40%" }}
-      >
+      <section className="relative overflow-hidden rounded-card text-white shadow-card animate-rise">
+        {/* Foto do prédio quase toda coberta pelo degradê: WebP de 640/1280 px
+            (31/74 KB) no lugar do JPG de 1400 px (215 KB); o JPG fica de reserva. */}
+        <picture>
+          <source
+            type="image/webp"
+            srcSet="/login-predio-640.webp 640w, /login-predio-1280.webp 1280w"
+            sizes="(min-width: 1024px) 60vw, 100vw"
+          />
+          <img
+            src="/login-predio.jpg"
+            alt=""
+            aria-hidden
+            decoding="async"
+            className="absolute inset-0 size-full object-cover object-[center_40%]"
+          />
+        </picture>
         <div
           aria-hidden
           className="absolute inset-0"

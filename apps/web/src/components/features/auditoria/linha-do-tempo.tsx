@@ -171,7 +171,7 @@ export function EventoItem({
               type="button"
               onClick={() => setAberto((v) => !v)}
               aria-expanded={aberto}
-              className="inline-flex items-center gap-0.5 rounded text-primary hover:underline"
+              className="relative inline-flex items-center gap-0.5 rounded text-primary hover:underline toque:after:absolute toque:after:-inset-x-2 toque:after:-inset-y-3.5 toque:after:content-['']"
             >
               {aberto ? "Ocultar detalhes" : "Ver detalhes"}
               <ChevronDown className={cn("size-3 transition-transform", aberto && "rotate-180")} />

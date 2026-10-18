@@ -284,7 +284,7 @@ export function ChatSidebar({
           <button
             type="button"
             onClick={sairSelecao}
-            className="grid place-items-center size-7 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="grid place-items-center size-7 toque:size-11 toque:-my-1.5 toque:-ml-1.5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Cancelar seleção"
           >
             <X className="size-4" />
@@ -420,7 +420,7 @@ function ListaConversas({
         <div className="pb-2">
           {fixadas.length > 0 && (
             <div className="px-3 pt-3 pb-1 sticky top-0 bg-card/70 backdrop-blur-sm z-[1]">
-              <p className="text-[9.5px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/70 flex items-center gap-1.5">
+              <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/70 flex items-center gap-1.5">
                 <PinIcon className="size-2.5 text-bronze" />
                 Fixadas
                 <span className="text-muted-foreground/50 normal-case tracking-normal font-normal">
@@ -740,17 +740,20 @@ const ChatItem = memo(function ChatItemImpl({
         }}
         className={cn(
           "w-full flex items-start gap-3 px-2.5 py-2.5 text-left cursor-pointer",
-          modoSelecao ? "pr-3" : "pr-9",
+          modoSelecao ? "pr-3" : "pr-9 toque:pr-12",
         )}
       >
         {modoSelecao && (
-          <Checkbox
-            checked={selecionado}
-            readOnly
-            // O clique na linha já alterna; o checkbox é só visual/acessível.
-            tabIndex={-1}
-            className="self-center shrink-0 pointer-events-none size-[18px]"
-          />
+          // A linha inteira alterna; no toque a área do checkbox tem 44 px.
+          <span className="self-center grid shrink-0 place-items-center toque:-mx-2 toque:size-11">
+            <Checkbox
+              checked={selecionado}
+              readOnly
+              // O clique na linha já alterna; o checkbox é só visual/acessível.
+              tabIndex={-1}
+              className="pointer-events-none size-[18px]"
+            />
+          </span>
         )}
         <span className="relative shrink-0">
           <ChatAvatar
@@ -819,7 +822,7 @@ const ChatItem = memo(function ChatItemImpl({
             <div className="flex flex-wrap items-center gap-1 mt-1.5">
               {chat.tipo !== "group" && <ChipAtendimento chat={chat} responsavel={responsavel} />}
               {temCliente && (
-                <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-bronze/15 text-bronze rounded-full px-1.5 py-0.5 leading-none">
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-bronze/15 text-bronze rounded-full px-1.5 py-0.5 leading-none">
                   <span className="size-1 rounded-full bg-bronze" aria-hidden />
                   Cliente
                 </span>
@@ -829,7 +832,7 @@ const ChatItem = memo(function ChatItemImpl({
                   label={`Via ${sessao.apelido ?? sessao.numero ?? "WhatsApp"}`}
                   side="top"
                 >
-                  <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-primary/10 text-primary rounded-full px-1.5 py-0.5 leading-none max-w-[120px]">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-primary/10 text-primary rounded-full px-1.5 py-0.5 leading-none max-w-[120px]">
                     <span className="size-1 rounded-full bg-primary" aria-hidden />
                     <span className="truncate">
                       {sessao.apelido ?? formatPhone(sessao.numero ?? "")}
@@ -851,6 +854,8 @@ const ChatItem = memo(function ChatItemImpl({
             onClick={(e) => e.stopPropagation()}
             className={cn(
               "absolute right-1 top-2 grid place-items-center size-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-opacity opacity-50 hover:opacity-100",
+              // Toque: alvo de 44 px e sempre visível (não há hover no dedo).
+              "toque:right-0 toque:top-0.5 toque:size-11 toque:opacity-100",
               menuOpen && "opacity-100 bg-accent",
             )}
             aria-label="Mais ações"
@@ -866,7 +871,7 @@ const ChatItem = memo(function ChatItemImpl({
               setMenuOpen(false);
               setDownloadOpen(true);
             }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left"
+            className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left"
           >
             <Download className="size-4 text-muted-foreground" />
             Exportar conversa
@@ -876,7 +881,7 @@ const ChatItem = memo(function ChatItemImpl({
             type="button"
             onClick={handleFixar}
             disabled={fixar.isPending}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left disabled:opacity-50"
+            className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left disabled:opacity-50"
           >
             <PinIcon
               className={cn(
@@ -890,7 +895,7 @@ const ChatItem = memo(function ChatItemImpl({
             type="button"
             onClick={handleArquivar}
             disabled={arquivar.isPending}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left disabled:opacity-50"
+            className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left disabled:opacity-50"
           >
             {chat.arquivado ? (
               <ArchiveRestore className="size-4 text-muted-foreground" />
@@ -905,7 +910,7 @@ const ChatItem = memo(function ChatItemImpl({
             type="button"
             onClick={handleLimpar}
             disabled={limpar.isPending}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent text-left disabled:opacity-50"
+            className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-accent text-left disabled:opacity-50"
           >
             <Eraser className="size-4 text-muted-foreground" />
             Limpar mensagens
@@ -914,7 +919,7 @@ const ChatItem = memo(function ChatItemImpl({
             type="button"
             onClick={handleApagar}
             disabled={apagar.isPending}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-destructive/10 text-destructive text-left disabled:opacity-50"
+            className="w-full flex items-center gap-2 px-2 py-1.5 toque:min-h-11 rounded-md text-sm hover:bg-destructive/10 text-destructive text-left disabled:opacity-50"
           >
             <Trash2 className="size-4" />
             Excluir conversa
@@ -1075,7 +1080,7 @@ function ChipAtendimento({
 }) {
   if (chat.atendimentoStatus === "finalizado") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-success">
+      <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[11px] font-medium leading-none text-success">
         <span className="size-1 rounded-full bg-success" aria-hidden />
         Finalizado
       </span>
@@ -1083,14 +1088,14 @@ function ChipAtendimento({
   }
   if (!chat.responsavelId) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-warning">
+      <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium leading-none text-warning">
         <span className="size-1 rounded-full bg-warning" aria-hidden />
         Na fila
       </span>
     );
   }
   return (
-    <span className="inline-flex max-w-[150px] items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-primary">
+    <span className="inline-flex max-w-[150px] items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium leading-none text-primary">
       <span className="size-1 shrink-0 rounded-full bg-primary" aria-hidden />
       <span className="truncate">
         Em atendimento{responsavel ? ` · ${responsavel.nome.split(" ")[0]}` : ""}

@@ -40,7 +40,8 @@ export const TabsTrigger = forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex h-7 max-lg:h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs transition-[color,background-color,transform] duration-150 active:scale-[.97] [&_svg]:size-3.5 disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-semibold",
+      // Toque: o ::after estende a área de toque a 44 px sem mudar o desenho.
+      "relative toque:after:absolute toque:after:inset-x-0 toque:after:-inset-y-1 toque:after:content-[''] inline-flex h-7 max-lg:h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs transition-[color,background-color,transform] duration-150 active:scale-[.97] [&_svg]:size-3.5 disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-semibold",
       className,
     )}
     {...props}

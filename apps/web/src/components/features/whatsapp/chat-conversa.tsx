@@ -1,6 +1,6 @@
 import { format, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { AlertCircle, Hand, MessageSquare, Loader2, Lock, Mic, Paperclip, Smile } from "lucide-react";
+import { AlertCircle, ChevronDown, Hand, MessageSquare, Loader2, Lock, Mic, Paperclip, Smile } from "lucide-react";
 import {
   Fragment,
   useCallback,
@@ -15,6 +15,7 @@ import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { confirmar } from "@/components/ui/confirm-dialog";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { openMediaViewer } from "@/components/ui/media-viewer";
 import { DivisorTransferencia } from "@/components/features/atendimento/atendimento-acoes";
 import { ClientContextPanel } from "@/components/features/inbox/client-context-panel";
@@ -31,6 +32,8 @@ import {
   useWhatsappChatAberto,
 } from "@/lib/queries/atendimento";
 import { estadoAtendimento } from "@/lib/atendimento-estado";
+import { useAbaVisivel } from "@/hooks/use-aba-visivel";
+import { useTelaCompacta } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import {
   mediaSignedUrl,
@@ -66,6 +69,8 @@ type Props = {
   sessoes: WhatsappSessao[];
   /** Texto pré-preenchido no campo (ex.: "Parabenizar no WhatsApp"). */
   textoInicial?: string;
+  /** Celular: volta para a lista (botão no cabeçalho). Ausente no desktop. */
+  onVoltar?: () => void;
 };
 
 // Sincronizações de background (marcar lido, refresh de perfil/fotos,
@@ -75,7 +80,8 @@ type Props = {
 // enxurrada de requests (o "alagamento" + travada ao transitar).
 const SYNC_DIFERIDO_MS = 600;
 
-export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props) {
+export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar }: Props) {
+  const compacta = useTelaCompacta();
   const sessao = sessoes.find((s) => s.id === sessaoId);
   // A conversa aberta vem por id, não da lista (defeito 6 do adv3).
   const { data: chatAberto } = useWhatsappChatAberto(sessaoId, chatId);
@@ -129,6 +135,10 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   // Painel do cliente começa FECHADO — abre como overlay sobre a conversa
   // pelo botão do header (não encolhe mais a conversa).
   const [painelAberto, setPainelAberto] = useState(false);
+  // Distância do fim (px) na última rolagem, e o botão "Ir para a última".
+  const distFimRef = useRef(0);
+  const [longeDoFim, setLongeDoFim] = useState(false);
+  const [novasAbaixo, setNovasAbaixo] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
 
@@ -362,13 +372,18 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   const souResponsavel =
     !!eu?.id && chat?.responsavelId === eu.id && chat?.atendimentoStatus !== "finalizado";
   const grupoAberto = chatGrupo || !!chatId?.endsWith("@g.us");
+  // Só com a aba VISÍVEL: celular com a tela apagada ou o painel em outra aba
+  // não pode mandar "lido" ao contato por mensagens que ninguém viu. Ao voltar
+  // a ver a aba, o efeito roda de novo e marca.
+  const visivel = useAbaVisivel();
   useEffect(() => {
+    if (!visivel) return;
     if (!chatId || !chat || chat.naoLidas <= 0) return;
     if (!grupoAberto && !souResponsavel) return;
     marcarLido.mutate(chatId);
     // O marcar-lido otimista mexe na lista; a conversa aberta zera aqui.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId, chat?.naoLidas, souResponsavel, grupoAberto]);
+  }, [chatId, chat?.naoLidas, souResponsavel, grupoAberto, visivel]);
 
   // Refresh do perfil quando entra num chat que tá faltando dados
   // básicos. Caso típico: grupo recém-criado no banco com nome=null,
@@ -514,6 +529,9 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   useLayoutEffect(() => {
     ancorarRef.current = true;
     ultimoMsgRef.current = null;
+    distFimRef.current = 0;
+    setLongeDoFim(false);
+    setNovasAbaixo(0);
   }, [chatId]);
 
   // Decide o scroll quando as mensagens mudam: primeira leva do chat
@@ -540,6 +558,10 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
       if (ultima.fromMe || pertoDoFim) {
         grudarFimRef.current = true;
         scrollParaFim(ultima.fromMe);
+      } else {
+        // Lendo o histórico: não arranca a pessoa de lá, só conta no botão
+        // "Ir para a última mensagem".
+        setNovasAbaixo((n) => n + 1);
       }
     }
   }, [mensagens, scrollParaFim]);
@@ -549,6 +571,11 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const distFim = el.scrollHeight - el.scrollTop - el.clientHeight;
+    distFimRef.current = distFim;
+    const longe = distFim > 400;
+    setLongeDoFim((v) => (v === longe ? v : longe));
+    if (distFim < 80) setNovasAbaixo((n) => (n === 0 ? n : 0));
     // Durante a janela de ancoragem (logo após abrir/descer), os scrolls são
     // programáticos (pin + ResizeObserver) — não solta o "grudar no fim".
     if (Date.now() < ancorandoAteRef.current) return;
@@ -695,7 +722,20 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
       }
     });
     ro.observe(content);
-    return () => ro.disconnect();
+    // O PRÓPRIO contêiner também muda de altura: teclado virtual abrindo,
+    // composer crescendo, barra do navegador sumindo. Quem estava no fim
+    // (ou quase) continua vendo a última mensagem.
+    const roScroller = new ResizeObserver(() => {
+      if (carregandoAntigasRef.current) return;
+      if (grudarFimRef.current || distFimRef.current < 80) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
+    });
+    roScroller.observe(scroller);
+    return () => {
+      ro.disconnect();
+      roScroller.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, mensagens.length === 0]);
 
@@ -759,6 +799,28 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
         : formatTelefone(numero));
 
 
+  const painelCliente = (emFolha: boolean) => (
+    <ClientContextPanel
+      clienteId={chat?.clienteId ?? null}
+      canal="whatsapp"
+      fotoPath={chat?.fotoPath ?? null}
+      conversaId={chatId}
+      sugestao={numero}
+      nomeSugerido={chat?.nome ?? null}
+      chat={chat}
+      vinculando={vincular.isPending}
+      onVincular={(clienteId) => {
+        if (!chat) return Promise.resolve();
+        return vincular.mutateAsync({
+          chatRowId: chat.id,
+          clienteId,
+        });
+      }}
+      onClose={() => setPainelAberto(false)}
+      emFolha={emFolha}
+    />
+  );
+
   return (
     <div className="flex-1 flex min-w-0 h-full min-h-0 overflow-hidden relative">
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -780,8 +842,10 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
           limpando={limpar.isPending}
           apagando={apagar.isPending}
           saindo={sairGrupo.isPending}
+          onVoltar={onVoltar}
         />
 
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Mensagens — scroll dedicado da conversa. Fundo limpo (cinza
           bem claro), sem ornamentos, no espírito minimalista/claro. */}
       <div
@@ -918,9 +982,36 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
         )}
       </div>
 
+      {/* Rolou para cima: atalho de volta ao fim, com quantas chegaram. */}
+      {longeDoFim && mensagens.length > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            grudarFimRef.current = true;
+            setNovasAbaixo(0);
+            scrollParaFim(true);
+          }}
+          className="absolute bottom-3 right-3 z-10 grid size-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-flutuante transition-[color,transform] duration-150 hover:text-foreground active:scale-95 animate-in fade-in-0 zoom-in-95"
+          aria-label={
+            novasAbaixo > 0
+              ? `Ir para a última mensagem (${novasAbaixo} nova${novasAbaixo === 1 ? "" : "s"})`
+              : "Ir para a última mensagem"
+          }
+          title="Ir para a última mensagem"
+        >
+          <ChevronDown className="size-5" />
+          {novasAbaixo > 0 && (
+            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-2xs font-bold text-primary-foreground">
+              {novasAbaixo > 99 ? "99+" : novasAbaixo}
+            </span>
+          )}
+        </button>
+      )}
+      </div>
+
         {sessaoId && chatId &&
           (!tem("whatsapp.responder") ? (
-            <p className="border-t barra-fixa px-4 py-3 text-xs text-muted-foreground text-center">
+            <p className="border-t barra-fixa px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs text-muted-foreground text-center">
               Seu cargo pode ler as conversas, mas não responder.
             </p>
           ) : chat?.podeEnviar === false ? (
@@ -954,40 +1045,36 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
       {/* Painel do cliente. Em telas largas (2xl) fica ao lado da conversa, que
           encolhe; abaixo disso desliza por cima com um véu (clicar fora fecha),
           porque a coluna da conversa não comporta os dois sem esconder o cabeçalho. */}
-      {painelAberto && !grupo && (
+      {/* Painel do cliente. Em telas largas (2xl) fica ao lado da conversa, que
+          encolhe; abaixo disso desliza por cima com um véu (clicar fora fecha),
+          porque a coluna da conversa não comporta os dois sem esconder o cabeçalho.
+          No celular (em pé ou deitado) é o mesmo conteúdo numa folha de baixo. */}
+      {painelAberto && !grupo && !compacta && (
         <div
-          className="absolute inset-0 z-20 hidden bg-foreground/25 md:block 2xl:hidden"
+          className="absolute inset-0 z-20 bg-foreground/25 2xl:hidden"
           onClick={() => setPainelAberto(false)}
           aria-hidden
         />
       )}
-      {painelAberto && !grupo && (
+      {painelAberto && !grupo && !compacta && (
         <div
           className={cn(
-            "absolute inset-y-0 right-0 z-30 hidden md:block bg-card shadow-2xl",
+            "absolute inset-y-0 right-0 z-30 bg-card shadow-2xl",
             "2xl:static 2xl:z-auto 2xl:shrink-0 2xl:shadow-none",
             "animate-in slide-in-from-right-8 fade-in-0 duration-200",
           )}
         >
-          <ClientContextPanel
-            clienteId={chat?.clienteId ?? null}
-            canal="whatsapp"
-            fotoPath={chat?.fotoPath ?? null}
-            conversaId={chatId}
-            sugestao={numero}
-            nomeSugerido={chat?.nome ?? null}
-            chat={chat}
-            vinculando={vincular.isPending}
-            onVincular={(clienteId) => {
-              if (!chat) return Promise.resolve();
-              return vincular.mutateAsync({
-                chatRowId: chat.id,
-                clienteId,
-              });
-            }}
-            onClose={() => setPainelAberto(false)}
-          />
+          {painelCliente(false)}
         </div>
+      )}
+      {compacta && !grupo && (
+        <Sheet open={painelAberto} onOpenChange={setPainelAberto}>
+          <SheetContent side="bottom" className="h-[85dvh] bg-card p-0">
+            <SheetTitle className="sr-only">Perfil e histórico</SheetTitle>
+            <SheetDescription className="sr-only">Cliente vinculado, chamados e histórico desta conversa.</SheetDescription>
+            {painelCliente(true)}
+          </SheetContent>
+        </Sheet>
       )}
 
       {chatId && sessaoId && (
@@ -1021,7 +1108,7 @@ function ComposerBloqueado({ motivo }: { motivo: string | null }) {
       ? "Você não está mais neste grupo."
       : "Só administradores podem enviar mensagens neste grupo.";
   return (
-    <div className="border-t bg-muted/40 px-4 py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+    <div className="border-t bg-muted/40 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-center gap-2 text-sm text-muted-foreground">
       <Lock className="size-4 shrink-0" />
       <span>{texto}</span>
     </div>
@@ -1035,7 +1122,7 @@ function ComposerBloqueado({ motivo }: { motivo: string | null }) {
  */
 function ComposerSemPermissaoAssumir({ finalizada }: { finalizada: boolean }) {
   return (
-    <div className="shrink-0 border-t bg-card/40 p-3" role="region" aria-label="Conversa sem responsável">
+    <div className="shrink-0 border-t bg-card/40 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" role="region" aria-label="Conversa sem responsável">
       <div className="flex min-h-11 items-center gap-3 rounded-xl border border-dashed border-border bg-muted/50 px-3 py-2">
         <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1 leading-tight">
@@ -1075,7 +1162,7 @@ export function ComposerEmAtendimento({ chat, podeTomar }: { chat: WhatsappChat;
 
   const apagado = "grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground/40";
   return (
-    <div className="shrink-0 border-t bg-card/40 p-3" role="region" aria-label="Conversa em atendimento">
+    <div className="shrink-0 border-t bg-card/40 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" role="region" aria-label="Conversa em atendimento">
       <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
         <span className="flex items-center gap-1 max-sm:hidden" aria-hidden>
           <span className={apagado}><Smile className="size-4" /></span>

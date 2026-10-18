@@ -10,9 +10,11 @@ import { confirmar } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ItemCard, ListaResponsiva } from "@/components/ui/lista-responsiva";
 import { QueryError } from "@/components/ui/query-error";
 import { ListaSkeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useIsMobile } from "@/hooks/use-media-query";
 import { ErroDaApi } from "@/lib/api";
 import { useEu, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
@@ -64,12 +66,30 @@ export function erroDeConsulta(err: unknown, faltando?: string[]): string {
 /** Aviso único "falta configurar" para as abas que gastam. */
 function AvisoNaoConfigurado() {
   const { data, isLoading } = useSerproStatus();
+  // Celular: só a frase curta; a lista técnica abre em "Ver detalhes".
+  const mobile = useIsMobile();
+  const [detalhes, setDetalhes] = useState(false);
   if (isLoading || data?.configurado) return null;
+  const mostrar = !mobile || detalhes;
   return (
     <p role="status" className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
       Falta configurar o gateway Integra Contador: as consultas não vão rodar até lá.
-      {data?.faltando?.length ? ` Faltam: ${data.faltando.map((f) => f.replace(/\.+$/, "")).join("; ")}.` : ""} O que falta aparece no cartão
-      "Integração com o Serpro" acima.
+      {mostrar && (
+        <>
+          {data?.faltando?.length ? ` Faltam: ${data.faltando.map((f) => f.replace(/\.+$/, "")).join("; ")}.` : ""} O que falta aparece no cartão
+          "Integração com o Serpro" acima.
+        </>
+      )}
+      {mobile && (
+        <button
+          type="button"
+          onClick={() => setDetalhes((v) => !v)}
+          aria-expanded={detalhes}
+          className="relative ml-1 font-semibold underline underline-offset-2 after:absolute after:-inset-x-2 after:-inset-y-3.5 after:content-['']"
+        >
+          {detalhes ? "Ocultar detalhes" : "Ver detalhes"}
+        </button>
+      )}
     </p>
   );
 }
@@ -103,19 +123,19 @@ export function PainelResumoSerpro() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 sm:gap-2">
         {(Object.keys(SITUACAO) as SituacaoResumo[]).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setFiltro(filtro === s ? "todos" : s)}
             className={cn(
-              "rounded-card border bg-card p-3 text-left transition-colors hover:bg-accent/40",
+              "min-w-0 rounded-card border bg-card p-2.5 sm:p-3 text-left transition-colors hover:bg-accent/40",
               filtro === s && "ring-2 ring-primary",
             )}
           >
-            <p className={cn("text-2xl font-semibold tabular-nums", s === "com_pendencia" && contagem[s] > 0 && "text-destructive")}>{contagem[s]}</p>
-            <p className="text-xs text-muted-foreground">{SITUACAO[s].rotulo}</p>
+            <p className={cn("text-xl sm:text-2xl font-semibold tabular-nums", s === "com_pendencia" && contagem[s] > 0 && "text-destructive")}>{contagem[s]}</p>
+            <p className="text-xs leading-tight text-muted-foreground">{SITUACAO[s].rotulo}</p>
           </button>
         ))}
       </div>
@@ -128,7 +148,11 @@ export function PainelResumoSerpro() {
         )}
         <span className="text-xs text-muted-foreground ml-auto">{visiveis.length} cliente(s)</span>
       </div>
-      <div className="overflow-x-auto rounded-card border bg-card">
+      {/* Celular: cards (a tabela rolava de lado e escondia a última consulta). */}
+      <ListaResponsiva
+        corte="md"
+        classeTabela="overflow-x-auto rounded-card border bg-card"
+        tabela={
         <table className="w-full text-sm">
           <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
@@ -146,7 +170,7 @@ export function PainelResumoSerpro() {
                   <Link to={`/clientes/${l.cliente.id}?tab=fiscal`} className="font-medium hover:underline max-lg:py-3">
                     {nomeDe(l)}
                   </Link>
-                  <p className="text-2xs text-muted-foreground">{formatDoc(l.cliente.cpfCnpj) || "sem CPF/CNPJ"}</p>
+                  <p className="text-2xs text-muted-foreground">{l.cliente.cpfCnpj ? formatDoc(l.cliente.cpfCnpj) : "sem CPF/CNPJ"}</p>
                 </td>
                 <td className="px-3 py-2">
                   <Badge variant={SITUACAO[l.situacao].tom}>{SITUACAO[l.situacao].rotulo}</Badge>
@@ -172,7 +196,24 @@ export function PainelResumoSerpro() {
             ))}
           </tbody>
         </table>
-      </div>
+        }
+      >
+        {visiveis.slice(0, 500).map((l) => (
+          <ItemCard
+            key={l.cliente.id}
+            to={`/clientes/${l.cliente.id}?tab=fiscal`}
+            titulo={nomeDe(l)}
+            subtitulo={l.cliente.cpfCnpj ? formatDoc(l.cliente.cpfCnpj) : "sem CPF/CNPJ"}
+            selo={<Badge variant={SITUACAO[l.situacao].tom}>{SITUACAO[l.situacao].rotulo}</Badge>}
+            meta={[
+              !!l.ultimaEm && { texto: `Consultado em ${formatData(l.ultimaEm)}` },
+              l.parcelamentosAtivos > 0 && { texto: `${l.parcelamentosAtivos} parcelamento(s) ativo(s)` },
+              !!l.caixa && l.caixaImportantes > 0 && { texto: `Caixa postal: ${l.caixaImportantes} importante(s)`, alerta: true },
+              l.procuracaoStatus === "sem_procuracao" && { texto: "Sem procuração", alerta: true },
+            ]}
+          />
+        ))}
+      </ListaResponsiva>
     </div>
   );
 }

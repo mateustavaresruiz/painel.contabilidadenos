@@ -42,6 +42,8 @@ type Props = {
   /** Mês inicial; padrão = mês da seleção ou hoje. */
   defaultMonth?: Date;
   className?: string;
+  /** Folha de baixo do celular: ocupa a largura e todo alvo tem 44 px. */
+  grande?: boolean;
 };
 
 /**
@@ -49,7 +51,7 @@ type Props = {
  * mês apagados, hoje com anel azul e o selecionado preenchido de azul.
  * Sem dependência além do date-fns.
  */
-export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, className }: Props) {
+export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, className, grande = false }: Props) {
   const [mesAtual, setMesAtual] = useState<Date>(() => startOfMonth(defaultMonth ?? value ?? new Date()));
 
   const inicio = startOfWeek(startOfMonth(mesAtual), { weekStartsOn: 0 });
@@ -57,12 +59,12 @@ export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, clas
   const dias = eachDayOfInterval({ start: inicio, end: fim });
 
   return (
-    <div className={cn("w-[296px] max-w-[calc(100vw-2rem)] p-3", className)}>
+    <div className={cn(grande ? "w-full max-w-sm p-3" : "w-[296px] max-w-[calc(100vw-2rem)] p-3", className)}>
       <div className="flex items-center justify-between pb-2">
         <button
           type="button"
           onClick={() => setMesAtual((m) => addMonths(m, -1))}
-          className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className={cn("grid place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", grande ? "size-11" : "size-9")}
           aria-label="Mês anterior"
         >
           <ChevronLeft className="size-4" />
@@ -72,7 +74,7 @@ export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, clas
             aria-label="Mês"
             value={mesAtual.getMonth()}
             onChange={(e) => setMesAtual((m) => setMonth(m, Number(e.target.value)))}
-            className={SELECT_CLS}
+            className={cn(SELECT_CLS, grande && "h-11")}
           >
             {MESES.map((nome, i) => (
               <option key={nome} value={i}>
@@ -84,7 +86,7 @@ export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, clas
             aria-label="Ano"
             value={mesAtual.getFullYear()}
             onChange={(e) => setMesAtual((m) => setYear(m, Number(e.target.value)))}
-            className={SELECT_CLS}
+            className={cn(SELECT_CLS, grande && "h-11")}
           >
             {ANOS.map((a) => (
               <option key={a} value={a}>
@@ -96,7 +98,7 @@ export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, clas
         <button
           type="button"
           onClick={() => setMesAtual((m) => addMonths(m, 1))}
-          className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className={cn("grid place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", grande ? "size-11" : "size-9")}
           aria-label="Próximo mês"
         >
           <ChevronRight className="size-4" />
@@ -122,7 +124,8 @@ export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, clas
               type="button"
               onClick={() => onSelect?.(dia)}
               className={cn(
-                "mx-auto grid size-10 place-items-center rounded-full text-sm tabular-nums transition-colors sm:size-9",
+                "mx-auto grid place-items-center rounded-full text-sm tabular-nums transition-colors",
+                grande ? "size-11" : "size-10 sm:size-9",
                 "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 !noMes && "text-muted-foreground/40",
                 ehHoje && !selecionado && "font-semibold text-primary ring-1 ring-primary/50",
@@ -138,14 +141,14 @@ export function Calendar({ value, onSelect, onHoje, onLimpar, defaultMonth, clas
       {(onHoje || onLimpar) && (
         <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-sm font-semibold">
           {onLimpar ? (
-            <button type="button" onClick={onLimpar} className="rounded-md px-2 py-1.5 text-muted-foreground hover:bg-accent">
+            <button type="button" onClick={onLimpar} className={cn("rounded-md px-2 py-1.5 text-muted-foreground hover:bg-accent", grande && "min-h-11 px-4")}>
               Limpar
             </button>
           ) : (
             <span />
           )}
           {onHoje && (
-            <button type="button" onClick={onHoje} className="rounded-md px-2 py-1.5 text-primary hover:bg-accent">
+            <button type="button" onClick={onHoje} className={cn("rounded-md px-2 py-1.5 text-primary hover:bg-accent", grande && "min-h-11 px-4")}>
               Hoje
             </button>
           )}

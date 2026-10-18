@@ -156,3 +156,19 @@ Curto e discreto; tudo respeita `prefers-reduced-motion` (index.css zera as anim
 - Filtros de período/estado: `Chips` (selecionado = anel de 2px no azul de foco).
 - Barra de filtros: cartão com campos de 40px; data com o rótulo dentro do campo.
 - Vazio: `EmptyState` com a próxima ação (ex.: "Limpar filtros" quando há filtro).
+
+## Celular e toque (18/10/2026)
+- Variantes do Tailwind: `toque:` (dedo, `pointer: coarse`), `fino:` (mouse) e `compacto:` (celular em pé
+  ou deitado: < 768px de largura, ou até 500px de altura com dedo). Em JS: `useToque()` e
+  `useTelaCompacta()` (`hooks/use-media-query.ts`).
+- Alvo de toque de 44px no `toque:` (aumentar com `toque:size-11`/`toque:min-h-11`, ou `::after`
+  invisível quando o desenho não pode crescer, como nas abas).
+- Campo de texto em 16px no toque (`text-base fino:text-sm`); o `index.css` garante o mínimo.
+- Dicas de teclado (Ctrl + Enter, ↑↓) somem no toque (`toque:hidden`).
+- Barra de filtros no celular: `FiltrosResponsivos` (botão "Filtros" abre a folha de baixo, chips dos
+  filtros ativos). Calendário do `DatePicker` abre em folha de baixo no celular.
+- Áreas seguras: `pb-[max(0.75rem,env(safe-area-inset-bottom))]` no que encosta embaixo; laterais com
+  `env(safe-area-inset-left/right)` no deitado. O documento não rola: rola o contêiner do conteúdo.
+- Conversa no celular: sem a barra do app, cabeçalho de uma linha (Voltar 44px, nome, ⋮); o resto vai
+  para a folha do ⋮. Abrir conversa empilha histórico (voltar do aparelho volta à lista).
+- Texto nunca abaixo de 11px.

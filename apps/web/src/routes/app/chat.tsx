@@ -1,6 +1,6 @@
 import { MessageSquare } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { ChatConversa } from "@/components/features/whatsapp/chat-conversa";
 import { ChatSidebar } from "@/components/features/whatsapp/chat-sidebar";
@@ -8,6 +8,7 @@ import { InstanceFilterBar } from "@/components/features/whatsapp/instance-filte
 import { CanalSemConfigurar } from "@/components/features/inbox/canal-sem-configurar";
 import { InboxLoading } from "@/components/features/inbox/inbox-loading";
 import { ResizableAside } from "@/components/ui/resizable-aside";
+import { useTelaCompacta } from "@/hooks/use-media-query";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { usePermissao } from "@/lib/colaborador";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,10 @@ export function ChatPage() {
   // cru (identidade não muda, só o status).
   const sessoesUI = useStableSessaoStatus(sessoes);
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Celular (em pé ou deitado): uma coluna por vez, lista OU conversa.
+  const compacta = useTelaCompacta();
 
   // --- Filtro de instâncias (multi-select) ---------------------------
   // Lê do querystring "instancias=id1,id2"; vazio = todas.
@@ -78,15 +83,20 @@ export function ChatPage() {
   // ?texto=... — texto pré-preenchido no campo (vem de Aniversários).
   const textoInicial = params.get("texto") ?? undefined;
 
+  // No celular, abrir uma conversa a partir da lista EMPILHA uma entrada no
+  // histórico: o gesto/botão voltar do aparelho volta para a lista em vez de
+  // sair do painel. O state marca que a entrada anterior é a lista (o "Voltar"
+  // do cabeçalho usa isso). No desktop, como sempre: troca no lugar.
   const selecionarChat = useCallback(
     (sessaoId: string, chatId: string) => {
       const next = new URLSearchParams(params);
+      const daLista = compacta && !params.get("chat");
       next.set("chat", chatId);
       next.set("instancia", sessaoId);
       next.delete("texto");
-      setParams(next, { replace: true });
+      setParams(next, daLista ? { state: { daLista: true } } : { replace: true });
     },
-    [params, setParams],
+    [params, setParams, compacta],
   );
 
   // Quando uma conversa é apagada pelo menu do sidebar, se ela
@@ -103,15 +113,22 @@ export function ChatPage() {
     [chatIdSelecionado, params, setParams],
   );
 
-  // "← Voltar" (mobile) também limpa ?chat — senão tocar de novo na mesma
-  // conversa não reabria.
+  // "Voltar" (celular): se a entrada anterior do histórico é a lista, volta
+  // nela (igual ao gesto do aparelho, sem empilhar outra). Senão (link direto,
+  // vindo de Aniversários, recarregou a página), troca a conversa pela lista.
+  // Limpar ?chat também é o que deixa tocar de novo na mesma conversa.
+  const daLista = (location.state as { daLista?: boolean } | null)?.daLista === true;
   const fecharConversa = useCallback(() => {
+    if (daLista) {
+      navigate(-1);
+      return;
+    }
     const next = new URLSearchParams(params);
     next.delete("chat");
     next.delete("instancia");
     next.delete("texto");
     setParams(next, { replace: true });
-  }, [params, setParams]);
+  }, [params, setParams, navigate, daLista]);
 
   // --- Mobile (alterna lista/conversa) -------------------------------
   const [mobileView, setMobileView] = useState<"lista" | "conversa">("lista");
@@ -219,7 +236,7 @@ export function ChatPage() {
         minWidth={300}
         maxWidth={560}
         collapsible
-        className={cn(mobileView === "conversa" ? "hidden md:flex" : "flex")}
+        className={cn(compacta ? (mobileView === "conversa" ? "hidden" : "flex !w-full border-r-0") : "flex")}
       >
         <InstanceFilterBar
           sessoes={sessoesUI}
@@ -240,25 +257,23 @@ export function ChatPage() {
       <div
         className={cn(
           "flex-1 min-w-0 min-h-0 flex-col",
-          mobileView === "lista" ? "hidden md:flex" : "flex",
+          compacta && mobileView === "lista" ? "hidden" : "flex",
         )}
       >
-        {chatIdSelecionado && (
-          <button
-            onClick={() => {
-              setMobileView("lista");
-              fecharConversa();
-            }}
-            className="md:hidden text-xs text-primary px-3 py-2 border-b text-left"
-          >
-            ← Voltar
-          </button>
-        )}
+        {/* O "Voltar" do celular mora no cabeçalho da conversa (ícone de 44 px). */}
         <ChatConversa
           sessaoId={sessaoIdSelecionada}
           chatId={chatIdSelecionado}
           sessoes={sessoesUI}
           textoInicial={textoInicial}
+          onVoltar={
+            compacta && chatIdSelecionado
+              ? () => {
+                  setMobileView("lista");
+                  fecharConversa();
+                }
+              : undefined
+          }
         />
       </div>
     </div>
