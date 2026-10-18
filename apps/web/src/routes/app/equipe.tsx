@@ -162,7 +162,7 @@ function AbaPessoas({
     atualizar.mutate(
       { id: c.id, patch: { ativo: !c.ativo } },
       {
-        onSuccess: () => toast.success(c.ativo ? `${c.nome} desativado.` : `${c.nome} reativado.`),
+        onSuccess: () => toast.success(c.ativo ? `${c.nome}: acesso desativado` : `${c.nome}: acesso reativado`),
         onError: (e) => toast.error(msgErro(e)),
       },
     );
@@ -185,7 +185,7 @@ function AbaPessoas({
   function aposConvite(r: ResultadoConvite) {
     setConvidando(false);
     if (r.emailEnviado) {
-      toast.success(`Convite enviado para ${r.colaborador.email}.`);
+      toast.success(`Convite enviado para ${r.colaborador.email}`);
     } else if (r.link) {
       setLink({
         nome: r.colaborador.nome,
@@ -225,20 +225,20 @@ function AbaPessoas({
                   <ColaboradorAvatar nome={c.nome} cor={c.cor} size="md" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="flex items-center gap-2 min-w-0">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
                     {abrePerfil(c) ? (
                       <Link
                         to={`/equipe/${c.id}`}
-                        className="text-sm font-semibold truncate hover:text-primary hover:underline"
+                        className="text-sm font-semibold break-words [overflow-wrap:anywhere] hover:text-primary hover:underline"
                         title={`Abrir o perfil de ${c.nome}`}
                       >
                         {c.nome}
                       </Link>
                     ) : (
-                      <span className="text-sm font-semibold truncate">{c.nome}</span>
+                      <span className="text-sm font-semibold break-words [overflow-wrap:anywhere]">{c.nome}</span>
                     )}
-                    {c.id === euId && <Badge variant="secondary">você</Badge>}
-                    {!c.ativo && <Badge variant="outline">inativo</Badge>}
+                    {c.id === euId && <Badge variant="secondary" className="shrink-0">você</Badge>}
+                    {!c.ativo && <Badge variant="outline" className="shrink-0">inativo</Badge>}
                   </p>
                   {c.cargo && <p className="text-xs text-muted-foreground">{c.cargo}</p>}
                   {c.email && (
@@ -296,7 +296,7 @@ function AbaPessoas({
                       disabled={enviarAcesso.isPending}
                       onClick={() =>
                         enviarAcesso.mutate(c.id, {
-                          onSuccess: () => toast.success(`Acesso enviado para ${c.email}.`),
+                          onSuccess: () => toast.success(`Acesso enviado para ${c.email}`),
                           onError: (e) => toast.error(msgErro(e)),
                         })
                       }
@@ -365,7 +365,7 @@ function LinkAcessoDialog({
     if (!dados) return;
     try {
       await navigator.clipboard.writeText(dados.link);
-      toast.success("Link copiado.");
+      toast.success("Link copiado");
     } catch {
       toast.error("Não deu para copiar. Selecione o link e copie à mão.");
     }
@@ -502,7 +502,15 @@ function CargoDialog({
 }) {
   return (
     <Dialog open={aberto} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
+      <DialogContent
+        // Cabeçalho e rodapé fixos; só a lista de permissões rola. Sem foco
+        // automático no Nome: no celular isso abria o teclado por cima de tudo.
+        className="sm:max-w-2xl max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden max-sm:max-h-dvh max-sm:content-stretch"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement | null)?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{cargo ? `Cargo ${cargo.nome}` : "Novo cargo"}</DialogTitle>
           <DialogDescription>
@@ -535,12 +543,25 @@ function CargoForm({ cargo, somenteLeitura, onClose }: { cargo: Cargo | null; so
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     if (nome.trim().length < 2) return toast.error("Informe o nome do cargo.");
+    const permissoes = TODAS_PERMISSOES.filter((p) => marcadas.has(p));
+    // Nada mudou (permissões comparadas como conjunto): fecha sem gravar, sem
+    // auditoria e sem mexer em "atualizado em".
+    if (
+      cargo &&
+      nome.trim() === cargo.nome.trim() &&
+      (descricao.trim() || null) === (cargo.descricao?.trim() || null) &&
+      permissoes.length === new Set(cargo.permissoes).size &&
+      permissoes.every((p) => cargo.permissoes.includes(p))
+    ) {
+      onClose();
+      return;
+    }
     try {
       await salvar.mutateAsync({
         id: cargo?.id,
-        input: { nome, descricao, permissoes: TODAS_PERMISSOES.filter((p) => marcadas.has(p)) },
+        input: { nome, descricao, permissoes },
       });
-      toast.success("Cargo salvo.");
+      toast.success("Cargo salvo");
       onClose();
     } catch (err) {
       toast.error(msgErro(err));
@@ -548,11 +569,12 @@ function CargoForm({ cargo, somenteLeitura, onClose }: { cargo: Cargo | null; so
   }
 
   return (
-    <form onSubmit={enviar} className="space-y-5">
+    <form onSubmit={enviar} className="contents">
+      <div className="-mx-6 min-h-0 space-y-5 overflow-y-auto overscroll-contain px-6 max-sm:-mx-4 max-sm:px-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="cargo-nome">Nome</Label>
-          <Input id="cargo-nome" value={nome} onChange={(e) => setNome(e.target.value)} disabled={somenteLeitura} />
+          <Input id="cargo-nome" value={nome} onChange={(e) => setNome(e.target.value)} disabled={somenteLeitura} className="text-base fino:text-sm" />
         </div>
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor="cargo-desc">Descrição</Label>
@@ -613,15 +635,20 @@ function CargoForm({ cargo, somenteLeitura, onClose }: { cargo: Cargo | null; so
           );
         })}
       </div>
-      <div className="flex justify-end gap-2">
-        {!somenteLeitura && (
+      </div>
+      <div className="flex justify-end gap-2 border-t pt-3 -mx-6 px-6 max-sm:-mx-4 max-sm:px-4">
+        {somenteLeitura ? (
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Fechar
+          </Button>
+        ) : (
           <>
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancelar
             </Button>
             <Button type="submit" disabled={salvar.isPending}>
               {salvar.isPending && <Loader2 className="animate-spin" />}
-              Salvar cargo
+              Salvar
             </Button>
           </>
         )}

@@ -32,12 +32,17 @@ import { corModulo, type CorModulo } from "@/lib/cores-modulo";
 import { msgErro } from "@/lib/erro";
 import { useModulos, type ModuloChave } from "@/lib/modulos";
 import { useDashboard, type Dashboard } from "@/lib/queries/dashboard";
+import { plural as pluralTexto } from "@/lib/texto";
 import { cn } from "@/lib/utils";
 
 /** Atraso da entrada escalonada: passos de 50ms. */
 const passo = (i: number): CSSProperties => ({ animationDelay: `${i * 50}ms` });
 
-const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
+/** Só a palavra (o número aparece grande, à parte). */
+const plural = (n: number, um: string, varios: string) => pluralTexto(n, um, varios, { semNumero: true });
+
+/** "a", "a e b", "a, b e c". */
+const juntar = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} e ${xs.at(-1)}`);
 
 const reduzMovimento = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
@@ -83,6 +88,9 @@ type Atencao = {
   icon: LucideIcon;
   valor: number;
   titulo: string;
+  /** Frase do resumo do topo ("2 conversas esperando"). */
+  frase: string;
+  /** Frase positiva quando é zero (o número não aparece: nada de "0 Nenhum..."). */
   vazio: string;
   extra?: string;
   to: string;
@@ -99,17 +107,20 @@ function useInicio() {
   const d = q.data;
 
   const nivers = (d?.aniversarios ?? []).filter((a) => a.diasAte === 0).length;
-  const certVencendo = (d?.certificados.vencidos ?? 0) + (d?.certificados.vencem30 ?? 0);
+  const certVencendo = d?.certificados.vencem30 ?? 0;
+  const esperando = d?.atendimento.semResponsavel ?? 0;
+  const atrasados = d?.chamados.atrasados ?? 0;
   const todosAtencao: (Atencao & { modulo: ModuloChave })[] = [
     {
       chave: "conversas",
       modulo: "whatsapp",
       cor: "whatsapp",
       icon: MessageSquare,
-      valor: d?.atendimento.semResponsavel ?? 0,
-      titulo: plural(d?.atendimento.semResponsavel ?? 0, "conversa esperando", "conversas esperando"),
+      valor: esperando,
+      titulo: plural(esperando, "conversa esperando", "conversas esperando"),
+      frase: pluralTexto(esperando, "conversa esperando", "conversas esperando"),
       vazio: "Ninguém esperando resposta",
-      to: "/whatsapp",
+      to: "/whatsapp?filtro=sem",
       acao: "Responder",
     },
     {
@@ -117,10 +128,11 @@ function useInicio() {
       modulo: "chamados",
       cor: "chamados",
       icon: ClipboardList,
-      valor: d?.chamados.atrasados ?? 0,
-      titulo: plural(d?.chamados.atrasados ?? 0, "chamado atrasado", "chamados atrasados"),
-      vazio: "Nenhum chamado atrasado",
-      to: "/chamados",
+      valor: atrasados,
+      titulo: plural(atrasados, "chamado atrasado", "chamados atrasados"),
+      frase: pluralTexto(atrasados, "chamado atrasado", "chamados atrasados"),
+      vazio: "Chamados dentro do prazo",
+      to: "/chamados?filtro=atrasados",
       acao: "Ver chamados",
     },
     {
@@ -129,10 +141,11 @@ function useInicio() {
       cor: "certificados",
       icon: BadgeCheck,
       valor: certVencendo,
-      titulo: plural(certVencendo, "certificado vencendo", "certificados vencendo"),
-      vazio: "Certificados em dia",
-      extra: d && d.certificados.vencidos > 0 ? `${d.certificados.vencidos} já ${plural(d.certificados.vencidos, "venceu", "venceram")}` : undefined,
-      to: "/certificados?status=vencendo",
+      titulo: plural(certVencendo, "certificado vence em 30 dias", "certificados vencem em 30 dias"),
+      frase: pluralTexto(certVencendo, "certificado vencendo em 30 dias", "certificados vencendo em 30 dias"),
+      vazio: "Nada vencendo em 30 dias",
+      extra: d && d.certificados.vencidos > 0 ? `${pluralTexto(d.certificados.vencidos, "já venceu", "já venceram")}` : undefined,
+      to: "/certificados?vence=30",
       acao: "Ver certificados",
     },
     {
@@ -142,6 +155,7 @@ function useInicio() {
       icon: Cake,
       valor: nivers,
       titulo: plural(nivers, "aniversariante hoje", "aniversariantes hoje"),
+      frase: pluralTexto(nivers, "aniversariante hoje", "aniversariantes hoje"),
       vazio: "Nenhum aniversário hoje",
       to: "/clientes/aniversarios",
       acao: "Dar parabéns",
@@ -163,7 +177,7 @@ function useInicio() {
       ? ""
       : pendentes.length === 0
         ? "Está tudo em dia por aqui. Bom trabalho!"
-        : `Hoje tem ${pendentes.map((a) => `${a.valor} ${a.titulo}`).join(", ")}.`;
+        : `Hoje tem ${juntar(pendentes.map((a) => a.frase))}.`;
 
   const h = new Date().getHours();
   const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
@@ -285,13 +299,9 @@ function InicioMarinho(p: Inicio) {
                     {a.valor > 0 && <span className="size-2.5 rounded-full bg-[var(--mc)] animate-pulse" aria-hidden />}
                   </div>
                   <div className="min-w-0">
-                    {p.q.isLoading ? (
-                      <Skeleton className="h-10 w-14" />
-                    ) : (
-                      <Numero valor={a.valor} className={cn("block text-[32px] sm:text-[40px] leading-none font-bold tracking-[-0.015em]", a.valor > 0 ? "texto-mod" : "text-foreground/35")} />
-                    )}
-                    <p className="text-xs sm:text-sm font-semibold mt-2 line-clamp-2 sm:truncate">{a.valor > 0 || p.q.isLoading ? a.titulo : a.vazio}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 min-h-[18px] truncate">{a.extra ?? (a.valor > 0 ? "" : "Tudo certo")}</p>
+                    <ValorAtencao a={a} carregando={p.q.isLoading} classeNumero="texto-mod" />
+                    <p className="text-xs sm:text-sm font-semibold mt-2 [text-wrap:balance]">{a.valor > 0 || p.q.isLoading ? a.titulo : a.vazio}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 min-h-[18px]">{a.extra ?? (a.valor > 0 ? "" : "Tudo certo")}</p>
                   </div>
                   <span className="texto-mod text-xs font-semibold inline-flex items-center gap-1">
                     {a.acao}
@@ -385,13 +395,9 @@ function InicioColorido(p: Inicio) {
                       <a.icon className="size-6" />
                     </span>
                     <div className="relative min-w-0 w-full">
-                      {p.q.isLoading ? (
-                        <Skeleton className="h-10 w-14" />
-                      ) : (
-                        <Numero valor={a.valor} className={cn("block text-[32px] sm:text-[40px] leading-none font-bold tracking-[-0.015em]", a.valor === 0 && "text-foreground/30")} />
-                      )}
-                      <p className="text-xs sm:text-sm font-semibold mt-2 line-clamp-2 sm:truncate">{a.valor > 0 || p.q.isLoading ? a.titulo : a.vazio}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 min-h-[18px] truncate">{a.extra ?? ""}</p>
+                      <ValorAtencao a={a} carregando={p.q.isLoading} />
+                      <p className="text-xs sm:text-sm font-semibold mt-2 [text-wrap:balance]">{a.valor > 0 || p.q.isLoading ? a.titulo : a.vazio}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 min-h-[18px]">{a.extra ?? ""}</p>
                     </div>
                     <span className="texto-mod text-xs font-bold inline-flex items-center gap-1">
                       {a.acao}
@@ -450,6 +456,23 @@ function Conteudo({ p, children }: { p: Inicio; children: ReactNode }) {
       </div>
     );
   return <>{children}</>;
+}
+
+/** O número grande do cartão; zero vira um sinal de "em dia" (sem "0" seguido de frase negativa). */
+function ValorAtencao({ a, carregando, classeNumero }: { a: Atencao; carregando: boolean; classeNumero?: string }) {
+  if (carregando) return <Skeleton className="h-10 w-14" />;
+  if (a.valor === 0)
+    return (
+      <span className="grid h-10 items-center" aria-hidden>
+        <CheckCircle2 className="size-8 text-success" />
+      </span>
+    );
+  return (
+    <Numero
+      valor={a.valor}
+      className={cn("block text-[32px] sm:text-[40px] leading-none font-bold tracking-[-0.015em]", classeNumero)}
+    />
+  );
 }
 
 function GradeAtencao({ n, children }: { n: number; children: ReactNode }) {
@@ -511,7 +534,7 @@ function CartaoResumo({
         >
           <Icon className="size-[18px]" />
         </span>
-        <h3 className="text-title-sm font-bold flex-1 min-w-0 truncate">{titulo}</h3>
+        <h3 className="text-title-sm font-bold flex-1 min-w-0 [text-wrap:balance]">{titulo}</h3>
         {link && (
           <Link to={link.to} className="texto-mod shrink-0 text-xs font-semibold inline-flex items-center gap-1 max-lg:min-h-11 max-lg:-my-3 max-lg:px-2 max-lg:-mr-2 hover:underline underline-offset-4">
             {link.texto}
@@ -616,7 +639,7 @@ function Resumos({ p, variante }: { p: Inicio; variante: Estilo }) {
 
         {p.ativo("pendenciasFiscais") && (
           <CartaoResumo
-            titulo="Situação fiscal"
+            titulo="Pendências fiscais"
             cor="fiscal"
             icon={Landmark}
             variante={variante}

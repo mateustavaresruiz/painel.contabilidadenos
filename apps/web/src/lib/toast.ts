@@ -1,4 +1,4 @@
-import { toast as sonner } from "sonner";
+import { toast as sonner, type ExternalToast } from "sonner";
 
 type Sonner = typeof sonner;
 type PlainArgs = Parameters<Sonner>;
@@ -6,44 +6,38 @@ type PlainArgs = Parameters<Sonner>;
 const noop = () => "" as string | number;
 
 /**
- * Toast do app — fonte única. Envolve o `sonner` pra **engolir as
- * confirmações de sucesso**: "Salvo.", "Conversa apagada.", "Cliente
- * criado." e afins só poluíam a tela (decisão do dono, jul/2026). A tela
- * já mostra o resultado; um retângulo verde por cima não acrescenta nada.
+ * Toast do app — fonte única (os arquivos importam `@/lib/toast`, não `sonner`).
  *
- * O que CONTINUA aparecendo, de propósito:
- * - `toast.error` / `toast.warning` / `toast.info` — o usuário precisa
- *   saber que algo falhou ou que a ação teve ressalva.
+ * Histórico: em jul/2026 o `success` virou no-op ("a tela já mostra o
+ * resultado"). A revisão de usabilidade de out/2026 mostrou o contrário: sem
+ * nenhum retorno a pessoa não sabe se a ação pegou e clica de novo. Agora o
+ * `success` VOLTA, curto e discreto:
  *
- * 🔴 ONDE FICA A FRONTEIRA, porque errar nela apaga informação: o que morre é
- * a CONFIRMAÇÃO ("Salvo.", "Cliente criado."), que a tela já mostra sozinha.
- * O que NÃO pode morrer é RESULTADO — um número, uma contagem, um "restam N,
- * clique de novo", um "M ficaram para amanhã". Isso não está em lugar nenhum
- * da tela, e num `success` some sem deixar rastro: a pessoa aperta o botão,
- * o spinner roda e não acontece nada visível. Resultado é `info`; ressalva
- * dentro de um resultado é `warning`. Sete ações estavam mudas assim.
- * - `toast.loading` + `toast.dismiss` — feedback de trabalho em curso.
- * - toast com `action` (o "Desfazer" de `lib/undo.ts`) — sem o balão não
- *   existe onde clicar; sumir com ele mataria a funcionalidade.
+ * - texto curto, sem ponto final ("Cliente salvo", "Chamado concluído");
+ * - some sozinho em 2,5 s (erro e aviso ficam o tempo padrão, mais longo);
+ * - sem botão de fechar (é só um "ok").
  *
- * 🔴 E A PEGADINHA: quem tem `action` precisa ser `toast(...)`, a função
- * pura. `toast.success(…, { action })` NÃO passa — o `success` é no-op seco,
- * ele não olha as opções — e o botão simplesmente nunca existe. Dois lugares
- * caíram nisso, e o pior foi o `use-form-autosave`: o formulário voltava
- * preenchido com um rascunho velho, sem aviso e sem o "Descartar". O teste em
- * `toast.test.ts` agora reprova essa combinação.
+ * Resultado (um número, "restam N") continua `info`; ressalva é `warning`;
+ * falha é `error`. Toast com `action` (o "Desfazer") é `toast(...)` puro ou
+ * qualquer variante com `action`: ganha 6 s para dar tempo de clicar.
  *
- * Por isso os arquivos importam `@/lib/toast`, não `sonner` direto. Um
- * import novo de `sonner` fura o filtro e traz o popup de volta.
+ * `toast(...)` puro SEM `action` segue mudo: era usado como "confirmação
+ * genérica" e quem quer mostrar algo usa uma das variantes acima.
  */
 function toastFn(...args: PlainArgs) {
   const opts = args[1];
-  // Sem botão pra clicar, é só confirmação — não mostra.
+  // Sem botão para clicar, é só confirmação genérica — não mostra.
   if (!opts || !("action" in opts) || !opts.action) return noop();
-  return sonner(...args);
+  return sonner(args[0], { duration: 6000, ...opts });
+}
+
+const SUCESSO: ExternalToast = { duration: 2500, closeButton: false };
+
+function success(mensagem: Parameters<Sonner["success"]>[0], opts?: ExternalToast) {
+  return sonner.success(mensagem, { ...SUCESSO, ...(opts?.action ? { duration: 6000 } : null), ...opts });
 }
 
 export const toast = Object.assign(toastFn, sonner, {
-  success: noop as Sonner["success"],
+  success: success as Sonner["success"],
   message: toastFn as unknown as Sonner["message"],
 });

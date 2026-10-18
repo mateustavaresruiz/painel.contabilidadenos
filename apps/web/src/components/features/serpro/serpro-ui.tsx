@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +29,6 @@ import { Label } from "@/components/ui/label";
 import { QueryError } from "@/components/ui/query-error";
 import { ListaSkeleton } from "@/components/ui/skeleton";
 import { erroDeConsulta } from "@/components/features/serpro/serpro-painel";
-import { useIsMobile } from "@/hooks/use-media-query";
 import { api, ErroDaApi } from "@/lib/api";
 import { usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
@@ -47,6 +47,7 @@ import {
 import { ROTULO_SERVICO } from "@/lib/queries/serpro";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/texto";
 
 /** O que o Integra Contador exige, com a explicação curta de cada item. */
 const REQUISITOS = [
@@ -100,108 +101,93 @@ function situacaoRequisito(
   return "desconhecido";
 }
 
-/** Cartão de status do Serpro: pronto, faltando itens, ou rota fora do ar. */
+/**
+ * Aviso da página de Pendências fiscais. Nada técnico aqui: pronto, some; não
+ * configurado, uma frase e (para quem administra) o link para Configurações >
+ * Integrações, onde ficam os requisitos e as variáveis do servidor.
+ */
 export function SerproStatusCard() {
   const { data, isLoading, error, refetch, isFetching } = useSerproStatus();
+  const admin = usePermissao("configuracoes.gerenciar");
+  if (isLoading || (data?.configurado && !error)) return null;
   const foraDoAr = !!error;
-  const rotaInexistente = error instanceof ErroDaApi && (error.status === 404 || error.status === 0);
-  // Celular: a lista técnica (requisitos e variáveis) fica atrás de "Ver
-  // detalhes"; ocupava a primeira tela inteira antes das abas.
-  const mobile = useIsMobile();
-  const [detalhes, setDetalhes] = useState(false);
-  const mostrarDetalhes = !mobile || detalhes;
 
   return (
     <Card>
-      <CardContent className="p-4 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
-          <div
-            className={cn(
-              "size-10 rounded-pearl grid place-items-center shrink-0",
-              data?.configurado ? "bg-success/10 text-success" : "bg-warning/10 text-warning",
-            )}
-          >
-            {isLoading ? (
-              <Loader2 className="size-5 animate-spin" />
-            ) : data?.configurado ? (
-              <CheckCircle2 className="size-5" />
-            ) : (
-              <AlertTriangle className="size-5" />
-            )}
-          </div>
-          <div className="min-w-0 max-sm:order-last max-sm:basis-full sm:flex-1">
-            <h2 className="text-title-md">
-              {isLoading
-                ? "Verificando a integração…"
-                : data?.configurado
-                  ? "Integração com o Serpro pronta"
-                  : foraDoAr
-                    ? "Integração ainda não disponível"
-                    : "Integração com o Serpro não configurada"}
-            </h2>
-            <p className={cn("text-sm text-muted-foreground mt-0.5", !mostrarDetalhes && "line-clamp-2")}>
-              {foraDoAr
-                ? rotaInexistente
-                  ? "A função do servidor (serpro) ainda não foi publicada. A tela já está pronta: quando ela entrar no ar, o status aparece aqui."
-                  : `Não foi possível falar com o servidor: ${msgErro(error)}`
-                : "A consulta de situação fiscal usa o Integra Contador (Serpro / Receita Federal). Veja abaixo o que precisa estar pronto."}
-              {data?.ambiente ? ` Ambiente: ${String(data.ambiente)}.` : ""}
-            </p>
-          </div>
+      <CardContent className="flex flex-wrap items-start gap-3 p-4 sm:flex-nowrap sm:p-5">
+        <div className="grid size-10 shrink-0 place-items-center rounded-pearl bg-warning/10 text-warning">
+          <AlertTriangle className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-title-sm font-semibold">
+            {foraDoAr ? "Consulta ao Serpro indisponível agora" : "Serpro ainda não configurado"}
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {foraDoAr
+              ? "Não foi possível falar com o servidor. Tente de novo em instantes."
+              : "As consultas de situação fiscal, caixa postal e parcelamentos começam a funcionar quando a integração com a Receita (Integra Contador) estiver pronta."}
+            {!admin && " Quem administra o painel cuida disso."}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2 max-sm:basis-full">
           <Button variant="ghost" size="sm" onClick={() => void refetch()} disabled={isFetching}>
             <RefreshCw className={cn(isFetching && "animate-spin")} />
-            <span className="hidden sm:inline">Verificar</span>
+            Verificar
           </Button>
+          {admin && (
+            <Button asChild size="sm" variant="outline">
+              <Link to="/configuracoes?tab=integracoes">Abrir Integrações</Link>
+            </Button>
+          )}
         </div>
-        {mobile && (
-          <Button
-            variant="outline"
-            className="h-11 w-full"
-            onClick={() => setDetalhes((v) => !v)}
-            aria-expanded={detalhes}
-          >
-            {detalhes ? "Ocultar detalhes" : "Ver detalhes"}
-          </Button>
-        )}
-        {mostrarDetalhes && (
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {REQUISITOS.map((r) => {
-            const st = situacaoRequisito(data, r);
-            const Icon = st === "ok" ? CheckCircle2 : st === "falta" ? XCircle : CircleDashed;
-            return (
-              <li key={r.chave} className="rounded-lg border p-3 flex gap-2.5">
-                <Icon
-                  className={cn(
-                    "size-4 mt-0.5 shrink-0",
-                    st === "ok" && "text-success",
-                    st === "falta" && "text-destructive",
-                    st === "desconhecido" && "text-muted-foreground",
-                  )}
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{r.titulo}</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{r.texto}</p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        )}
-        {mostrarDetalhes && data && Array.isArray(data.faltando) && data.faltando.length > 0 && (
-          <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground space-y-1">
-            <p>
-              Variáveis que faltam definir nas funções do servidor (Easypanel → serviço das
-              funções → Environment):
-            </p>
-            <ul className="list-disc pl-5 font-mono text-[11px] text-foreground">
-              {data.faltando.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          </div>
-        )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * O que o Integra Contador exige e as variáveis que faltam no servidor. Mora
+ * em Configurações > Integrações (cartão do Serpro), só para quem administra.
+ */
+export function RequisitosSerpro({ data }: { data: SerproStatus | undefined }) {
+  return (
+    <div className="space-y-3">
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {REQUISITOS.map((r) => {
+          const st = situacaoRequisito(data, r);
+          const Icon = st === "ok" ? CheckCircle2 : st === "falta" ? XCircle : CircleDashed;
+          return (
+            <li key={r.chave} className="flex gap-2.5 rounded-lg border p-3">
+              <Icon
+                className={cn(
+                  "mt-0.5 size-4 shrink-0",
+                  st === "ok" && "text-success",
+                  st === "falta" && "text-destructive",
+                  st === "desconhecido" && "text-muted-foreground",
+                )}
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{r.titulo}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">{r.texto}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {data && Array.isArray(data.faltando) && data.faltando.length > 0 && (
+        <div className="space-y-1 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <p>
+            Variáveis que faltam nas funções do servidor (Easypanel, serviço das funções, Environment; o
+            certificado A1 fica em /data/certs):
+          </p>
+          <ul className="list-disc pl-5 font-mono text-[11px] text-foreground">
+            {data.faltando.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -349,7 +335,7 @@ function ConfirmarPinDialog({
     setErro(null);
     try {
       await confirmarPin.mutateAsync({ id: consultaId, pin: pin.trim() });
-      toast.success("Consulta confirmada.");
+      toast.success("Consulta confirmada");
       setPin("");
       onOpenChange(false);
     } catch (err) {
@@ -514,7 +500,7 @@ function ResultadoLegivel({ consulta }: { consulta: ConsultaFiscal }) {
     return (
       <div className="space-y-1.5">
         <p className="text-xs">
-          {cx.total} mensagem(ns) · {cx.naoLidas} não lida(s) · <strong className={cn(cx.importantes > 0 && "text-destructive")}>{cx.importantes} importante(s)</strong>
+          {plural(cx.total, "mensagem", "mensagens")} · {plural(cx.naoLidas, "não lida", "não lidas")} · <strong className={cn(cx.importantes > 0 && "text-destructive")}>{plural(cx.importantes, "importante", "importantes")}</strong>
           {cx.temMaisPaginas ? " · só a primeira página" : ""}
         </p>
         <ul className="divide-y rounded-md border text-xs">
@@ -550,7 +536,7 @@ function ResultadoLegivel({ consulta }: { consulta: ConsultaFiscal }) {
       <p className={cn("text-xs", ativa ? "text-success" : "text-destructive")}>
         {ativa ? "Procuração vigente" : "Sem procuração vigente para o escritório"}
         {r.validade ? ` até ${String(r.validade).split("-").reverse().join("/")}` : ""}
-        {Array.isArray(r.sistemas) && r.sistemas.length ? ` · ${r.sistemas.length} sistema(s) liberado(s)` : ""}
+        {Array.isArray(r.sistemas) && r.sistemas.length ? ` · ${plural(r.sistemas.length, "sistema liberado", "sistemas liberados")}` : ""}
       </p>
     );
   }

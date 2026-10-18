@@ -48,7 +48,7 @@ fluxo de link/código por e-mail.
 - **Sair** (menu da conta: rodapé da barra lateral; no celular, o avatar no topo) encerra
   **só este navegador** (`signOut({ scope: 'local' })`); o celular e outros computadores
   continuam logados.
-- Se a API responder 401 (sessão revogada), o painel volta para a tela de entrada.
+- Se uma function responder 401, o painel tenta renovar a sessão: renovou, repete a chamada uma vez (401 de permissão não tira ninguém do painel); não renovou (sessão revogada), mostra "Sua sessão expirou, entre de novo" e sai só deste navegador (`lib/api.ts`).
 - **Desativar** a pessoa em Equipe derruba **todas** as sessões dela na hora (banimento no
   Auth + `revogar_sessoes`), e a RLS passa a negar tudo mesmo com um token ainda válido.
 - Entrou, mas o Colaborador está inativo ou sem cadastro: tela "Acesso não liberado" com

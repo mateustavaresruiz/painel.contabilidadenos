@@ -13,12 +13,12 @@ import {
   Link2Off,
   Loader2,
   MessageCircle,
+  Phone,
   RefreshCw,
   ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -367,9 +367,12 @@ function Campo({ rotulo, valor, mono, oculto, abrir, extra }: { rotulo: string; 
 /**
  * Abre a conversa do cliente no Atendimento com a mensagem (link + aviso de que a
  * senha vai separada) JÁ ESCRITA NO CAMPO. Não envia nada: a equipe revisa e aperta enviar.
+ *
+ * Abre em OUTRA ABA: esta janela (com a senha, que só aparece uma vez) continua
+ * aberta aqui. Sem telefone no cadastro, diz por quê e leva ao cadastro (também
+ * em outra aba, pelo mesmo motivo).
  */
 function EnviarWhatsApp({ clienteId, nome, telefone, link }: { clienteId: string; nome: string; telefone: string | null; link: string }) {
-  const navigate = useNavigate();
   const { ativo } = useModulos();
   const { data: sessoes = [] } = useWhatsappSessoes();
   const [abrindo, setAbrindo] = useState(false);
@@ -378,23 +381,29 @@ function EnviarWhatsApp({ clienteId, nome, telefone, link }: { clienteId: string
 
   async function abrir() {
     setAbrindo(true);
+    // A aba nasce no clique (senão o navegador bloqueia como pop-up) e recebe o endereço depois.
+    const aba = window.open("about:blank", "_blank");
     try {
       const alvo = await localizarConversaDoCliente({
         clienteId,
         telefone,
         sessaoConectadaId: sessoes.find((s) => s.status === "WORKING")?.id ?? null,
       });
-      if (alvo) {
-        navigate(caminhoDaConversa(alvo, texto));
+      const destino = alvo ? caminhoDaConversa(alvo, texto) : linkWaMe(telefone, texto);
+      if (!destino) {
+        aba?.close();
+        toast.warning("Este cliente não tem telefone cadastrado.");
         return;
       }
-      const wa = linkWaMe(telefone, texto);
-      if (wa) {
-        window.open(wa, "_blank", "noopener,noreferrer");
-        return;
+      if (aba) {
+        aba.opener = null;
+        aba.location.href = destino;
+      } else {
+        window.open(destino, "_blank", "noopener,noreferrer");
       }
-      toast.warning("Este cliente não tem telefone cadastrado.");
+      toast.info("Conversa aberta em outra aba. A senha continua aqui até você concluir.");
     } catch (e) {
+      aba?.close();
       toast.error(msgErro(e));
     } finally {
       setAbrindo(false);
@@ -403,13 +412,31 @@ function EnviarWhatsApp({ clienteId, nome, telefone, link }: { clienteId: string
 
   return (
     <div className="rounded-xl border bg-muted/40 p-3">
-      <Button onClick={abrir} disabled={abrindo || !telefone} className="w-full sm:w-auto" title={telefone ? undefined : "Cliente sem telefone"}>
-        {abrindo ? <Loader2 className="animate-spin" /> : <MessageCircle />}
-        Enviar o link pelo WhatsApp
-      </Button>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Abre a conversa com a mensagem pronta no campo, sem enviar. Revise e aperte enviar. A senha não vai na mensagem: mande separado (ou deixe o cliente pedir).
-      </p>
+      {telefone ? (
+        <>
+          <Button onClick={abrir} disabled={abrindo} className="w-full sm:w-auto">
+            {abrindo ? <Loader2 className="animate-spin" /> : <MessageCircle />}
+            Enviar o link pelo WhatsApp
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Abre a conversa em outra aba com a mensagem pronta no campo, sem enviar. Revise e aperte enviar. A senha não vai na
+            mensagem: copie aqui e mande separado.
+          </p>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            <strong className="text-foreground">Este cliente não tem telefone no cadastro</strong>, então não dá para abrir a
+            conversa do WhatsApp. Copie o link acima e envie por outro meio, ou cadastre o telefone.
+          </p>
+          <Button asChild size="sm" variant="outline">
+            <a href={`/clientes/${clienteId}/editar`} target="_blank" rel="noopener noreferrer">
+              <Phone />
+              Cadastrar telefone
+            </a>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

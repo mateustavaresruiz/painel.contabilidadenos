@@ -1,4 +1,5 @@
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase";
+import { toast } from "./toast";
 
 /** Base das Edge Functions: `<SUPABASE_URL>/functions/v1`. */
 const BASE = `${SUPABASE_URL}/functions/v1`;
@@ -43,7 +44,29 @@ export async function apiHeaders(extras?: HeadersInit): Promise<Headers> {
  *   api("/whatsapp/messages/send-text", { method: "POST", body: {...} })
  * O corpo é serializado AQUI — não passe `JSON.stringify(...)` (defeito 29 do adv3).
  */
-export async function api<T>(path: string, opts: FetchOptions = {}): Promise<T> {
+/** Um aviso só, mesmo com várias chamadas falhando juntas. */
+let saindo = false;
+
+/**
+ * 401 da function: só derruba a sessão se a RENOVAÇÃO também falhar (sessão
+ * revogada, desativado). Um 401 com sessão boa (token girou entre abas, regra
+ * de acesso da rota) não tira ninguém do painel: devolve false e a chamada
+ * tenta de novo uma vez com o token novo.
+ */
+async function sessaoAcabou(): Promise<boolean> {
+  const { data, error } = await supabase.auth.refreshSession();
+  if (!error && data.session) return false;
+  if (!saindo) {
+    saindo = true;
+    toast.warning("Sua sessão expirou, entre de novo", { duration: 8000 });
+    // Só este navegador (o celular e outros computadores continuam).
+    await supabase.auth.signOut({ scope: "local" });
+    setTimeout(() => (saindo = false), 5000);
+  }
+  return true;
+}
+
+export async function api<T>(path: string, opts: FetchOptions = {}, tentativa = 0): Promise<T> {
   const headers = await apiHeaders(opts.headers);
   headers.set("Content-Type", "application/json");
 
@@ -57,6 +80,10 @@ export async function api<T>(path: string, opts: FetchOptions = {}): Promise<T> 
     });
   } catch {
     throw new ErroDaApi("Sem conexão com o servidor. Tente de novo.", 0);
+  }
+
+  if (res.status === 401 && tentativa === 0 && !(await sessaoAcabou())) {
+    return api<T>(path, opts, 1);
   }
 
   if (!res.ok) {
@@ -74,8 +101,7 @@ export async function api<T>(path: string, opts: FetchOptions = {}): Promise<T> 
     }
     // Mensagens amigáveis para os códigos que o backend do painel usa.
     if (res.status === 429) msg = "Muitas ações seguidas. Espere alguns segundos e tente de novo.";
-    // Sessão revogada (desativação, logout em outro lugar): volta ao login.
-    if (res.status === 401) void supabase.auth.signOut({ scope: "local" });
+    if (res.status === 401) msg = tentativa === 0 ? "Sua sessão expirou, entre de novo." : msg;
     throw new ErroDaApi(msg, res.status, dados);
   }
 

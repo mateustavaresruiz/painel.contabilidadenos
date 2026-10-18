@@ -37,6 +37,7 @@ import {
 } from "@/lib/queries/serpro";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/texto";
 
 const SITUACAO: Record<SituacaoResumo, { rotulo: string; tom: "success" | "destructive" | "warning" | "secondary" | "default" }> = {
   regular: { rotulo: "Regular", tom: "success" },
@@ -58,7 +59,7 @@ export function erroDeConsulta(err: unknown, faltando?: string[]): string {
   if (naoConfigurado) {
     return faltando?.length
       ? `Serpro ainda não configurado: faltam ${faltando.join(", ")}.`
-      : "Serpro ainda não configurado: veja o cartão no topo de Pendências fiscais para o que falta.";
+      : "Serpro ainda não configurado. Quem administra o painel vê o que falta em Configurações, Integrações.";
   }
   return "Consulta não realizada: " + msgErro(err);
 }
@@ -146,7 +147,7 @@ export function PainelResumoSerpro() {
             Limpar filtro
           </Button>
         )}
-        <span className="text-xs text-muted-foreground ml-auto">{visiveis.length} cliente(s)</span>
+        <span className="text-xs text-muted-foreground ml-auto">{plural(visiveis.length, "cliente", "clientes")}</span>
       </div>
       {/* Celular: cards (a tabela rolava de lado e escondia a última consulta). */}
       <ListaResponsiva
@@ -174,7 +175,7 @@ export function PainelResumoSerpro() {
                 </td>
                 <td className="px-3 py-2">
                   <Badge variant={SITUACAO[l.situacao].tom}>{SITUACAO[l.situacao].rotulo}</Badge>
-                  {l.parcelamentosAtivos > 0 && <p className="text-2xs text-muted-foreground mt-0.5">{l.parcelamentosAtivos} parcelamento(s) ativo(s)</p>}
+                  {l.parcelamentosAtivos > 0 && <p className="text-2xs text-muted-foreground mt-0.5">{plural(l.parcelamentosAtivos, "parcelamento ativo", "parcelamentos ativos")}</p>}
                 </td>
                 <td className="px-3 py-2 hidden md:table-cell">
                   {!l.caixa ? (
@@ -207,8 +208,8 @@ export function PainelResumoSerpro() {
             selo={<Badge variant={SITUACAO[l.situacao].tom}>{SITUACAO[l.situacao].rotulo}</Badge>}
             meta={[
               !!l.ultimaEm && { texto: `Consultado em ${formatData(l.ultimaEm)}` },
-              l.parcelamentosAtivos > 0 && { texto: `${l.parcelamentosAtivos} parcelamento(s) ativo(s)` },
-              !!l.caixa && l.caixaImportantes > 0 && { texto: `Caixa postal: ${l.caixaImportantes} importante(s)`, alerta: true },
+              l.parcelamentosAtivos > 0 && { texto: plural(l.parcelamentosAtivos, "parcelamento ativo", "parcelamentos ativos") },
+              !!l.caixa && l.caixaImportantes > 0 && { texto: `Caixa postal: ${plural(l.caixaImportantes, "importante", "importantes")}`, alerta: true },
               l.procuracaoStatus === "sem_procuracao" && { texto: "Sem procuração", alerta: true },
             ]}
           />
@@ -305,7 +306,7 @@ export function ProcuracoesPainel() {
   async function verificar(quais: LinhaResumo[]) {
     if (!quais.length) return;
     const ok = await confirmar({
-      titulo: `Verificar ${quais.length} procuração(ões)?`,
+      titulo: `Verificar ${plural(quais.length, "procuração", "procurações")}?`,
       descricao: `Uma consulta por cliente, uma de cada vez. Custo estimado: ${formatBRL(quais.length * CUSTO_SERVICO.PROCURACAO!)}.`,
       confirmLabel: "Verificar",
     });
@@ -413,14 +414,14 @@ function CartaoAgendamento({ ag, elegiveis }: { ag: AgendamentoSerpro; elegiveis
     if (ativo && (!ag.ativo || mudou)) {
       const ok = await confirmar({
         titulo: `Ligar ${ROTULO_SERVICO[ag.servico]} todo dia ${dia}?`,
-        descricao: `Entram ${qtd} cliente(s). Custo estimado por mês: ${formatBRL(custo)} (cada consulta é cobrada pelo Serpro).`,
+        descricao: `Entram ${plural(qtd, "cliente", "clientes")}. Custo estimado por mês: ${formatBRL(custo)} (cada consulta é cobrada pelo Serpro).`,
         confirmLabel: "Ligar",
       });
       if (!ok) return;
     }
     salvar.mutate(
       { id: ag.id, diaMes: dia, ativo, todosAtivos: todos, clienteIds: todos ? [] : lista, alteradoPorId: euId },
-      { onSuccess: () => toast.success(ativo ? "Agendamento salvo." : "Agendamento desligado."), onError: (e) => toast.error(msgErro(e)) },
+      { onSuccess: () => toast.success(ativo ? "Agendamento salvo" : "Agendamento desligado"), onError: (e) => toast.error(msgErro(e)) },
     );
   }
 
@@ -492,13 +493,13 @@ function CartaoAgendamento({ ag, elegiveis }: { ag: AgendamentoSerpro; elegiveis
           </div>
         )}
         <p className="text-xs text-muted-foreground">
-          {qtd} consulta(s) por ciclo · custo estimado {formatBRL(custo)}/mês.
+          {plural(qtd, "consulta", "consultas")} por ciclo · custo estimado {formatBRL(custo)}/mês.
           {ag.servico === "PARCELAMENTOS" && " Só entram clientes do Simples Nacional ou MEI."}
         </p>
         <div className="rounded-md bg-muted px-3 py-2 text-2xs text-muted-foreground space-y-0.5">
           <p>
             {ag.ativo ? "Ligado." : "Desligado."}{" "}
-            {!ag.cicloConcluido && ag.cicloEm ? `Ciclo de ${formatData(ag.cicloEm)} em andamento: ${ag.cicloConsultas} consulta(s), ${formatBRL(Number(ag.cicloCusto))}.` : ""}
+            {!ag.cicloConcluido && ag.cicloEm ? `Ciclo de ${formatData(ag.cicloEm)} em andamento: ${plural(ag.cicloConsultas, "consulta", "consultas")}, ${formatBRL(Number(ag.cicloCusto))}.` : ""}
           </p>
           <p>Última execução: {ag.ultimaExecucao ? formatDataHora(ag.ultimaExecucao) : "nunca"}</p>
           {ag.ultimoResultado && <p>{ag.ultimoResultado}</p>}
@@ -507,7 +508,7 @@ function CartaoAgendamento({ ag, elegiveis }: { ag: AgendamentoSerpro; elegiveis
         {pode && mudou && (
           <div className="flex justify-end">
             <Button size="sm" onClick={() => void gravar(ag.ativo)} disabled={salvar.isPending}>
-              Salvar alterações
+              Salvar
             </Button>
           </div>
         )}
@@ -609,7 +610,7 @@ export function CustosSerpro() {
               <li key={m.mes} className="flex justify-between px-4 py-2">
                 <span>{m.mes.split("-").reverse().join("/")}</span>
                 <span className="tabular-nums text-muted-foreground">
-                  {m.consultas} consulta(s) · {formatBRL(m.custo)}
+                  {plural(m.consultas, "consulta", "consultas")} · {formatBRL(m.custo)}
                 </span>
               </li>
             ))}

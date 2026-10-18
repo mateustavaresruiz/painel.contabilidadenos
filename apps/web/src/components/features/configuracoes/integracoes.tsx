@@ -10,6 +10,7 @@ import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora } from "@/lib/format";
 import { useLoginConfig } from "@/lib/login-google";
 import { useModulos } from "@/lib/modulos";
+import { RequisitosSerpro } from "@/components/features/serpro/serpro-ui";
 import { useSerproStatus, useTestarLoginSerpro } from "@/lib/queries/denos";
 import {
   agendaEmPortugues,
@@ -23,6 +24,7 @@ import { useEmailStatus, useTestarEmail, type EmailStatus } from "@/lib/queries/
 import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/texto";
 
 const STATUS_SESSAO: Record<string, { rotulo: string; estado: Estado }> = {
   WORKING: { rotulo: "Online", estado: "ok" },
@@ -258,7 +260,7 @@ function CardEmail() {
           </li>
           <li>
             Nessa conta, ligue a verificação em 2 etapas e gere uma <strong className="text-foreground">senha de app</strong>{" "}
-            (Conta Google &gt; Segurança &gt; Senhas de app, nome "Painel Denos"). São 16 letras; guarde sem os espaços.
+            (Conta Google &gt; Segurança &gt; Senhas de app, nome "Painel NÓS"). São 16 letras; guarde sem os espaços.
           </li>
           <li>
             No Easypanel, projeto <Codigo>painel</Codigo>, serviço <Codigo>supabase</Codigo>, Ambiente:{" "}
@@ -290,7 +292,7 @@ function CardEmail() {
             disabled={testar.isPending}
             onClick={() =>
               testar.mutate(undefined, {
-                onSuccess: (r) => toast.success(`E-mail de teste enviado para ${r.para}. Confira a caixa de entrada.`),
+                onSuccess: (r) => toast.success(`E-mail de teste enviado para ${r.para}`),
                 onError: (e) => toast.error(msgErro(e)),
               })
             }
@@ -367,7 +369,7 @@ function CardGoogle() {
             use o mesmo do backup).
           </li>
           <li>
-            APIs e serviços &gt; Tela de consentimento OAuth: tipo <Codigo>Externo</Codigo>, nome "Painel Denos",
+            APIs e serviços &gt; Tela de consentimento OAuth: tipo <Codigo>Externo</Codigo>, nome "Painel NÓS",
             e-mail de suporte do escritório, só os escopos básicos (<Codigo>email</Codigo>, <Codigo>profile</Codigo>,{" "}
             <Codigo>openid</Codigo>). Publique o app ("Em produção"): com só esses escopos o Google não pede
             verificação. "Interno" só serve se todos da equipe tiverem conta no Workspace do escritório.
@@ -479,7 +481,7 @@ function CardSerpro() {
   async function testarLogin() {
     try {
       const r = await testar.mutateAsync();
-      if (r.ok) toast.success(r.mensagem ?? "Login no Serpro OK.");
+      if (r.ok) toast.success(r.mensagem ?? "Login no Serpro OK");
       else toast.error(r.error ?? "Login no Serpro falhou.");
     } catch (err) {
       toast.error(msgErro(err));
@@ -526,16 +528,8 @@ function CardSerpro() {
             )}
             <Linha rotulo="Confirmação por PIN">{d.pinConfirmacao ? "Ativa" : "Não configurada"}</Linha>
           </dl>
-          {Array.isArray(d.faltando) && d.faltando.length > 0 && (
-            <div className="rounded-md bg-muted px-3 py-2 text-xs space-y-1">
-              <p className="text-muted-foreground">Falta:</p>
-              <ul className="list-disc pl-5">
-                {d.faltando.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Requisitos do Integra Contador e variáveis do servidor (saíram da página de Pendências fiscais). */}
+          <RequisitosSerpro data={d} />
           {Array.isArray(d.avisos) && d.avisos.length > 0 && (
             <ul className="text-xs text-warning list-disc pl-5">
               {d.avisos.map((a) => (
@@ -624,9 +618,9 @@ function CardCrons() {
                 <p className="text-xs text-muted-foreground">
                   {agendaEmPortugues(c.agenda)}
                   {c.ultimaExecucao ? ` · última vez ${formatDataHora(c.ultimaExecucao)}` : ""}
-                  {c.falhas24h > 0 ? ` · ${c.falhas24h} falha(s) em 24h` : ""}
+                  {c.falhas24h > 0 ? ` · ${plural(c.falhas24h, "falha", "falhas")} em 24h` : ""}
                   {c.httpStatus != null ? ` · função respondeu HTTP ${c.httpStatus}` : ""}
-                  {(c.httpFalhas24h ?? 0) > 0 ? ` · ${c.httpFalhas24h} resposta(s) com erro em 24h` : ""}
+                  {(c.httpFalhas24h ?? 0) > 0 ? ` · ${plural(c.httpFalhas24h ?? 0, "resposta", "respostas")} com erro em 24h` : ""}
                 </p>
                 {c.status === "failed" && c.mensagem && (
                   <p className="text-xs text-destructive font-mono break-words">{c.mensagem}</p>

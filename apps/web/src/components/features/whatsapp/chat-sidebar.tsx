@@ -63,17 +63,18 @@ import { coletarMencaoIds, substituirMencoes } from "@/lib/whatsapp-mencoes";
 
 import { ChatFilterChips, type FiltroChip } from "./chat-filter-chips";
 import { DownloadConversaDialog } from "./download-conversa-dialog";
+import { plural } from "@/lib/texto";
 
 type Props = {
   /** Sessões filtradas — multi-instância. Array vazio = todas. */
   sessoesIds: string[];
-  /** Mapa sessaoId → sessão (pra pills de instância nos itens). */
+  /** Mapa sessaoId → sessão (para pills de instância nos itens). */
   sessoes: WhatsappSessao[];
   chatIdSelecionado: string | undefined;
   sessaoIdSelecionada: string | undefined;
   onSelecionar: (sessaoId: string, chatId: string) => void;
   /** Callback quando uma conversa é apagada via menu do sidebar.
-   *  Parent usa pra fechar o painel da direita se a conversa
+   *  Parent usa para fechar o painel da direita se a conversa
    *  apagada estava aberta. */
   onApagado?: (chatId: string) => void;
 };
@@ -82,7 +83,7 @@ type Props = {
  * Sidebar de conversas com busca e chips de filtro. Fixadas vão pro
  * topo; o resto fica numa lista única ordenada pelo backend (timestamp
  * desc). Quando o filtro de instância tem 2+ sessões, mostra pill da
- * instância em cada item pra deixar claro de onde veio.
+ * instância em cada item para deixar claro de onde veio.
  */
 export function ChatSidebar({
   sessoesIds,
@@ -93,12 +94,15 @@ export function ChatSidebar({
   onApagado,
 }: Props) {
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<FiltroChip>("todas");
+  // ?filtro=sem (cartão "conversas esperando" do Início) abre já em "Sem responsável".
+  const [filtro, setFiltro] = useState<FiltroChip>(() =>
+    new URLSearchParams(window.location.search).get("filtro") === "sem" ? "sem" : "todas",
+  );
   const { euId, tem } = useEu();
   const colaboradores = useColaboradoresMap();
   const planoDeixaApagar = tem("whatsapp.apagar_mensagens");
-  // 300ms é o sweet spot: rápido o bastante pra parecer responsivo,
-  // longo o bastante pra não disparar query a cada tecla.
+  // 300ms é o sweet spot: rápido o bastante para parecer responsivo,
+  // longo o bastante para não disparar query a cada tecla.
   const buscaDebounced = useDebounced(busca, 300);
 
   // Traduz chip → filtros pro hook
@@ -157,7 +161,7 @@ export function ChatSidebar({
     setSelecionados(new Set());
   }, []);
 
-  // Seleção não sobrevive a troca de filtro/busca: senão dava pra apagar
+  // Seleção não sobrevive a troca de filtro/busca: senão dava para apagar
   // conversa que já não estava na tela (defeito 60 do adv3).
   useEffect(() => {
     setSelecionados(new Set());
@@ -176,7 +180,7 @@ export function ChatSidebar({
     if (selecionados.size === 0) return;
     if (
       !(await confirmar({
-        titulo: `Excluir ${selecionados.size} conversa(s)?`,
+        titulo: `Excluir ${plural(selecionados.size, "conversa", "conversas")}?`,
         descricao:
           "Remove as conversas selecionadas, todas as mensagens e os vínculos com clientes. Tenta apagar também no WhatsApp do número conectado. Sem desfazer.",
         destructive: true,
@@ -195,17 +199,17 @@ export function ChatSidebar({
       const { falhas, total } = await apagarLote.mutateAsync(alvos);
       if (falhas > 0) {
         toast.warning(
-          `${total - falhas} apagada(s); ${falhas} falhou/falharam.`,
+          `${plural(total - falhas, "apagada", "apagadas")}; ${plural(falhas, "falhou", "falharam")}.`,
         );
       } else {
-        toast.success(`${total} conversa(s) apagada(s).`);
+        toast.success(plural(total, "conversa apagada", "conversas apagadas"));
       }
     } catch (err) {
       toast.error(msgErro(err));
     }
   }
 
-  // Menções `@<lid>` nos previews → resolve pra nome/telefone (mesmo
+  // Menções `@<lid>` nos previews → resolve para nome/telefone (mesmo
   // mecanismo do balão). Coleta os ids só dos previews visíveis.
   const mencaoIds = useMemo(
     () => coletarMencaoIds(chats.map((c) => c.ultimaMensagemTexto)),
@@ -213,7 +217,7 @@ export function ChatSidebar({
   );
   const { data: mencaoMap } = useWhatsappContatos(mencaoIds);
 
-  // Mapa de sessão por id (pra pill de instância)
+  // Mapa de sessão por id (para pill de instância)
   const sessoesMap = useMemo(() => {
     const m = new Map<string, WhatsappSessao>();
     for (const s of sessoes) m.set(s.id, s);
@@ -221,7 +225,7 @@ export function ChatSidebar({
   }, [sessoes]);
 
   // Mostra pill de instância apenas quando lista mistura 2+ instâncias
-  // — se filtrado pra 1 só, é redundante.
+  // — se filtrado para 1 só, é redundante.
   const mostraPillInstancia = useMemo(() => {
     const set = new Set(chats.map((c) => c.sessaoId));
     return set.size > 1;
@@ -253,7 +257,7 @@ export function ChatSidebar({
             className="pl-8 h-9 bg-card/80"
           />
         </div>
-        {/* O modo seleção só existe pra apagar em lote: sem direito de apagar,
+        {/* O modo seleção só existe para apagar em lote: sem direito de apagar,
             ele não teria nenhuma ação no fim. */}
         {chats.length > 0 && planoDeixaApagar && (
           <Tooltip label="Selecionar conversas" side="bottom">
@@ -311,7 +315,7 @@ export function ChatSidebar({
       )}
 
       {/* Lista de conversas — fixadas não virtualizadas (geralmente <10
-          + sticky header), demais virtualizadas pra suportar 1000+
+          + sticky header), demais virtualizadas para suportar 1000+
           conversas sem perder FPS no scroll. */}
       <ListaConversas
         isLoading={isLoading}
@@ -522,7 +526,7 @@ function EmptyState({ busca, filtro }: { busca: string; filtro: FiltroChip }) {
     descricao = "Grupos do WhatsApp aparecem aqui quando recebem mensagens.";
   } else if (filtro === "clientes") {
     titulo = "Nenhuma conversa vinculada";
-    descricao = "Vincule conversas a clientes pra organizar o atendimento.";
+    descricao = "Vincule conversas a clientes para organizar o atendimento.";
   } else if (filtro === "minhas") {
     titulo = "Nenhuma conversa sua";
     descricao = "Conversas que você assumir aparecem aqui.";
@@ -532,7 +536,7 @@ function EmptyState({ busca, filtro }: { busca: string; filtro: FiltroChip }) {
   } else if (filtro === "arquivadas") {
     titulo = "Nenhuma conversa arquivada";
     descricao =
-      "Arquive uma conversa pelo menu (⋮) pra tirá-la da lista sem apagar.";
+      "Arquive uma conversa pelo menu (⋮) para tirá-la da lista sem apagar.";
   } else {
     titulo = "Caixa vazia";
     descricao = "As conversas aparecem assim que chegam mensagens.";
@@ -612,7 +616,7 @@ const ChatItem = memo(function ChatItemImpl({
   }, []);
   useEffect(() => aoSair, [aoSair]);
   // Fallback do nome quando o grupo ainda não teve o subject capturado
-  // pelo refresh-profile — mostra um sufixo do chatId pra diferenciar
+  // pelo refresh-profile — mostra um sufixo do chatId para diferenciar
   // grupos distintos. Usa os ÚLTIMOS 5 dígitos (não os primeiros)
   // porque todo chatId de grupo começa com "120363..." — prefixo
   // comum a todos, então slice(0,5) deixava todos iguais.
@@ -641,7 +645,7 @@ const ChatItem = memo(function ChatItemImpl({
     setMenuOpen(false);
     try {
       await fixar.mutateAsync({ chatRowId: chat.id, fixado: !chat.fixado });
-      toast.success(chat.fixado ? "Conversa desafixada." : "Conversa fixada.");
+      toast.success(chat.fixado ? "Conversa desafixada" : "Conversa fixada");
     } catch (err) {
       toast.error(msgErro(err));
     }
@@ -656,7 +660,7 @@ const ChatItem = memo(function ChatItemImpl({
         arquivado: !chat.arquivado,
       });
       toast.success(
-        chat.arquivado ? "Conversa desarquivada." : "Conversa arquivada.",
+        chat.arquivado ? "Conversa desarquivada" : "Conversa arquivada",
       );
       // Some da lista atual (arquivou → sai das abas normais; desarquivou
       // → sai da aba Arquivadas). Se estava aberta, fecha o painel.
@@ -681,7 +685,7 @@ const ChatItem = memo(function ChatItemImpl({
       return;
     try {
       await limpar.mutateAsync(chat.chatId);
-      toast.success("Mensagens apagadas.");
+      toast.success("Mensagens apagadas");
     } catch (err) {
       toast.error(msgErro(err));
     }
@@ -702,9 +706,9 @@ const ChatItem = memo(function ChatItemImpl({
       return;
     try {
       await apagar.mutateAsync(chat.chatId);
-      toast.success("Conversa apagada.");
+      toast.success("Conversa apagada");
       // Se a conversa apagada estava aberta à direita, avisa o parent
-      // pra limpar `?chat=...` da URL — senão o painel fica mostrando
+      // para limpar `?chat=...` da URL — senão o painel fica mostrando
       // uma conversa fantasma até o usuário clicar em outra.
       onApagado?.(chat.chatId);
     } catch (err) {
@@ -961,7 +965,7 @@ function PreviewIcon({ texto }: { texto: string | null }) {
 }
 
 /** Placeholders crus que vazam do backend (ex.: doc enviado sem legenda)
- *  e seus rótulos pt-BR — rede de segurança pra dados antigos/engine. */
+ *  e seus rótulos pt-BR — rede de segurança para dados antigos/engine. */
 const ROTULO_MIDIA: Record<string, string> = {
   image: "Imagem",
   video: "Vídeo",
@@ -977,7 +981,7 @@ const ROTULO_MIDIA: Record<string, string> = {
 };
 
 /** Limpa o preview: traduz placeholder "[document]" → rótulo pt-BR e
- *  remove emojis de mídia do início pra não duplicar com o ícone. */
+ *  remove emojis de mídia do início para não duplicar com o ícone. */
 function previewLimpo(texto: string | null): string | null {
   if (!texto) return null;
   const bracket = texto.trim().match(/^\[([a-z]+)\]$/i);
