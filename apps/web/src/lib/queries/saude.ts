@@ -92,6 +92,47 @@ export function useErrosRecentes() {
 }
 
 // ---------------------------------------------------------------------------
+// Backup (serviço "backup" do Easypanel grava em BackupExecucao; docs/BACKUP.md)
+// ---------------------------------------------------------------------------
+
+export type BackupTipo = "db" | "volumes" | "retencao" | "offsite" | "restore-test";
+
+export type BackupExecucao = {
+  id: number;
+  tipo: BackupTipo;
+  inicio: string;
+  fim: string | null;
+  ok: boolean;
+  tamanhoBytes: number | null;
+  destino: string;
+  erro: string | null;
+  detalhe?: Record<string, unknown>;
+};
+
+export type BackupStatus = {
+  agora: string;
+  ultimos: Partial<Record<BackupTipo, BackupExecucao>>;
+  ultimoSucesso: Partial<Record<BackupTipo, string>>;
+  historico: BackupExecucao[];
+};
+
+/** Acima disso sem um backup bem-sucedido, a tela marca em vermelho (diário às 03:00 + folga). */
+export const BACKUP_LIMITE_HORAS = 26;
+
+export function useBackupStatus() {
+  return useQuery({
+    queryKey: ["painel-backup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("painel_backup_status");
+      if (error) throw error;
+      return data as BackupStatus;
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Tarefas agendadas em português
 // ---------------------------------------------------------------------------
 

@@ -1,0 +1,51 @@
+# Teste de restauração DESCARTÁVEL (docs/BACKUP.md, "Teste de restauração").
+# Criar como serviço Compose "backup-teste" (rootPath /infra/backup, este arquivo),
+# ler os logs do "restore-test" e destruir o serviço em seguida.
+#
+# - restore-scratch-db: Postgres igual ao de produção, SEM volume (some junto).
+#   Fica só na rede própria deste compose; produção não o enxerga.
+# - restore-test: lê o repositório de backup (:ro), restaura no descartável e
+#   compara contagens com produção (só leitura + 1 linha em BackupExecucao).
+
+services:
+  restore-scratch-db:
+    image: supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+    restart: "no"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      POSTGRES_HOST: /var/run/postgresql
+      JWT_EXP: 3600
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    networks:
+      - teste
+
+  restore-test:
+    build: .
+    image: painel-backup:local
+    restart: "no"
+    command: ["restore-test"]
+    env_file: .env
+    environment:
+      TZ: America/Sao_Paulo
+      SCRATCH_HOST: restore-scratch-db
+    depends_on:
+      - restore-scratch-db
+    volumes:
+      - painel-backups:/backups:ro
+    networks:
+      - teste
+      - supabase
+
+networks:
+  teste: {}
+  supabase:
+    external: true
+    name: painel_supabase_default
+
+volumes:
+  painel-backups:
+    external: true
+    name: painel-backups

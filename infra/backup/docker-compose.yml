@@ -1,0 +1,63 @@
+# Backup do Painel Denos — serviço Compose "backup" do projeto "painel" no Easypanel.
+# Documentação: docs/BACKUP.md
+#
+# Separado do infra/supabase de propósito: publicar/alterar o backup não
+# reinicia o banco, e o Supabase pode ser atualizado sem mexer no backup.
+#
+# Todas as origens entram SÓ LEITURA (:ro). Os nomes externos são os volumes
+# reais que o Easypanel criou (conferidos por getDockerContainers em 18/10/2026):
+#   app service  -> <projeto>_<serviço>_<volume>
+#   compose      -> <projeto>_<serviço>_<volume do compose>
+
+services:
+  backup:
+    build: .
+    image: painel-backup:local
+    container_name: painel-backup
+    restart: unless-stopped
+    command: ["cron"]
+    env_file: .env
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - painel-backups:/backups
+      - supabase-storage:/origem/supabase-storage:ro
+      - supabase-db-config:/origem/supabase-db-config:ro
+      - waha-sessions:/origem/waha-sessions:ro
+      - integra-contador-dados:/origem/integra-contador-dados:ro
+      - stalwart-etc:/origem/stalwart-etc:ro
+      - stalwart-data:/origem/stalwart-data:ro
+      - blog-content:/origem/blog-content:ro
+    networks:
+      - supabase
+
+networks:
+  # Rede do compose do Supabase: o backup alcança o banco como "supabase-db".
+  supabase:
+    external: true
+    name: painel_supabase_default
+
+volumes:
+  painel-backups:
+    name: painel-backups
+  supabase-storage:
+    external: true
+    name: painel_supabase_storage-data
+  supabase-db-config:
+    external: true
+    name: painel_supabase_db-config
+  waha-sessions:
+    external: true
+    name: painel_waha_sessions
+  integra-contador-dados:
+    external: true
+    name: painel_integra-contador_integra-contador-dados
+  stalwart-etc:
+    external: true
+    name: painel_email_stalwart-etc
+  stalwart-data:
+    external: true
+    name: painel_email_stalwart-data
+  blog-content:
+    external: true
+    name: site_blog_blog-content-2
