@@ -109,17 +109,21 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc("buscar_chamados", { p_q: q })
-        .select("id, descricao, status, tipo:SolicitacaoTipo(nome), cliente:Cliente(nome, nomeFantasia)")
-        .order("criadoEm", { ascending: false })
-        .limit(5);
+        .select("id, descricao, status, criadoEm, tipo:SolicitacaoTipo(nome), cliente:Cliente(nome, nomeFantasia)")
+        .limit(30);
       if (error) throw error;
-      return (data ?? []) as unknown as {
+      // Ordem aqui, não no PostgREST: "order" por coluna camelCase sobre o
+      // resultado de uma RPC falha (42703) nesta versão.
+      return ((data ?? []) as unknown as {
         id: string;
         descricao: string | null;
         status: SolicitacaoStatus;
+        criadoEm: string;
         tipo: { nome: string } | null;
         cliente: { nome: string; nomeFantasia: string | null } | null;
-      }[];
+      }[])
+        .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+        .slice(0, 5);
     },
   });
   const conversas = useQuery({
@@ -207,8 +211,17 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
           avatar: { nome: c.nome ?? "", semente: c.chatId },
         }))
       : [];
-    // Sócio cuja empresa já apareceu em Clientes não repete.
-    const jaTem = new Set(cs.map((c) => c.to));
+    // Sócio cuja empresa já apareceu em Clientes não repete: a linha do cliente
+    // ganha "Sócio: Fulano" e abre na aba Sócios.
+    const socioDe = new Map((socios.data ?? []).map((x) => [`/clientes/${x.clienteId}`, x.nome]));
+    for (const c of cs) {
+      const nomeSocio = socioDe.get(c.to);
+      if (nomeSocio) {
+        c.detalhe = `Sócio: ${nomeSocio}${c.detalhe ? ` · ${c.detalhe}` : ""}`;
+        c.to = `${c.to}?aba=socios`;
+      }
+    }
+    const jaTem = new Set(cs.map((c) => c.to.split("?")[0]!));
     return [...paginas, ...cs, ...ss.filter((x) => !jaTem.has(x.to.split("?")[0]!)), ...hs, ...vs];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [termo, buscar, clientes.data, socios.data, chamados.data, conversas.data, ativo, tem]);

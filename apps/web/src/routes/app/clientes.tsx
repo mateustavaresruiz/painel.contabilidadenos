@@ -301,7 +301,7 @@ export function ClientesPage() {
                     }}
                   >
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-3 min-w-0 w-max max-w-[min(340px,26vw)]" title={nomeCompleto(c)}>
+                      <div className="flex items-center gap-3 min-w-0 w-max max-w-[min(340px,22vw)]" title={nomeCompleto(c)}>
                         <AvatarIniciais nome={nomeExibicao(c)} semente={c.id} empresa={c.tipo === "PJ"} size="md" />
                         <div className="min-w-0">
                           <span className="block truncate">{nomeExibicao(c)}</span>

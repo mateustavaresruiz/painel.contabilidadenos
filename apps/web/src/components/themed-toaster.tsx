@@ -27,7 +27,9 @@ export function ThemedToaster() {
       position="top-right"
       theme={theme}
       gap={8}
-      style={VARS}
+      // pointer-events: com um diálogo/gaveta aberto o Radix desliga os cliques
+      // fora dele (body pointer-events: none) e o "Desfazer" ficava inalcançável.
+      style={{ ...VARS, pointerEvents: "auto" }}
       toastOptions={{
         classNames: {
           toast: "!shadow-flutuante !text-xs !gap-2.5 !font-sans",

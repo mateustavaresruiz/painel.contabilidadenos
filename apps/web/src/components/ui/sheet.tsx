@@ -150,6 +150,10 @@ export const SheetContent = forwardRef<
             e.preventDefault();
             painelRef.current?.focus();
           }}
+          // Clicar num aviso (o "Desfazer" do toast) não fecha o painel.
+          onInteractOutside={(e) => {
+            if ((e.target as Element | null)?.closest?.("[data-sonner-toaster]")) e.preventDefault();
+          }}
           {...props}
         >
           {arrastavel && (

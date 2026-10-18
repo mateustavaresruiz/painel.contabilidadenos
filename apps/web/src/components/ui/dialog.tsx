@@ -64,6 +64,10 @@ export const DialogContent = forwardRef<
         "max-sm:inset-0 max-sm:left-0 max-sm:top-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:content-start max-sm:rounded-none max-sm:border-0 max-sm:p-4 max-sm:pt-[max(1rem,env(safe-area-inset-top))] max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:slide-in-from-left-0 max-sm:data-[state=open]:slide-in-from-top-0 max-sm:data-[state=closed]:slide-out-to-left-0 max-sm:data-[state=closed]:slide-out-to-top-0",
         className,
       )}
+      // Clicar num aviso (o "Desfazer" do toast) não fecha o diálogo.
+      onInteractOutside={(e) => {
+        if ((e.target as Element | null)?.closest?.("[data-sonner-toaster]")) e.preventDefault();
+      }}
       {...props}
     >
       {children}
