@@ -40,12 +40,15 @@ import { useSort } from "@/hooks/use-sort";
 import { formatDoc, formatTelefone } from "@/lib/format";
 import { usePermissao } from "@/lib/colaborador";
 import {
+  nomeCompleto,
   nomeExibicao,
+  razaoSocialDeApoio,
   useClientes,
   useContagemIncompletos,
   type ClienteResumo,
 } from "@/lib/queries/clientes";
 import { REGIMES, type RegimeTributario } from "@/lib/validations/cliente";
+import { plural } from "@/lib/texto";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -211,7 +214,7 @@ export function ClientesPage() {
             <Table>
               <TableBody>
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <SkeletonTableRow key={i} cols={5} />
+                  <SkeletonTableRow key={i} cols={6} alta />
                 ))}
               </TableBody>
             </Table>
@@ -278,7 +281,7 @@ export function ClientesPage() {
                   </SortableTableHead>
                   <TableHead>CPF / CNPJ</TableHead>
                   <TableHead>Contato</TableHead>
-                  <SortableTableHead active={sort?.key === "cidade"} dir={sort?.dir} onSort={() => toggle("cidade")}>
+                  <SortableTableHead className="max-2xl:hidden" active={sort?.key === "cidade"} dir={sort?.dir} onSort={() => toggle("cidade")}>
                     Cidade
                   </SortableTableHead>
                   <TableHead className="w-20"><span className="sr-only">Ações</span></TableHead>
@@ -288,15 +291,21 @@ export function ClientesPage() {
                 {rows.map((c) => (
                   <TableRow
                     key={c.id}
-                    className="group cursor-pointer hover:bg-muted/40 [&>td]:py-3.5"
+                    className="group cursor-pointer hover:bg-muted/40 [&>td]:py-3.5 focus-visible:outline-none focus-visible:bg-muted/60 focus-visible:shadow-[inset_3px_0_0_var(--primary)]"
                     onClick={() => navigate(`/clientes/${c.id}`)}
+                    // Teclado: Tab chega na linha e Enter abre a ficha.
+                    tabIndex={0}
+                    aria-label={`Abrir ${nomeCompleto(c)}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.target === e.currentTarget) navigate(`/clientes/${c.id}`);
+                    }}
                   >
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0 w-max max-w-[min(340px,26vw)]" title={nomeCompleto(c)}>
                         <AvatarIniciais nome={nomeExibicao(c)} semente={c.id} empresa={c.tipo === "PJ"} size="md" />
                         <div className="min-w-0">
                           <span className="block truncate">{nomeExibicao(c)}</span>
-                          {c.nomeFantasia && c.nomeFantasia !== c.nome && (
+                          {razaoSocialDeApoio(c) && (
                             <span className="block truncate text-2xs text-muted-foreground font-normal">{c.nome}</span>
                           )}
                           {(!c.ativo || c.provisorio) && (
@@ -312,15 +321,15 @@ export function ClientesPage() {
                       <TipoBadge tipo={c.tipo} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{c.regimeTributario ?? "-"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground tabular-nums">{formatDoc(c.cpfCnpj)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">{formatDoc(c.cpfCnpj)}</TableCell>
                     <TableCell className="text-sm">
-                      <div className="flex flex-col leading-tight min-w-0">
-                        {c.telefone ? <span className="tabular-nums">{formatTelefone(c.telefone)}</span> : null}
-                        {c.email ? <span className="truncate text-xs text-muted-foreground">{c.email}</span> : null}
+                      <div className="flex flex-col leading-tight min-w-0 max-w-[220px]">
+                        {c.telefone ? <span className="tabular-nums whitespace-nowrap">{formatTelefone(c.telefone)}</span> : null}
+                        {c.email ? <span className="truncate text-xs text-muted-foreground" title={c.email}>{c.email}</span> : null}
                         {!c.telefone && !c.email ? <span className="text-muted-foreground">-</span> : null}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground max-2xl:hidden">
                       {[c.cidade, c.estado].filter(Boolean).join(" / ") || "-"}
                     </TableCell>
                     <TableCell className="text-right">
@@ -367,7 +376,7 @@ export function ClientesPage() {
 
       {clientes.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          {clientes.length} {clientes.length === 1 ? "cliente" : "clientes"}
+          {plural(clientes.length, "cliente", "clientes")}
           {clientes.length >= 500 ? " (mostrando os 500 primeiros, refine a busca)" : ""}
         </p>
       )}

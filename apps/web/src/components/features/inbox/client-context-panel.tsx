@@ -25,6 +25,7 @@ import { textoTransferencia } from "@/components/features/atendimento/atendiment
 import {
   NovaSolicitacaoDialog,
   StatusSolicitacaoSelect,
+  useTrocarStatusChamado,
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { Button } from "@/components/ui/button";
 import { HistoricoLista } from "@/components/features/auditoria/linha-do-tempo";
@@ -38,11 +39,12 @@ import { ATENDIMENTO_LABEL, useTransferencias } from "@/lib/queries/atendimento"
 import { useCertificados } from "@/lib/queries/certificados";
 import {
   nomeExibicao,
+  razaoSocialDeApoio,
   useCliente,
   useClientesPorTelefone,
   useSocios,
 } from "@/lib/queries/clientes";
-import { useAtualizarSolicitacao, useSolicitacoes } from "@/lib/queries/solicitacoes";
+import { useSolicitacoes } from "@/lib/queries/solicitacoes";
 import { mediaSignedUrl, type WhatsappChat } from "@/lib/queries/whatsapp";
 import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
@@ -56,16 +58,16 @@ type Props = {
   canal: "whatsapp" | "email";
   /** Identificador da conversa (chatId do WhatsApp ou threadId do e-mail). */
   conversaId: string;
-  /** Sugestão pra pré-preencher a busca de cliente (telefone ou e-mail). */
+  /** Sugestão para pré-preencher a busca de cliente (telefone ou e-mail). */
   sugestao?: string | null;
-  /** Nome do contato (ex.: pushName do WhatsApp) pra pré-preencher o
+  /** Nome do contato (ex.: pushName do WhatsApp) para pré-preencher o
    *  cadastro ao criar cliente novo. */
   nomeSugerido?: string | null;
   /** Vincula a conversa a um cliente (ou desvincula passando null). */
   onVincular: (clienteId: string | null) => Promise<void> | void;
   vinculando?: boolean;
   /**
-   * Painel Denos: a conversa (pra chamados e histórico do atendimento).
+   * Painel Denos: a conversa (para chamados e histórico do atendimento).
    * No adv3 aqui entravam processos/tarefas/receitas/documentos.
    */
   chat?: WhatsappChat;
@@ -78,7 +80,7 @@ type Props = {
 /**
  * Painel lateral direito da conversa que mostra o contexto do cliente
  * vinculado (porte literal do adv3). Sem cliente vinculado, oferece um
- * botão pra vincular via busca.
+ * botão para vincular via busca.
  *
  * Dados exibidos quando vinculado (painel Denos):
  *   - Identidade (nome, contato, link pro cadastro)
@@ -205,7 +207,7 @@ export function ClientContextPanel({
         onConfirmar={async (id) => {
           try {
             await onVincular(id);
-            toast.success("Cliente vinculado.");
+            toast.success("Cliente vinculado");
             setVincularOpen(false);
           } catch (err) {
             toast.error(msgErro(err));
@@ -251,7 +253,7 @@ function SemCliente({
         <p className="text-sm font-medium">Conversa sem cliente</p>
         <p className="text-xs text-muted-foreground mt-1">
           Vincule esta {canal === "whatsapp" ? "conversa" : "thread"} a um
-          cliente pra ver sócios, certificado e chamados aqui.
+          cliente para ver sócios, certificado e chamados aqui.
         </p>
       </div>
       {sugestao && (
@@ -374,6 +376,9 @@ function ClienteVinculado({
             <p className="font-semibold text-sm leading-tight">
               {nome}
             </p>
+            {razaoSocialDeApoio(cliente) && (
+              <p className="text-2xs text-muted-foreground leading-tight">{cliente.nome}</p>
+            )}
             {cliente.provisorio && (
               <Link to={`/clientes/${cliente.id}/editar`} className="inline-flex" title="Completar cadastro">
                 <CadastroIncompletoBadge />
@@ -556,7 +561,7 @@ function CertificadosSection({ clienteId }: { clienteId: string }) {
 
 function ChamadosSection({ chatRowId, onNova }: { chatRowId: string; onNova: () => void }) {
   const { data = [], isLoading } = useSolicitacoes({ chatRowId, status: "abertas" });
-  const atualizar = useAtualizarSolicitacao();
+  const { trocar, pendente } = useTrocarStatusChamado();
 
   return (
     <section className="border-t pt-4">
@@ -578,13 +583,8 @@ function ChamadosSection({ chatRowId, onNova }: { chatRowId: string; onNova: () 
                 <p className="flex-1 min-w-0 text-xs font-medium truncate">{s.tipo?.nome ?? "Chamado"}</p>
                 <StatusSolicitacaoSelect
                   value={s.status}
-                  disabled={atualizar.isPending}
-                  onChange={(status) =>
-                    atualizar.mutate(
-                      { id: s.id, patch: { status } },
-                      { onError: (e) => toast.error(msgErro(e)) },
-                    )
-                  }
+                  disabled={pendente}
+                  onChange={(status) => trocar(s.id, s.status, status)}
                 />
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-2xs text-muted-foreground">

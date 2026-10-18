@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { QueryError } from "@/components/ui/query-error";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useClientesList } from "@/lib/queries/helpers";
+import { normalizarBusca } from "@/lib/texto";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,6 +18,8 @@ export function ClienteSelect({
   disabled,
   placeholder = "Escolha o cliente",
   permitirTodos,
+  limpavel,
+  id,
 }: {
   value: string | null;
   onChange: (id: string | null) => void;
@@ -24,6 +27,9 @@ export function ClienteSelect({
   placeholder?: string;
   /** Mostra a opção "Todos os clientes" (filtros). */
   permitirTodos?: boolean;
+  /** Mostra a opção "Sem cliente" (campo opcional de formulário). */
+  limpavel?: boolean;
+  id?: string;
 }) {
   const { data: lista = [], isError, error, refetch } = useClientesList();
   const [aberto, setAberto] = useState(false);
@@ -31,15 +37,16 @@ export function ClienteSelect({
   const atual = lista.find((c) => c.id === value);
 
   const filtrados = useMemo(() => {
-    const t = busca.trim().toLowerCase();
+    const t = normalizarBusca(busca);
     if (!t) return lista.slice(0, 80);
     const dig = t.replace(/\D/g, "");
     return lista
       .filter(
         (c) =>
-          c.nome.toLowerCase().includes(t) ||
-          (c.nomeFantasia ?? "").toLowerCase().includes(t) ||
-          (dig.length >= 3 && (c.telefone ?? "").replace(/\D/g, "").includes(dig)),
+          normalizarBusca(c.nome).includes(t) ||
+          normalizarBusca(c.nomeFantasia).includes(t) ||
+          (dig.length >= 3 &&
+            ((c.telefone ?? "").replace(/\D/g, "").includes(dig) || (c.cpfCnpj ?? "").includes(dig))),
       )
       .slice(0, 80);
   }, [lista, busca]);
@@ -52,6 +59,7 @@ export function ClienteSelect({
       <PopoverTrigger asChild disabled={disabled}>
         <button
           type="button"
+          id={id}
           className={cn(
             "flex h-10 max-sm:h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-base fino:text-sm transition-colors hover:border-foreground/20",
             "disabled:opacity-60 disabled:cursor-not-allowed",
@@ -86,6 +94,17 @@ export function ClienteSelect({
               Todos os clientes
             </Opcao>
           )}
+          {limpavel && !permitirTodos && value && (
+            <Opcao
+              ativo={false}
+              onClick={() => {
+                onChange(null);
+                setAberto(false);
+              }}
+            >
+              <span className="text-muted-foreground">Sem cliente</span>
+            </Opcao>
+          )}
           {filtrados.length === 0 ? (
             <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum cliente.</p>
           ) : (
@@ -99,7 +118,9 @@ export function ClienteSelect({
                 }}
               >
                 <span className="block truncate">{c.nomeFantasia || c.nome}</span>
-                {c.nomeFantasia && <span className="block truncate text-2xs text-muted-foreground">{c.nome}</span>}
+                {c.nomeFantasia && c.nomeFantasia.trim() !== c.nome.trim() && (
+                  <span className="block truncate text-2xs text-muted-foreground">{c.nome}</span>
+                )}
               </Opcao>
             ))
           )}

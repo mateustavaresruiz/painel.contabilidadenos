@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/lib/supabase";
+import { compararTexto } from "@/lib/texto";
 
 /**
  * Monta um filtro PostgREST `.or()` de `ilike` seguro para várias colunas.
@@ -39,7 +40,7 @@ export function nullificarVazios<T extends Record<string, unknown>>(input: T): T
 
 /**
  * Lista enxuta de clientes (id, nome) — uso em selects de form.
- * QueryKey começa com "clientes" pra pegar o invalidate das mutations.
+ * QueryKey começa com "clientes" para pegar o invalidate das mutations.
  */
 export function useClientesList() {
   return useQuery({
@@ -47,18 +48,23 @@ export function useClientesList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("Cliente")
-        .select("id, nome, nomeFantasia, tipo, telefone")
+        .select("id, nome, nomeFantasia, tipo, telefone, cpfCnpj")
         .eq("ativo", true)
         .order("nome", { ascending: true })
         .limit(2000);
       if (error) throw error;
-      return (data ?? []) as {
+      const lista = (data ?? []) as {
         id: string;
         nome: string;
         nomeFantasia: string | null;
         tipo: "PF" | "PJ";
         telefone: string | null;
+        cpfCnpj: string | null;
       }[];
+      // Mesma regra de nome das telas: fantasia quando houver (ordem por ele).
+      return lista.sort((a, b) =>
+        compararTexto(a.nomeFantasia?.trim() || a.nome, b.nomeFantasia?.trim() || b.nome),
+      );
     },
     staleTime: 60_000,
   });

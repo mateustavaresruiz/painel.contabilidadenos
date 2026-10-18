@@ -31,6 +31,7 @@ import { ConsultarSituacaoBotao, ConsultasFiscaisLista } from "@/components/feat
 import {
   NovaSolicitacaoDialog,
   StatusSolicitacaoSelect,
+  useTrocarStatusChamado,
 } from "@/components/features/solicitacoes/solicitacao-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -67,7 +68,7 @@ import {
   type Cliente,
   type Socio,
 } from "@/lib/queries/clientes";
-import { useAtualizarSolicitacao, useSolicitacoes } from "@/lib/queries/solicitacoes";
+import { useSolicitacoes } from "@/lib/queries/solicitacoes";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 
@@ -180,7 +181,7 @@ export function ClienteDetalhePage() {
             <TabsTrigger value="certificados">Certificados</TabsTrigger>
             <TabsTrigger value="solicitacoes">Chamados</TabsTrigger>
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
-            {mostraFiscal && <TabsTrigger value="fiscal">Consultas fiscais</TabsTrigger>}
+            {mostraFiscal && <TabsTrigger value="fiscal">Pendências fiscais</TabsTrigger>}
             {mostraPortal && <TabsTrigger value="portal">Portal do cliente</TabsTrigger>}
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
@@ -599,7 +600,7 @@ function CertificadosAba({ clienteId }: { clienteId: string }) {
 
 function SolicitacoesAba({ clienteId }: { clienteId: string }) {
   const { data = [], isLoading, isError, error, refetch } = useSolicitacoes({ clienteId });
-  const atualizar = useAtualizarSolicitacao();
+  const { trocar } = useTrocarStatusChamado();
   const { data: colabs = [] } = useColaboradores();
   const mapa = new Map(colabs.map((c) => [c.id, c]));
   const [nova, setNova] = useState(false);
@@ -637,7 +638,7 @@ function SolicitacoesAba({ clienteId }: { clienteId: string }) {
                 {resp && <ColaboradorAvatar nome={resp.nome} cor={resp.cor} size="xs" />}
                 <StatusSolicitacaoSelect
                   value={s.status}
-                  onChange={(status) => atualizar.mutate({ id: s.id, patch: { status } }, { onError: (e) => toast.error(msgErro(e)) })}
+                  onChange={(status) => trocar(s.id, s.status, status)}
                 />
               </li>
             );

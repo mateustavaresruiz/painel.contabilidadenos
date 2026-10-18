@@ -136,6 +136,18 @@ export function AppLayout() {
 
   return (
     <div className="relative top-[var(--vv-topo,0px)] flex h-[var(--vv-altura,100dvh)] flex-col overflow-hidden lg:flex-row">
+      {/* Teclado: o primeiro Tab pula o menu e cai no conteúdo. */}
+      <a
+        href="#main-content"
+        onClick={(e) => {
+          e.preventDefault();
+          const alvo = document.getElementById("main-content");
+          alvo?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground focus:shadow-card"
+      >
+        Pular para o conteúdo
+      </a>
       {/* Barra de topo: só no celular. Soma o entalhe do iPhone (e as laterais deitado). */}
       <header
         className={cn(
@@ -175,7 +187,7 @@ export function AppLayout() {
         )}
         data-recolhida={recolhida || undefined}
       >
-        <Sidebar recolhida={recolhida} alternar={alternar} estilo={estilo} />
+        <Sidebar recolhida={recolhida} alternar={alternar} estilo={estilo} onBuscar={abrirBusca} />
       </aside>
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -186,7 +198,7 @@ export function AppLayout() {
         </SheetContent>
       </Sheet>
 
-      <main id="main-content" className="flex-1 min-h-0 min-w-0 flex flex-col pl-safe-l pr-safe-r lg:pl-0 [view-transition-name:conteudo]">
+      <main id="main-content" tabIndex={-1} className="outline-none flex-1 min-h-0 min-w-0 flex flex-col pl-safe-l pr-safe-r lg:pl-0 [view-transition-name:conteudo]">
         <OfflineBanner />
         <div
           key={location.pathname}
@@ -212,11 +224,14 @@ function Sidebar({
   recolhida = false,
   alternar,
   estilo: _estilo,
+  onBuscar,
 }: {
   onNavigate?: () => void;
   recolhida?: boolean;
   alternar?: () => void;
   estilo: Estilo;
+  /** Só no menu do desktop: o botão "Buscar (Ctrl+K)" abaixo da logo. */
+  onBuscar?: () => void;
 }) {
   const branca = false; // menu sempre branco; logo azul
   const { ativo } = useModulos();
@@ -226,9 +241,13 @@ function Sidebar({
   const itens = NAV_APP.filter((i) => (!i.modulo || ativo(i.modulo)) && pode(i.permissao)).map((i) =>
     i.filhos ? { ...i, filhos: i.filhos.filter((f) => pode(f.permissao)) } : i,
   );
+  // Configurações aparece para quem tem qualquer permissão que a página aceita;
+  // quem não administra cai direto na aba que pode usar.
+  const podeConexoes = tem("whatsapp.conexoes") && ativo("whatsapp");
+  const verConfiguracoes = tem("configuracoes.gerenciar") || podeConexoes || tem("auditoria.ver");
   const configuracoes = tem("configuracoes.gerenciar")
     ? NAV_CONFIGURACOES
-    : { ...NAV_CONFIGURACOES, to: "/configuracoes?tab=conexoes" };
+    : { ...NAV_CONFIGURACOES, to: podeConexoes ? "/configuracoes?tab=conexoes" : "/configuracoes?tab=auditoria" };
   const AlternarIcone = recolhida ? PanelLeftOpen : PanelLeftClose;
   const { data: contWhats } = useContadorWhatsapp(itens.some((i) => i.to === "/whatsapp"));
   const { data: contChamados } = useContadorChamados(itens.some((i) => i.to === "/chamados"));
@@ -266,6 +285,32 @@ function Sidebar({
           </Tooltip>
         )}
       </div>
+      {onBuscar && (
+        <div className={cn("shrink-0 pb-2", recolhida ? "px-3 flex justify-center" : "px-3")}>
+          {recolhida ? (
+            <Tooltip label="Buscar (Ctrl+K)" side="right">
+              <button
+                type="button"
+                onClick={onBuscar}
+                className="grid size-10 place-items-center rounded-lg text-sidebar-muted transition-[color,background-color,transform] duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground active:scale-[.97]"
+                aria-label="Buscar (Ctrl+K)"
+              >
+                <Search className="size-[18px]" />
+              </button>
+            </Tooltip>
+          ) : (
+            <button
+              type="button"
+              onClick={onBuscar}
+              className="flex h-10 w-full items-center gap-2.5 rounded-lg border border-sidebar-border bg-card/70 px-3 text-sm text-sidebar-muted transition-[color,background-color,transform] duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground active:scale-[.97]"
+            >
+              <Search className="size-4 shrink-0" />
+              <span className="flex-1 text-left">Buscar</span>
+              <kbd className="rounded-md border border-sidebar-border px-1.5 py-0.5 font-sans text-2xs">Ctrl K</kbd>
+            </button>
+          )}
+        </div>
+      )}
       <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-3 space-y-0.5" aria-label="Páginas">
         {itens.map((item) => (
           <ItemNav
@@ -278,11 +323,11 @@ function Sidebar({
         ))}
       </nav>
       <div className="px-3 pb-3 pt-2 border-t border-sidebar-border space-y-0.5 shrink-0">
-        {pode(NAV_CONFIGURACOES.permissao) && (tem("configuracoes.gerenciar") || ativo("whatsapp")) && (
+        {verConfiguracoes && (
           <ItemNav item={configuracoes} onNavigate={onNavigate} recolhida={recolhida} />
         )}
         {/* Conta (avatar, nome, cargo; menu com tema e Sair). Na gaveta do celular
-            ela já está no cabeçalho. Busca: só pelo atalho Ctrl+K no desktop. */}
+            ela já está no cabeçalho. */}
         {!onNavigate && <EuBotao naSidebar recolhida={recolhida} />}
       </div>
     </div>

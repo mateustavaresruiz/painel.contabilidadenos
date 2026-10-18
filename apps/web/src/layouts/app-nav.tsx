@@ -67,5 +67,5 @@ export const NAV_CONFIGURACOES: NavItem = {
   to: "/configuracoes",
   label: "Configurações", cor: "config",
   icon: Settings,
-  permissao: ["configuracoes.gerenciar", "whatsapp.conexoes"],
+  permissao: ["configuracoes.gerenciar", "whatsapp.conexoes", "auditoria.ver"],
 };

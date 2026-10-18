@@ -12,10 +12,11 @@ import { cn } from "@/lib/utils";
 
 export const Table = forwardRef<HTMLTableElement, HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    // Em tela larga (xl) a tabela cabe: `clip` em vez de scroll deixa o
-    // cabeçalho grudar no topo da página ao rolar (sticky precisa que nenhum
-    // ancestral seja contêiner de rolagem). Abaixo disso, rola de lado.
-    <div className="relative w-full overflow-x-auto xl:overflow-x-clip rounded-[inherit]">
+    // Sempre rola de lado quando não cabe (nunca corta coluna). Para o
+    // cabeçalho continuar grudado, a própria moldura é o contêiner de rolagem
+    // nos dois eixos a partir do lg: altura máxima de uma tela, e o <th>
+    // sticky gruda no topo dela.
+    <div className="relative w-full overflow-auto overscroll-x-contain lg:max-h-[calc(100dvh-7rem)] rounded-[inherit]">
       <table
         ref={ref}
         className={cn("w-full caption-bottom text-sm", className)}
@@ -93,7 +94,7 @@ TableRow.displayName = "TableRow";
 /* Coluna que não rola junto. Numa tabela larga sob scroll horizontal, sem
    isto a pessoa arrasta pro lado e perde a única coluna que diz de QUEM é a
    linha. Não substitui virar card (ver `lista-responsiva.tsx`) — é o
-   remendo pra tabela que continua tabela em tela estreita. O `bg` é
+   remendo para tabela que continua tabela em tela estreita. O `bg` é
    obrigatório: célula transparente deixa o conteúdo rolar por baixo. */
 const COLUNA_FIXA = "sticky left-0 z-10 bg-card";
 
@@ -116,7 +117,7 @@ export const TableHead = forwardRef<
 ));
 TableHead.displayName = "TableHead";
 
-/** Cabeçalho clicável pra ordenar (client-side). `active`/`dir` vêm do useSort;
+/** Cabeçalho clicável para ordenar (client-side). `active`/`dir` vêm do useSort;
  *  `onSort` chama toggle(key). Acessível: aria-sort + <button>. */
 export function SortableTableHead({
   className,
@@ -144,7 +145,7 @@ export function SortableTableHead({
         type="button"
         onClick={onSort}
         className={cn(
-          "group inline-flex h-10 items-center gap-1 px-4 whitespace-nowrap transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:shadow-focus-soft rounded-sm",
+          "group inline-flex h-10 items-center gap-1 px-4 whitespace-nowrap transition-colors hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:text-foreground",
           numeric && "flex-row-reverse",
         )}
       >

@@ -48,8 +48,8 @@
   só `count head`, cache 60 s, sem polling (`lib/queries/contadores.ts`).
 - **Estado vazio** (`components/ui/empty-state.tsx`): ícone lucide em círculo tingido da cor do
   módulo, halo e dois satélites; texto curto e ação principal.
-- **Barra de topo do desktop:** busca global Ctrl+K (`components/busca-global.tsx`: páginas,
-  clientes e conversas pelo nome) e o menu da conta (avatar). No celular a conta fica no cabeçalho.
+- **Busca global (Ctrl+K):** botão "Buscar" no topo do menu lateral (não há barra de topo) e o atalho; `components/busca-global.tsx`: páginas,
+  clientes (nome, CPF/CNPJ, telefone, sócio), chamados e conversas, sem acento. A conta fica no rodapé do menu; no celular, no cabeçalho.
 - **Listas:** linhas mais altas com avatar; ações aparecem no hover com tooltip.
 
 Base: análise do design da Apple enviada pelo dono em 14/10/2026 ("Apple-design-analysis").

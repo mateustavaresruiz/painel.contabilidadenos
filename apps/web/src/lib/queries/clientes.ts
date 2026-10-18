@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { nullificarVazios, orIlike } from "@/lib/queries/helpers";
+import { nullificarVazios } from "@/lib/queries/helpers";
+import { compararTexto } from "@/lib/texto";
 import { supabase } from "@/lib/supabase";
 import type { ClienteInput, RegimeTributario } from "@/lib/validations/cliente";
 
@@ -68,11 +69,12 @@ export function useClientes(filters: ClientesFilters) {
     // Trocar filtro ou busca mantém a lista anterior até a nova chegar.
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      let query = supabase
-        .from(TABLE)
-        .select(
-          "id, tipo, nome, nomeFantasia, cpfCnpj, email, telefone, regimeTributario, cidade, estado, ativo, provisorio, criadoEm",
-        )
+      const q = filters.q?.trim();
+      const colunas =
+        "id, tipo, nome, nomeFantasia, cpfCnpj, email, telefone, regimeTributario, cidade, estado, ativo, provisorio, criadoEm";
+      // Com busca: RPC buscar_clientes (migration 018), sem acento, por
+      // CPF/CNPJ e telefone (dígitos) e por nome de sócio. Mesma RLS de um select.
+      let query = (q ? supabase.rpc("buscar_clientes", { p_q: q }).select(colunas) : supabase.from(TABLE).select(colunas))
         .order("nome", { ascending: true })
         .limit(500);
       if (filters.tipo === "PF" || filters.tipo === "PJ") query = query.eq("tipo", filters.tipo);
@@ -81,21 +83,12 @@ export function useClientes(filters: ClientesFilters) {
       if (situacao === "ativos") query = query.eq("ativo", true);
       if (situacao === "inativos") query = query.eq("ativo", false);
       if (filters.incompletos) query = query.eq("provisorio", true);
-      const q = filters.q?.trim();
-      if (q) {
-        const digitos = q.replace(/\D/g, "");
-        const cols = ["nome", "nomeFantasia", "email", "telefone"];
-        // Busca por CPF/CNPJ/telefone com ou sem máscara: o banco guarda só
-        // dígitos em cpfCnpj e telefoneNormalizado.
-        let filtro = orIlike(cols, q);
-        if (digitos.length >= 3) {
-          filtro += "," + orIlike(["cpfCnpj", "telefoneNormalizado"], digitos);
-        }
-        query = query.or(filtro);
-      }
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as ClienteResumo[];
+      // Ordem do nome que aparece (fantasia quando houver), não da razão social.
+      return ((data ?? []) as unknown as ClienteResumo[]).sort((a, b) =>
+        compararTexto(nomeExibicao(a), nomeExibicao(b)),
+      );
     },
   });
 }
@@ -241,7 +234,7 @@ export function useUpdateCliente(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: Partial<ClienteInput>) => {
-      // nullificarVazios: campo limpo na edição precisa virar null pra zerar
+      // nullificarVazios: campo limpo na edição precisa virar null para zerar
       // no banco — senão o supabase-js descarta a chave.
       const { error } = await supabase.from(TABLE).update(nullificarVazios(input)).eq("id", id);
       if (error) throw error;
@@ -349,8 +342,26 @@ export function useExcluirSocio(clienteId: string) {
   });
 }
 
-/** Rótulo de exibição: nome fantasia (PJ) com a razão social de apoio. */
+/**
+ * Regra ÚNICA do nome do cliente no painel: o nome fantasia quando houver,
+ * com a razão social de apoio (linha de baixo ou entre parênteses). A ordem
+ * alfabética das listas usa este mesmo nome.
+ */
 export function nomeExibicao(c: Pick<Cliente, "nome" | "nomeFantasia"> | null | undefined): string {
   if (!c) return "";
   return c.nomeFantasia?.trim() || c.nome;
+}
+
+/** A razão social, quando é diferente do nome exibido (senão null). */
+export function razaoSocialDeApoio(c: Pick<Cliente, "nome" | "nomeFantasia"> | null | undefined): string | null {
+  if (!c) return null;
+  const f = c.nomeFantasia?.trim();
+  return f && f !== c.nome.trim() ? c.nome : null;
+}
+
+/** "Nome fantasia (Razão social)" numa linha só; sem fantasia, só o nome. */
+export function nomeCompleto(c: Pick<Cliente, "nome" | "nomeFantasia"> | null | undefined): string {
+  if (!c) return "";
+  const r = razaoSocialDeApoio(c);
+  return r ? `${nomeExibicao(c)} (${r})` : nomeExibicao(c);
 }

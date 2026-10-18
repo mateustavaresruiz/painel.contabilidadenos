@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CornerDownLeft, MessageSquare, Search, type LucideIcon } from "lucide-react";
+import { Building2, ClipboardList, CornerDownLeft, MessageSquare, Search, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -10,13 +10,15 @@ import { NAV_APP, NAV_CONFIGURACOES } from "@/layouts/app-nav";
 import { useEu } from "@/lib/colaborador";
 import { corModulo, type CorModulo } from "@/lib/cores-modulo";
 import { useModulos } from "@/lib/modulos";
-import { orIlike } from "@/lib/queries/helpers";
+import { formatDoc } from "@/lib/format";
+import { STATUS_SOLICITACAO_LABEL, type SolicitacaoStatus } from "@/lib/queries/solicitacoes";
 import { supabase } from "@/lib/supabase";
+import { normalizarBusca } from "@/lib/texto";
 import { cn } from "@/lib/utils";
 
 type Item = {
   id: string;
-  grupo: "Páginas" | "Clientes" | "Conversas";
+  grupo: "Páginas" | "Clientes" | "Sócios" | "Chamados" | "Conversas";
   rotulo: string;
   detalhe?: string;
   to: string;
@@ -40,9 +42,11 @@ export function useAtalhoBusca(abrir: () => void) {
 }
 
 /**
- * Busca global (Ctrl+K): ir para uma página e achar cliente ou conversa pelo
- * nome. A consulta só vai ao banco com 2+ letras, 250 ms depois de parar de
- * digitar, e traz no máximo 6 de cada.
+ * Busca global (Ctrl+K): ir para uma página e achar cliente (nome, CPF/CNPJ,
+ * telefone, sócio), chamado (descrição, tipo, cliente) ou conversa. Sem acento
+ * (RPCs buscar_* da migration 018, com a RLS de quem busca). A consulta só vai
+ * ao banco com 2+ caracteres, 250 ms depois de parar de digitar, e traz no
+ * máximo 6 de cada.
  */
 export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenChange: (v: boolean) => void }) {
   const navigate = useNavigate();
@@ -60,6 +64,9 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
 
   const verClientes = ativo("clientes") && tem("clientes.ver");
   const verConversas = ativo("whatsapp") && tem("whatsapp.ver");
+  const verChamados = ativo("chamados") && (tem("chamados.ver") || tem("chamados.criar") || tem("chamados.gerenciar"));
+  // Só número (CPF/CNPJ, telefone): procura só clientes.
+  const soDigitos = /^[0-9.-/()s+]+$/.test(q) && q.replace(/[^0-9]/g, "").length >= 3;
   const buscar = q.length >= 2;
 
   const clientes = useQuery({
@@ -68,18 +75,56 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("Cliente")
-        .select("id, nome, nomeFantasia, tipo, cidade")
-        .or(orIlike(["nome", "nomeFantasia"], q))
+        .rpc("buscar_clientes", { p_q: q })
+        .select("id, nome, nomeFantasia, tipo, cidade, cpfCnpj")
         .order("nome")
         .limit(6);
       if (error) throw error;
-      return (data ?? []) as { id: string; nome: string; nomeFantasia: string | null; tipo: "PF" | "PJ"; cidade: string | null }[];
+      return (data ?? []) as unknown as { id: string; nome: string; nomeFantasia: string | null; tipo: "PF" | "PJ"; cidade: string | null; cpfCnpj: string | null }[];
+    },
+  });
+  // Sócio pelo nome: mostra a empresa (a ficha abre na aba Sócios).
+  const socios = useQuery({
+    queryKey: ["busca-global", "socios", q],
+    enabled: aberto && buscar && !soDigitos && verClientes,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc("buscar_socios", { p_q: q })
+        .select("id, nome, clienteId, cliente:Cliente(id, nome, nomeFantasia, tipo)")
+        .limit(5);
+      if (error) throw error;
+      return (data ?? []) as unknown as {
+        id: string;
+        nome: string;
+        clienteId: string;
+        cliente: { id: string; nome: string; nomeFantasia: string | null; tipo: "PF" | "PJ" } | null;
+      }[];
+    },
+  });
+  const chamados = useQuery({
+    queryKey: ["busca-global", "chamados", q],
+    enabled: aberto && buscar && !soDigitos && verChamados,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc("buscar_chamados", { p_q: q })
+        .select("id, descricao, status, tipo:SolicitacaoTipo(nome), cliente:Cliente(nome, nomeFantasia)")
+        .order("criadoEm", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return (data ?? []) as unknown as {
+        id: string;
+        descricao: string | null;
+        status: SolicitacaoStatus;
+        tipo: { nome: string } | null;
+        cliente: { nome: string; nomeFantasia: string | null } | null;
+      }[];
     },
   });
   const conversas = useQuery({
     queryKey: ["busca-global", "conversas", q],
-    enabled: aberto && buscar && verConversas,
+    enabled: aberto && buscar && !soDigitos && verConversas,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -95,7 +140,7 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
   });
 
   const itens = useMemo<Item[]>(() => {
-    const t = termo.trim().toLowerCase();
+    const t = normalizarBusca(termo);
     const paginas: Item[] = [...NAV_APP, NAV_CONFIGURACOES]
       .filter((i) => (!i.modulo || ativo(i.modulo)) && pode(i.permissao))
       .flatMap((i) => [
@@ -104,7 +149,7 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
           .filter((f) => f.to !== i.to && pode(f.permissao))
           .map((f) => ({ id: `p:${f.to}`, grupo: "Páginas" as const, rotulo: `${i.label} › ${f.label}`, to: f.to, icon: i.icon, cor: i.cor })),
       ])
-      .filter((p) => !t || p.rotulo.toLowerCase().includes(t));
+      .filter((p) => !t || normalizarBusca(p.rotulo).includes(t));
     const cs: Item[] = buscar
       ? (clientes.data ?? []).map((c) => {
           const nome = c.nomeFantasia || c.nome;
@@ -112,11 +157,45 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
             id: `c:${c.id}`,
             grupo: "Clientes" as const,
             rotulo: nome,
-            detalhe: [c.tipo, c.cidade].filter(Boolean).join(" · "),
+            detalhe: [c.nomeFantasia && c.nomeFantasia.trim() !== c.nome.trim() ? c.nome : null, c.cpfCnpj ? formatDoc(c.cpfCnpj) : c.tipo, c.cidade]
+              .filter(Boolean)
+              .join(" · "),
             to: `/clientes/${c.id}`,
             avatar: { nome, semente: c.id, empresa: c.tipo === "PJ" },
           };
         })
+      : [];
+    const ss: Item[] = buscar
+      ? (socios.data ?? [])
+          .filter((x) => x.cliente)
+          .map((x) => {
+            const empresa = x.cliente!.nomeFantasia?.trim() || x.cliente!.nome;
+            return {
+              id: `s:${x.id}`,
+              grupo: "Sócios" as const,
+              rotulo: empresa,
+              detalhe: `Sócio: ${x.nome}`,
+              to: `/clientes/${x.clienteId}?aba=socios`,
+              avatar: { nome: empresa, semente: x.clienteId, empresa: x.cliente!.tipo === "PJ" },
+            };
+          })
+      : [];
+    const hs: Item[] = buscar
+      ? (chamados.data ?? []).map((x) => ({
+          id: `h:${x.id}`,
+          grupo: "Chamados" as const,
+          rotulo: x.tipo?.nome ?? "Chamado",
+          detalhe: [
+            x.cliente ? x.cliente.nomeFantasia?.trim() || x.cliente.nome : null,
+            STATUS_SOLICITACAO_LABEL[x.status],
+            x.descricao ? x.descricao.slice(0, 80) : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          to: `/chamados?chamado=${encodeURIComponent(x.id)}`,
+          icon: ClipboardList,
+          cor: "chamados" as const,
+        }))
       : [];
     const vs: Item[] = buscar
       ? (conversas.data ?? []).map((c) => ({
@@ -128,9 +207,11 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
           avatar: { nome: c.nome ?? "", semente: c.chatId },
         }))
       : [];
-    return [...paginas, ...cs, ...vs];
+    // Sócio cuja empresa já apareceu em Clientes não repete.
+    const jaTem = new Set(cs.map((c) => c.to));
+    return [...paginas, ...cs, ...ss.filter((x) => !jaTem.has(x.to.split("?")[0]!)), ...hs, ...vs];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [termo, buscar, clientes.data, conversas.data, ativo, tem]);
+  }, [termo, buscar, clientes.data, socios.data, chamados.data, conversas.data, ativo, tem]);
 
   useEffect(() => setSel(0), [termo, itens.length]);
   useEffect(() => {
@@ -156,14 +237,14 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
     }
   }
 
-  const carregando = buscar && (clientes.isFetching || conversas.isFetching);
+  const carregando = buscar && (clientes.isFetching || socios.isFetching || chamados.isFetching || conversas.isFetching);
   let ultimoGrupo = "";
 
   return (
     <Dialog open={aberto} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="top-[12vh] translate-y-0 data-[state=open]:slide-in-from-top-2 max-w-xl gap-0 overflow-hidden p-0 max-sm:p-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:grid-rows-[auto_1fr]">
         <DialogTitle className="sr-only">Buscar no painel</DialogTitle>
-        <DialogDescription className="sr-only">Páginas, clientes e conversas.</DialogDescription>
+        <DialogDescription className="sr-only">Páginas, clientes, sócios, chamados e conversas.</DialogDescription>
         <div className="flex items-center gap-3 border-b border-border px-4">
           <Search className="size-[18px] shrink-0 text-muted-foreground" />
           <input
@@ -171,7 +252,7 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
             value={termo}
             onChange={(e) => setTermo(e.target.value)}
             onKeyDown={aoTeclar}
-            placeholder="Ir para página, cliente ou conversa…"
+            placeholder="Página, cliente, CNPJ, sócio, chamado ou conversa…"
             className="h-14 min-w-0 flex-1 bg-transparent text-base fino:text-[15px] outline-none placeholder:text-muted-foreground"
             aria-label="Buscar"
             role="combobox"
@@ -187,7 +268,7 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
         <div ref={listaRef} id="busca-global-lista" role="listbox" className="max-h-[min(60vh,420px)] overflow-y-auto p-2 max-sm:max-h-none max-sm:min-h-0">
           {itens.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              {carregando ? "Procurando…" : buscar ? `Nada encontrado para "${termo.trim()}".` : "Digite pelo menos 2 letras para buscar clientes e conversas."}
+              {carregando ? "Procurando…" : buscar ? `Nada encontrado para "${termo.trim()}".` : "Digite pelo menos 2 letras, o CPF/CNPJ ou o telefone."}
             </p>
           ) : (
             itens.map((i, idx) => {
@@ -223,6 +304,7 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
                     </span>
                     {i.grupo === "Conversas" ? <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" /> : null}
                     {i.grupo === "Clientes" ? <Building2 className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+                    {i.grupo === "Sócios" ? <UserRound className="size-3.5 shrink-0 text-muted-foreground" /> : null}
                     {idx === sel ? <CornerDownLeft className="size-3.5 shrink-0" /> : null}
                   </button>
                 </div>

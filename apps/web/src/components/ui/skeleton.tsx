@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Placeholder de conteúdo enquanto carrega. Use no lugar de "Carregando…"
- * pra dar sensação de velocidade — a tela já tem o formato certo antes
+ * para dar sensação de velocidade — a tela já tem o formato certo antes
  * dos dados chegarem.
  */
 export function Skeleton({
@@ -42,7 +42,7 @@ export function SkeletonText({
   );
 }
 
-/** Skeleton circular pra avatares. */
+/** Skeleton circular para avatares. */
 export function SkeletonAvatar({
   size = 40,
   className,
@@ -59,9 +59,9 @@ export function SkeletonAvatar({
 }
 
 /** Skeleton de linha de tabela (várias células). */
-export function SkeletonTableRow({ cols = 4 }: { cols?: number }) {
+export function SkeletonTableRow({ cols = 4, alta = false }: { cols?: number; /** Altura de uma linha de lista com duas linhas de texto (evita salto quando a lista chega). */ alta?: boolean }) {
   return (
-    <tr className="border-b border-border/60">
+    <tr className={cn("border-b border-border/60", alta && "h-[61px]")}>
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="px-3 py-2.5">
           <Skeleton className="h-4 w-full max-w-[180px]" />
@@ -102,7 +102,7 @@ export function PaginaSkeleton() {
 }
 
 /**
- * Skeleton padrão pra telas de detalhe (cliente, processo). Ocupa o
+ * Skeleton padrão para telas de detalhe (cliente, processo). Ocupa o
  * espaço típico: header, dados, e dois blocos de conteúdo.
  */
 export function DetalheSkeleton() {
