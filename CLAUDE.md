@@ -15,7 +15,8 @@ Neste repositório o agente está autorizado, sem pedir confirmação a cada vez
 - commitar e fazer push na `main`;
 - aplicar migrações **não destrutivas** no banco de produção (`node scripts/migrar.mjs`);
 - publicar no Easypanel o painel (`painel/web`) e o Supabase com as funções (`painel/supabase`);
-- instalar dependência nova quando a tarefa pedir (versão fixa).
+- instalar dependência nova quando a tarefa pedir (versão fixa);
+- alterar o `apps/web/Dockerfile` e o `nginx.conf` do painel quando a tarefa pedir (autorizado em 18/10/2026, depois da inclusão do `ARG GIT_SHA`).
 
 Continua pedindo confirmação, sempre:
 
