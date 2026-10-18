@@ -113,8 +113,13 @@ det=$(jq -cn --argjson errs "$errs" --argjson iguais "${iguais:-0}" --argjson di
   --arg cliente "$(key public.Cliente)" --arg colab "$(key public.Colaborador)" \
   --arg msg "$(key public.WhatsappMensagem)" --arg mig "$(key public._migracao)" \
   --argjson vol "$volj" --arg problemas "$problemas" \
+  --arg difs "$(grep 'difere' /tmp/cmp.txt | awk '{print $1" "$2"/"$3}' | head -20)" \
+  --arg erros "$(grep '^pg_restore: error' /tmp/pg_restore.log | sed 's/^pg_restore: error: //' | cut -c1-200 \
+                 | sort | uniq -c | sort -rn | head -20)" \
   '{errosPgRestore:$errs, tabelasIguais:$iguais, tabelasDiferentes:$dif,
     "Cliente":$cliente, "Colaborador":$colab, "WhatsappMensagem":$msg, "_migracao":$mig,
-    volumes:$vol, problemas:$problemas}')
+    volumes:$vol, problemas:$problemas,
+    diferencas:($difs | split("\n") | map(select(length>0))),
+    errosResumo:($erros | split("\n") | map(select(length>0) | sub("^ +"; "")))}')
 registrar restore-test "$inicio" "$ok" "$(stat -c %s "$DUMP" 2>/dev/null)" "teste descartável" "$problemas" "$det"
 log "RESULTADO: ok=$ok — $det"
