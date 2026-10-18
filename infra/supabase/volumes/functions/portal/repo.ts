@@ -199,12 +199,22 @@ export const repoReal: Repo = {
     return data?.length ?? 0;
   },
 
-  async criarToken({ clienteId, tokenHash, senhaHash, expiresAt, criadoPorId }) {
-    const { error } = await supabaseAdmin
-      .from("ClientePortalToken")
-      .insert({ tenantId: TENANT_ID, clienteId, tokenHash, senhaHash, expiresAt, criadoPorId });
-    if (error) console.error("portal: criar token falhou", error.message);
-    return !error;
+  async trocarToken({ clienteId, tokenHash, senhaHash, expiresAt, criadoPorId }) {
+    // Revogar os outros e gravar o novo na mesma transação (migration 013): o
+    // índice "um link ativo por cliente" não deixa o novo entrar antes, e fazer
+    // em dois passos deixava o cliente sem link quando a gravação falhava.
+    const { data, error } = await supabaseAdmin.rpc("portal_token_trocar", {
+      p_cliente: clienteId,
+      p_token_hash: tokenHash,
+      p_senha_hash: senhaHash,
+      p_expira: expiresAt,
+      p_por: criadoPorId,
+    });
+    if (error) {
+      console.error("portal: trocar token falhou", error.message);
+      return null;
+    }
+    return typeof data === "string" && data ? data : null;
   },
 
   async trocarSenha(clienteId, senhaHash) {

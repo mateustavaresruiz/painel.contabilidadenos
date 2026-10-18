@@ -17,6 +17,11 @@ export type EstadoAtendimento = {
   podeEnviar: boolean;
   /** Bloqueada para mim: só leitura + banner. */
   bloqueada: boolean;
+  /**
+   * Livre ou finalizada, e o cargo não assume conversa (sem assumir/transferir):
+   * enviar não assume por tabela (o servidor responde 403). Só leitura + banner.
+   */
+  semPermissaoAssumir: boolean;
   /** O envio vai assumir/reabrir a conversa (mostra a dica no campo). */
   enviarAssume: boolean;
   enviarReabre: boolean;
@@ -43,9 +48,13 @@ export function estadoAtendimento(
   const podeTomar = deOutro && supervisor && responder;
   // Supervisor também fica com o campo travado até tomar a conversa: enviar tomaria
   // (o servidor faz isso), mas a tela pede o clique explícito em "Assumir conversa".
-  const podeEnviar = responder && !deOutro;
-  // O botão chama a RPC, que exige assumir ou transferir (enviar assume sem isso).
+  // O botão chama a RPC, que exige assumir ou transferir.
   const podeAssumirLivre = responder && (tem("whatsapp.assumir") || tem("whatsapp.transferir"));
+  // Enviar assume/reabre só para quem pode assumir (o servidor também aceita
+  // assumir_de_outros). Decisão do dono: quem não assume não assume por responder.
+  const assumeAoEnviar = podeAssumirLivre || (responder && supervisor);
+  const semPermissaoAssumir = responder && !assumeAoEnviar && (fase === "fila" || fase === "finalizado");
+  const podeEnviar = responder && !deOutro && !semPermissaoAssumir;
 
   let principal: EstadoAtendimento["principal"] = null;
   if (fase === "fila" && podeAssumirLivre) principal = "assumir";
@@ -60,8 +69,9 @@ export function estadoAtendimento(
     deOutro,
     podeEnviar,
     bloqueada: deOutro,
-    enviarAssume: responder && fase === "fila",
-    enviarReabre: responder && fase === "finalizado",
+    semPermissaoAssumir,
+    enviarAssume: assumeAoEnviar && fase === "fila",
+    enviarReabre: assumeAoEnviar && fase === "finalizado",
     principal,
     podeTransferir:
       transferenciaAtiva && tem("whatsapp.transferir") && fase !== "finalizado" && (fase === "fila" || meu || supervisor),

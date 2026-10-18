@@ -353,16 +353,22 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
     setReplyTo(null);
   }, [chatId]);
 
-  // Quando entra num chat com unread, marca como lido IMEDIATAMENTE — a
-  // mutation é otimista (zera a bolinha na hora), então não há motivo pra
-  // adiar. Entrar num chat é sempre um clique deliberado (a rota muda), não
-  // um "passar o olho", então não há risco de marcar em trânsito.
+  // Marca como lida (e manda a confirmação de leitura ao contato) só quando a
+  // conversa é MINHA: sou o responsável e está em atendimento. Abrir conversa
+  // da fila ou de outra pessoa só para olhar não marca nada: o contato não vê
+  // "lido" e a bolinha continua para quem vai atender. Ao assumir ou enviar
+  // (que assume), o responsável passa a ser eu e o efeito roda de novo.
+  // Grupo não tem responsável: continua marcando ao abrir, como antes.
+  const souResponsavel =
+    !!eu?.id && chat?.responsavelId === eu.id && chat?.atendimentoStatus !== "finalizado";
+  const grupoAberto = chatGrupo || !!chatId?.endsWith("@g.us");
   useEffect(() => {
     if (!chatId || !chat || chat.naoLidas <= 0) return;
+    if (!grupoAberto && !souResponsavel) return;
     marcarLido.mutate(chatId);
     // O marcar-lido otimista mexe na lista; a conversa aberta zera aqui.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId, chat?.naoLidas]);
+  }, [chatId, chat?.naoLidas, souResponsavel, grupoAberto]);
 
   // Refresh do perfil quando entra num chat que tá faltando dados
   // básicos. Caso típico: grupo recém-criado no banco com nome=null,
@@ -892,7 +898,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
                     }
                     onQuotedClick={irParaMensagem}
                     onCriarSolicitacao={handleCriarSolicitacao}
-                    somenteLeitura={atendimento.bloqueada && !grupo}
+                    somenteLeitura={(atendimento.bloqueada || atendimento.semPermissaoAssumir) && !grupo}
                   />
                 </div>
                 </Fragment>
@@ -921,6 +927,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial }: Props)
             <ComposerBloqueado motivo={chat.motivoBloqueio} />
           ) : chat && !grupo && atendimento.bloqueada ? (
             <ComposerEmAtendimento chat={chat} podeTomar={atendimento.podeTomar} />
+          ) : chat && !grupo && atendimento.semPermissaoAssumir ? (
+            <ComposerSemPermissaoAssumir finalizada={atendimento.fase === "finalizado"} />
           ) : (
             <Composer
               // key: rascunho/anexo/gravação não vazam para a próxima conversa.
@@ -1016,6 +1024,29 @@ function ComposerBloqueado({ motivo }: { motivo: string | null }) {
     <div className="border-t bg-muted/40 px-4 py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
       <Lock className="size-4 shrink-0" />
       <span>{texto}</span>
+    </div>
+  );
+}
+
+/**
+ * Conversa livre (na fila) ou finalizada, e o cargo não assume conversas (sem
+ * whatsapp.assumir nem whatsapp.transferir): enviar não assume por tabela. O
+ * servidor responde 403 "sem_permissao_assumir" de qualquer jeito.
+ */
+function ComposerSemPermissaoAssumir({ finalizada }: { finalizada: boolean }) {
+  return (
+    <div className="shrink-0 border-t bg-card/40 p-3" role="region" aria-label="Conversa sem responsável">
+      <div className="flex min-h-11 items-center gap-3 rounded-xl border border-dashed border-border bg-muted/50 px-3 py-2">
+        <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="text-sm font-medium text-foreground">
+            {finalizada ? "Conversa finalizada" : "Conversa na fila"}
+          </p>
+          <p className="mt-0.5 text-2xs text-muted-foreground">
+            Seu cargo não assume conversas. Peça para alguém assumir ou transferir esta conversa para você.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

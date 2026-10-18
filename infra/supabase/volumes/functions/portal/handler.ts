@@ -92,7 +92,12 @@ export interface Repo {
   clienteBasico(id: string): Promise<{ id: string; nome: string } | null>;
   listarTokens(clienteId: string): Promise<TokenOffice[]>;
   revogarAtivos(clienteId: string): Promise<number>;
-  criarToken(a: { clienteId: string; tokenHash: string; senhaHash: string; expiresAt: string | null; criadoPorId: string }): Promise<boolean>;
+  /**
+   * Grava o link novo e revoga os outros ativos do cliente NUMA transação só
+   * (RPC portal_token_trocar). Devolve o id do novo, ou null se não gravou; aí
+   * nada mudou e o link anterior continua valendo.
+   */
+  trocarToken(a: { clienteId: string; tokenHash: string; senhaHash: string; expiresAt: string | null; criadoPorId: string }): Promise<string | null>;
   trocarSenha(clienteId: string, senhaHash: string): Promise<number>;
   definirSituacaoFiscal(clienteId: string, valor: boolean): Promise<boolean>;
 }
@@ -156,11 +161,6 @@ async function lerJson(req: Request): Promise<Record<string, unknown> | "grande"
   }
 }
 
-/** IP para o freio: o que a nossa cadeia de proxies viu (ver _shared/client-ip.ts), não o que o cliente mandou. */
-export function ipDe(req: Request): string {
-  return ipDoCliente(req);
-}
-
 function formatarData(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso));
 }
@@ -213,10 +213,10 @@ export function criarHandler(deps: Deps) {
       const senhaClara = deps.gerarSenha();
       const [tokenHash, senhaHash] = await Promise.all([deps.hashToken(tokenClaro), deps.hashSenha(senhaClara)]);
       const expira = validadeDias === null ? null : new Date(agora().getTime() + validadeDias * 86_400_000).toISOString();
-      // Um link por cliente: o anterior cai antes de o novo entrar.
-      await repo.revogarAtivos(clienteId);
-      const ok = await repo.criarToken({ clienteId, tokenHash, senhaHash, expiresAt: expira, criadoPorId: eu.id });
-      if (!ok) return erro("Não foi possível gerar o link.", 500);
+      // Um link por cliente: o novo entra e o anterior cai juntos (uma transação).
+      // Se a gravação falhar, o cliente continua com o link que já tinha.
+      const novoId = await repo.trocarToken({ clienteId, tokenHash, senhaHash, expiresAt: expira, criadoPorId: eu.id });
+      if (!novoId) return erro("Não foi possível gerar o link.", 500);
       await auditarSemFalhar({
         acao: "link_gerado",
         clienteId,
@@ -262,7 +262,8 @@ export function criarHandler(deps: Deps) {
 
   // ------------------------- PÚBLICO -------------------------
   async function publico(req: Request, token: string, acao: string): Promise<Response> {
-    const ip = ipDe(req);
+    // IP para o freio: o que a nossa cadeia de proxies viu (ver _shared/client-ip.ts), não o que o cliente mandou.
+    const ip = ipDoCliente(req);
 
     // 1. Freio por IP em TODA chamada pública (antes de qualquer consulta).
     if (!(await deps.limite("portal", `ip:${ip}`, 60, 600))) return limiteExcedido(600);

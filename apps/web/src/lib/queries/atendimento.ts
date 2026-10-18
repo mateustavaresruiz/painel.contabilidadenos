@@ -148,15 +148,25 @@ export function useFinalizarAtendimento() {
 }
 
 /**
- * 409 do servidor: a conversa está em atendimento por outra pessoa. A tela
- * mostra um aviso amigável e recarrega a conversa (o banner de bloqueio
- * aparece sozinho com o responsável novo).
+ * Recusa do servidor pela regra de atendimento (_shared/whatsapp-atendimento.ts):
+ *  - 409 em_atendimento: está com outra pessoa;
+ *  - 403 sem_permissao_assumir: o cargo não assume conversa livre/finalizada;
+ *  - 409 disputa: a conversa mudou no meio do envio.
+ * A tela mostra um aviso amigável e recarrega a conversa (o banner certo
+ * aparece sozinho com o estado novo).
  */
 export function ehConflitoAtendimento(err: unknown): err is ErroDaApi {
-  return err instanceof ErroDaApi && err.status === 409 && err.dados?.motivo === "em_atendimento";
+  if (!(err instanceof ErroDaApi)) return false;
+  const motivo = err.dados?.motivo;
+  if (err.status === 409) return motivo === "em_atendimento" || motivo === "disputa";
+  return err.status === 403 && motivo === "sem_permissao_assumir";
 }
 
 export function conflitoAtendimentoMsg(err: ErroDaApi): string {
+  if (err.dados?.motivo === "sem_permissao_assumir") {
+    return "Seu cargo não assume conversas. Peça para alguém assumir ou transferir esta conversa para você.";
+  }
+  if (err.dados?.motivo === "disputa") return "A conversa acabou de mudar; tente de novo.";
   const nome = (err.dados?.responsavel as { nome?: string } | undefined)?.nome;
   return nome
     ? `Esta conversa está em atendimento por ${nome}. Só ela(e) pode responder.`

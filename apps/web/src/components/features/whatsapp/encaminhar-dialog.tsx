@@ -17,7 +17,9 @@ import { msgErro } from "@/lib/erro";
 import { ehConflitoAtendimento } from "@/lib/queries/atendimento";
 import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
+import { ErroDaApi } from "@/lib/api";
 import {
+  type ResultadoEncaminhar,
   useEncaminharMensagem,
   useWhatsappChats,
   type WhatsappChat,
@@ -72,13 +74,27 @@ export function EncaminharDialog({
         messageId,
         toChatIds: selecionados,
       });
-      toast.success(
-        `Mensagem encaminhada para ${r.enviados} conversa${r.enviados === 1 ? "" : "s"}.`,
-      );
+      if (r.falhas > 0) {
+        // Resultado parcial: diz quantas não foram e o primeiro motivo.
+        const motivo = r.resultados.find((x) => !x.ok)?.erro;
+        toast.warning(
+          `Encaminhada para ${r.enviados} conversa${r.enviados === 1 ? "" : "s"}; ${r.falhas} não recebeu.`,
+          motivo ? { description: motivo } : undefined,
+        );
+      } else {
+        toast.success(
+          `Mensagem encaminhada para ${r.enviados} conversa${r.enviados === 1 ? "" : "s"}.`,
+        );
+      }
       onOpenChange(false);
     } catch (err) {
       if (ehConflitoAtendimento(err)) return; // aviso e recarga: main.tsx
-      toast.error(msgErro(err));
+      // 424: nenhum destino recebeu; o corpo traz o motivo de cada um.
+      const primeiro =
+        err instanceof ErroDaApi && err.status === 424
+          ? (err.dados?.resultados as ResultadoEncaminhar[] | undefined)?.find((x) => !x.ok)?.erro
+          : undefined;
+      toast.error(primeiro ? `Não foi possível encaminhar: ${primeiro}` : msgErro(err));
     }
   }
 

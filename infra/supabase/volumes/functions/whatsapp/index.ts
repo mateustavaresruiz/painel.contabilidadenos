@@ -103,7 +103,8 @@ import { chatSafe, removerPorPrefixo } from "../_shared/storage-purge.ts";
 import { runAfterResponse } from "../_shared/background.ts";
 import { type Colaborador, exigirColaborador, semPermissao, tem } from "../_shared/acesso.ts";
 import { PUBLIC_BASE_URL } from "../_shared/env.ts";
-import { garantirAtendimento } from "../_shared/whatsapp-atendimento.ts";
+import { garantirAtendimento, statusDoConflito } from "../_shared/whatsapp-atendimento.ts";
+import { mapaComLimite } from "../_shared/concorrencia.ts";
 import { atendimentoDb } from "../_shared/whatsapp-atendimento-db.ts";
 import {
   criarLinhaProvisoria,
@@ -195,11 +196,13 @@ async function bloqueioEnvio(
 
 /**
  * Atendimento no estilo Blip (regra em _shared/whatsapp-atendimento.ts):
- * conversa livre → quem mexe assume; conversa de outra pessoa → 409, a menos
- * que tenha `whatsapp.assumir_de_outros` (aí toma a conversa e registra);
- * finalizada → reabre em nome de quem enviou. Roda ANTES de falar com o WAHA,
- * em todo caminho que sai pelo número (texto, mídia, encaminhar, enquete,
- * reação, edição, apagar). Retorna a Response 409 ou null se pode seguir.
+ * conversa livre → quem mexe assume (se o cargo tem assumir ou transferir;
+ * sem isso → 403 `sem_permissao_assumir`); conversa de outra pessoa → 409, a
+ * menos que tenha `whatsapp.assumir_de_outros` (aí toma a conversa e registra);
+ * finalizada → reabre em nome de quem enviou (mesma exigência de assumir).
+ * Roda ANTES de falar com o WAHA, em todo caminho que sai pelo número (texto,
+ * mídia, encaminhar, enquete, reação, edição, apagar). Retorna a Response
+ * 403/409 ou null se pode seguir.
  */
 async function exigirAtendimento(
   c: Colaborador,
@@ -210,9 +213,10 @@ async function exigirAtendimento(
     sessaoId,
     chatId,
     eu: { id: c.id, nome: c.nome },
+    podeAssumir: tem(c, "whatsapp.assumir") || tem(c, "whatsapp.transferir"),
     podeAssumirDeOutros: tem(c, "whatsapp.assumir_de_outros"),
   });
-  return r.ok ? null : json(r.conflito, { status: 409 });
+  return r.ok ? null : json(r.conflito, { status: statusDoConflito(r.conflito) });
 }
 
 async function getSessaoOrFail(sessaoId: string): Promise<Sessao | null> {
@@ -1643,12 +1647,17 @@ serve(async (req) => {
 
       const { data: orig } = await supabaseAdmin
         .from("WhatsappMensagem")
-        .select("tipo, texto, mediaPath, mediaMime, mediaNomeArquivo, mediaTamanho")
+        .select("chatId, tipo, texto, mediaPath, mediaMime, mediaNomeArquivo, mediaTamanho")
         .eq("tenantId", tenantId)
         .eq("sessaoId", sessaoMsg.id)
         .eq("wamId", messageId)
         .maybeSingle();
       if (!orig) return notFound("Mensagem de origem não encontrada");
+      // A origem também tem dono: sem isto, um wamId de conversa que a pessoa
+      // não enxerga vazava o conteúdo para um destino dela.
+      if (!(await podeMexerNaConversa(colaborador, sessaoMsg.id, orig.chatId as string))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
+      }
 
       const tiposMidia = ["image", "video", "audio", "ptt", "document", "sticker"];
       const ehMidia = !!orig.mediaPath && tiposMidia.includes(orig.tipo as string);
@@ -1668,19 +1677,38 @@ serve(async (req) => {
         signedUrl = publicarUrlAssinada(signed.signedUrl);
       }
 
-      const resultados: Array<{ chatId: string; ok: boolean; id?: string; motivo?: string; erro?: string }> = [];
-      for (const toChatId of destinos) {
+      // Destinos: só conversas que JÁ existem nesta sessão (a tela lista as
+      // conversas do banco) e que a pessoa pode mexer. Uma consulta só para os até 50.
+      const { data: linhasDestino, error: destErr } = await supabaseAdmin
+        .from("WhatsappChat")
+        .select("chatId, responsavelId")
+        .eq("tenantId", tenantId)
+        .eq("sessaoId", sessaoMsg.id)
+        .in("chatId", destinos);
+      if (destErr) return internalError(`Falha ao ler as conversas de destino: ${destErr.message}`);
+      const respPorChat = new Map<string, string | null>(
+        (linhasDestino ?? []).map((l) => [l.chatId as string, (l.responsavelId as string | null) ?? null]),
+      );
+      const veTodas = tem(colaborador, "whatsapp.ver_todas");
+
+      type ResultadoDestino = { chatId: string; ok: boolean; id?: string; motivo?: string; erro?: string };
+      const encaminharPara = async (toChatId: string): Promise<ResultadoDestino> => {
+        if (!respPorChat.has(toChatId)) {
+          return { chatId: toChatId, ok: false, motivo: "conversa_inexistente", erro: "Conversa não encontrada nesta conexão." };
+        }
+        const resp = respPorChat.get(toChatId);
+        if (!veTodas && resp && resp !== colaborador.id) {
+          return { chatId: toChatId, ok: false, motivo: "sem_acesso", erro: "Esta conversa está com outra pessoa da equipe." };
+        }
         const bloqueio = await bloqueioEnvio(sessaoMsg.id, toChatId);
         if (bloqueio) {
           const corpo = await bloqueio.json().catch(() => ({}));
-          resultados.push({ chatId: toChatId, ok: false, motivo: corpo.motivo, erro: corpo.error });
-          continue;
+          return { chatId: toChatId, ok: false, motivo: corpo.motivo, erro: corpo.error };
         }
         const ocupado = await exigirAtendimento(colaborador, sessaoMsg.id, toChatId);
         if (ocupado) {
           const corpo = await ocupado.json().catch(() => ({}));
-          resultados.push({ chatId: toChatId, ok: false, motivo: corpo.motivo, erro: corpo.error });
-          continue;
+          return { chatId: toChatId, ok: false, motivo: corpo.motivo, erro: corpo.error };
         }
         if (!ehMidia) {
           const r = await enviarTexto({
@@ -1691,8 +1719,7 @@ serve(async (req) => {
             origem: "humano",
             colaborador,
           });
-          resultados.push(r.ok ? { chatId: toChatId, ok: true, id: r.mensagemId } : { chatId: toChatId, ok: false, erro: r.erro });
-          continue;
+          return r.ok ? { chatId: toChatId, ok: true, id: r.mensagemId } : { chatId: toChatId, ok: false, erro: r.erro };
         }
         const t = orig.tipo as string;
         const provisoriaId = await criarLinhaProvisoria({
@@ -1738,12 +1765,20 @@ serve(async (req) => {
             origem: "humano",
             colaborador,
           });
-          resultados.push({ chatId: toChatId, ok: true, id });
+          return { chatId: toChatId, ok: true, id };
         } catch (err) {
           await marcarFalha(provisoriaId);
-          resultados.push({ chatId: toChatId, ok: false, erro: err instanceof Error ? err.message : String(err) });
+          return { chatId: toChatId, ok: false, erro: err instanceof Error ? err.message : String(err) };
         }
-      }
+      };
+      // Até 5 destinos ao mesmo tempo; a lista volta na ordem pedida. Falha
+      // inesperada de um destino vira erro DELE, não derruba os outros.
+      const resultados = await mapaComLimite(destinos, 5, (toChatId) =>
+        encaminharPara(toChatId).catch((err): ResultadoDestino => ({
+          chatId: toChatId,
+          ok: false,
+          erro: err instanceof Error ? err.message : String(err),
+        })));
       const enviados = resultados.filter((r) => r.ok).length;
       // Resultado parcial SEMPRE volta (no adv3 as falhas sumiam): 200 com a
       // lista; 424 só quando nenhum destino recebeu.

@@ -7,9 +7,16 @@ import {
   type ChatAtendimento,
   decidirEnvio,
   garantirAtendimento,
+  MSG_DISPUTA,
+  MSG_SEM_PERMISSAO_ASSUMIR,
+  statusDoConflito,
 } from "./whatsapp-atendimento.ts";
 
 const eu = { id: "eu", nome: "Mateus" };
+/** Atendente comum (assumir), supervisor (assumir_de_outros) e cargo que só responde. */
+const ATD = { podeAssumir: true, podeAssumirDeOutros: false };
+const SUP = { podeAssumir: false, podeAssumirDeOutros: true };
+const SO_RESPONDE = { podeAssumir: false, podeAssumirDeOutros: false };
 const chat = (resp: string | null, status: AtendimentoStatus): ChatAtendimento => ({
   id: "c1",
   responsavelId: resp,
@@ -17,28 +24,28 @@ const chat = (resp: string | null, status: AtendimentoStatus): ChatAtendimento =
 });
 
 Deno.test("decidirEnvio: conversa livre → assume", () => {
-  assertEquals(decidirEnvio(chat(null, "aberto"), eu, false), { acao: "assumir", evento: "assumiu" });
-  assertEquals(decidirEnvio(chat(null, "aberto"), eu, true).acao, "assumir");
+  assertEquals(decidirEnvio(chat(null, "aberto"), eu, ATD), { acao: "assumir", evento: "assumiu" });
+  assertEquals(decidirEnvio(chat(null, "aberto"), eu, SUP).acao, "assumir");
 });
 
 Deno.test("decidirEnvio: conversa que ainda não existe → assume", () => {
-  assertEquals(decidirEnvio(null, eu, false).acao, "assumir");
+  assertEquals(decidirEnvio(null, eu, ATD).acao, "assumir");
 });
 
 Deno.test("decidirEnvio: minha → só envia", () => {
-  assertEquals(decidirEnvio(chat("eu", "em_atendimento"), eu, false), { acao: "enviar" });
-  assertEquals(decidirEnvio(chat("eu", "em_atendimento"), eu, true), { acao: "enviar" });
+  assertEquals(decidirEnvio(chat("eu", "em_atendimento"), eu, ATD), { acao: "enviar" });
+  assertEquals(decidirEnvio(chat("eu", "em_atendimento"), eu, SUP), { acao: "enviar" });
 });
 
 Deno.test("decidirEnvio: de outra pessoa sem permissão → bloqueia", () => {
-  assertEquals(decidirEnvio(chat("ana", "em_atendimento"), eu, false), {
+  assertEquals(decidirEnvio(chat("ana", "em_atendimento"), eu, ATD), {
     acao: "bloquear",
     responsavelId: "ana",
   });
 });
 
 Deno.test("decidirEnvio: de outra pessoa com assumir_de_outros → toma", () => {
-  assertEquals(decidirEnvio(chat("ana", "em_atendimento"), eu, true), {
+  assertEquals(decidirEnvio(chat("ana", "em_atendimento"), eu, SUP), {
     acao: "tomar",
     evento: "tomou",
     deId: "ana",
@@ -46,9 +53,9 @@ Deno.test("decidirEnvio: de outra pessoa com assumir_de_outros → toma", () => 
 });
 
 Deno.test("decidirEnvio: finalizada reabre para quem envia, mesmo com responsável antigo", () => {
-  assertEquals(decidirEnvio(chat(null, "finalizado"), eu, false).acao, "reabrir");
-  assertEquals(decidirEnvio(chat("ana", "finalizado"), eu, false).acao, "reabrir");
-  assertEquals(decidirEnvio(chat("eu", "finalizado"), eu, false).acao, "reabrir");
+  assertEquals(decidirEnvio(chat(null, "finalizado"), eu, ATD).acao, "reabrir");
+  assertEquals(decidirEnvio(chat("ana", "finalizado"), eu, ATD).acao, "reabrir");
+  assertEquals(decidirEnvio(chat("eu", "finalizado"), eu, ATD).acao, "reabrir");
 });
 
 // --- garantirAtendimento com banco simulado ---------------------------------
@@ -87,10 +94,11 @@ function bancoFalso(inicial: ChatAtendimento | null, nomes: Record<string, strin
   };
 }
 
-const args = (chatId = "5511999999999@c.us", pode = false) => ({
+const args = (chatId = "5511999999999@c.us", pode = false, podeAssumir = true) => ({
   sessaoId: "s1",
   chatId,
   eu,
+  podeAssumir,
   podeAssumirDeOutros: pode,
 });
 
@@ -169,4 +177,95 @@ Deno.test("garantir: grupo não tem dono (ignorado, sem escrita)", async () => {
 Deno.test("garantir: conversa inexistente → ignorado", async () => {
   const b = bancoFalso(null);
   assertEquals(await garantirAtendimento(b.db, args()), { ok: true, decisao: "ignorado" });
+});
+
+// --- cargo sem permissão de assumir (decisão do dono) -------------------------
+
+Deno.test("decidirEnvio: sem assumir/transferir não assume conversa livre, nova nem finalizada", () => {
+  assertEquals(decidirEnvio(chat(null, "aberto"), eu, SO_RESPONDE), { acao: "sem_permissao" });
+  assertEquals(decidirEnvio(null, eu, SO_RESPONDE), { acao: "sem_permissao" });
+  assertEquals(decidirEnvio(chat("ana", "finalizado"), eu, SO_RESPONDE), { acao: "sem_permissao" });
+  assertEquals(decidirEnvio(chat("eu", "finalizado"), eu, SO_RESPONDE), { acao: "sem_permissao" });
+});
+
+Deno.test("decidirEnvio: sem assumir, mas a conversa é minha → envia; de outra pessoa → bloqueia", () => {
+  assertEquals(decidirEnvio(chat("eu", "em_atendimento"), eu, SO_RESPONDE), { acao: "enviar" });
+  assertEquals(decidirEnvio(chat("ana", "em_atendimento"), eu, SO_RESPONDE), {
+    acao: "bloquear",
+    responsavelId: "ana",
+  });
+});
+
+Deno.test("decidirEnvio: assumir_de_outros sozinho já permite assumir conversa livre e reabrir", () => {
+  assertEquals(decidirEnvio(chat(null, "aberto"), eu, SUP).acao, "assumir");
+  assertEquals(decidirEnvio(chat("ana", "finalizado"), eu, SUP).acao, "reabrir");
+});
+
+Deno.test("garantir: sem permissão de assumir → 403 sem_permissao_assumir e nenhuma escrita", async () => {
+  const b = bancoFalso(chat(null, "aberto"));
+  const r = await garantirAtendimento(b.db, args("5511999999999@c.us", false, false));
+  assertEquals(r, {
+    ok: false,
+    conflito: { error: MSG_SEM_PERMISSAO_ASSUMIR, motivo: "sem_permissao_assumir" },
+  });
+  if (!r.ok) assertEquals(statusDoConflito(r.conflito), 403);
+  assertEquals(b.aplicados.length, 0);
+  assertEquals(b.estado()?.responsavelId, null);
+});
+
+Deno.test("garantir: sem permissão de assumir, finalizada → 403 e continua finalizada", async () => {
+  const b = bancoFalso(chat("eu", "finalizado"));
+  const r = await garantirAtendimento(b.db, args("5511999999999@c.us", false, false));
+  assertEquals(r.ok, false);
+  assertEquals(b.estado()?.atendimentoStatus, "finalizado");
+  assertEquals(b.aplicados.length, 0);
+});
+
+Deno.test("garantir: sem permissão de assumir, minha → envia", async () => {
+  const b = bancoFalso(chat("eu", "em_atendimento"));
+  assertEquals(await garantirAtendimento(b.db, args("5511999999999@c.us", false, false)), {
+    ok: true,
+    decisao: "enviar",
+  });
+});
+
+// --- disputa que não assenta em 2 voltas --------------------------------------
+
+/** Banco cujo `aplicar` sempre falha, devolvendo os estados da lista (um por chamada). */
+function bancoDisputa(inicial: ChatAtendimento, depois: Array<[string | null, AtendimentoStatus]>) {
+  let chamadas = 0;
+  const db: AtendimentoDb = {
+    lerChat: () => Promise.resolve({ ...inicial }),
+    aplicar: () => {
+      const [resp, status] = depois[Math.min(chamadas++, depois.length - 1)];
+      return Promise.resolve({ ok: false as const, responsavelId: resp, status });
+    },
+    nomeColaborador: (id) => Promise.resolve(id === "ana" ? "Ana" : null),
+  };
+  return { db, chamadas: () => chamadas };
+}
+
+Deno.test("garantir: disputa — 2 falhas e a conversa ficou livre → 409 disputa (não envia)", async () => {
+  const b = bancoDisputa(chat(null, "aberto"), [[null, "aberto"], [null, "aberto"]]);
+  const r = await garantirAtendimento(b.db, args());
+  assertEquals(r, { ok: false, conflito: { error: MSG_DISPUTA, motivo: "disputa" } });
+  if (!r.ok) assertEquals(statusDoConflito(r.conflito), 409);
+  assertEquals(b.chamadas(), 2);
+});
+
+Deno.test("garantir: disputa — 2 falhas e ficou finalizada comigo → 409 disputa", async () => {
+  const b = bancoDisputa(chat(null, "aberto"), [[null, "finalizado"], ["eu", "finalizado"]]);
+  assertEquals((await garantirAtendimento(b.db, args())).ok, false);
+});
+
+Deno.test("garantir: disputa — 2 falhas e ficou com a Ana → 409 em_atendimento com o nome", async () => {
+  const b = bancoDisputa(chat(null, "aberto"), [[null, "finalizado"], ["ana", "em_atendimento"]]);
+  const r = await garantirAtendimento(b.db, args());
+  assertEquals(r.ok, false);
+  if (!r.ok) assertEquals(r.conflito.motivo, "em_atendimento");
+});
+
+Deno.test("garantir: disputa — 2 falhas e ficou comigo em atendimento → envia", async () => {
+  const b = bancoDisputa(chat(null, "aberto"), [[null, "finalizado"], ["eu", "em_atendimento"]]);
+  assertEquals(await garantirAtendimento(b.db, args()), { ok: true, decisao: "enviar" });
 });

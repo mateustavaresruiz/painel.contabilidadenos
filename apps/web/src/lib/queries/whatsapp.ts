@@ -1540,6 +1540,9 @@ export function useReagirMensagem() {
 
 /** Encaminha uma mensagem (por wamId) pra um ou mais chats da mesma sessão.
  *  A msg encaminhada aparece no destino via webhook/realtime. */
+/** Resultado de cada destino do encaminhar (na ordem pedida). */
+export type ResultadoEncaminhar = { chatId: string; ok: boolean; id?: string; motivo?: string; erro?: string };
+
 export function useEncaminharMensagem() {
   const qc = useQueryClient();
   return useMutation({
@@ -1548,7 +1551,7 @@ export function useEncaminharMensagem() {
       messageId: string;
       toChatIds: string[];
     }) =>
-      api<{ ok: boolean; enviados: number; erros: string[] }>(
+      api<{ ok: boolean; enviados: number; falhas: number; resultados: ResultadoEncaminhar[] }>(
         "/whatsapp/messages/forward",
         { method: "POST", body: args },
       ),

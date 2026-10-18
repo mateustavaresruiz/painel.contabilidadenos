@@ -29,6 +29,8 @@ type Estado = {
   situacao: { status: string; criadoEm: string } | null;
   tipos: { id: string; nome: string }[];
   verificacoes: number;
+  /** Simula a RPC portal_token_trocar falhando (nada é gravado nem revogado). */
+  falharTroca?: boolean;
 };
 
 // Hash "rápido" nos testes (o PBKDF2 real tem teste próprio abaixo).
@@ -83,10 +85,14 @@ async function montar(over: Partial<Estado> = {}, depsOver: Partial<Deps> = {}) 
       for (const t of st.tokens.values()) if (t.clienteId === cid && !t.revogadoEm) { t.revogadoEm = new Date().toISOString(); n++; }
       return Promise.resolve(n);
     },
-    criarToken: (a) => {
+    // Igual à RPC: tudo ou nada. Falhou = nada mudou (o link anterior segue ativo).
+    trocarToken: (a) => {
+      if (st.falharTroca) return Promise.resolve(null);
+      for (const t of st.tokens.values()) if (t.clienteId === a.clienteId && !t.revogadoEm) t.revogadoEm = new Date().toISOString();
       st.tokensCriados.push({ hash: a.tokenHash, senhaHash: a.senhaHash, expiresAt: a.expiresAt });
-      st.tokens.set(a.tokenHash, { id: `novo-${st.tokensCriados.length}`, clienteId: a.clienteId, senhaHash: a.senhaHash, expiresAt: a.expiresAt, revogadoEm: null, bloqueadoAte: null, acessos: 0, falhas: 0 });
-      return Promise.resolve(true);
+      const id = `novo-${st.tokensCriados.length}`;
+      st.tokens.set(a.tokenHash, { id, clienteId: a.clienteId, senhaHash: a.senhaHash, expiresAt: a.expiresAt, revogadoEm: null, bloqueadoAte: null, acessos: 0, falhas: 0 });
+      return Promise.resolve(id);
     },
     trocarSenha: (cid, h) => {
       let n = 0;
@@ -349,6 +355,15 @@ Deno.test("escritório: gerar entrega link+senha uma vez, guarda só hashes, rev
   // o link novo funciona e o velho dá 404
   assertEquals((await h(get(j.token, "SenhaNova-12345", "1.0.0.1"))).status, 200);
   assertEquals((await h(get(TOKEN_A, SENHA_A, "1.0.0.2"))).status, 404);
+});
+
+Deno.test("escritório: gerar que falha ao gravar NÃO derruba o link anterior", async () => {
+  const { h, st } = await montar({ falharTroca: true });
+  assertEquals((await h(off("gerar", { validadeDias: 30 }))).status, 500);
+  assertEquals(st.tokens.get(await hashToken(TOKEN_A))!.revogadoEm, null); // o link de antes segue ativo
+  assertEquals(st.tokensCriados.length, 0);
+  assertEquals(st.eventos.some((e) => e.acao === "link_gerado"), false);
+  assertEquals((await h(get(TOKEN_A, SENHA_A, "1.0.0.3"))).status, 200);
 });
 
 Deno.test("escritório: sem expiração (null), validade inválida, regenerar senha, revogar e config", async () => {
