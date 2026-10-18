@@ -7,6 +7,7 @@
 // O que faz (tudo com pessoas "TESTE QA ...", apagadas no fim, inclusive no Auth):
 //   1. cria um administrador de teste direto no banco (service role) só para
 //      poder chamar a function equipe com um login de verdade;
+//   1b. confere o diagnóstico do e-mail (GET /equipe/email) sem senha na resposta;
 //   2. convida pela function equipe as pessoas de teste (sem SMTP vem o link);
 //   3. link de uso único: o link do convite vira sessão e não vale de novo;
 //   4. código de 6 números (o mesmo que iria no e-mail) vira sessão;
@@ -124,6 +125,11 @@ async function main() {
   const sAdm = await verificarHash(tAdm.hash);
   if (!sAdm.json?.access_token) throw new Error(`Admin de teste não entrou: ${msg(sAdm)}`);
   const jwtAdm = sAdm.json.access_token;
+
+  // Diagnóstico do e-mail (Configurações > Integrações > E-mail): responde e não vaza a senha.
+  const diag = await equipe('/email', jwtAdm);
+  registrar('diagnóstico do e-mail responde', diag.ok && Array.isArray(diag.json?.avisos) && !('senha' in (diag.json ?? {})),
+    diag.ok ? (diag.json?.configurado ? `${diag.json.host}:${diag.json.porta}, responde: ${diag.json.portaAbre}, TLS: ${diag.json.tls}` : 'SMTP dormente (SMTP_HOST vazio)') : msg(diag));
 
   // ---------------- 1. Convites pela function equipe ----------------
   const pessoas = {};

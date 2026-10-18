@@ -435,7 +435,7 @@ confere que não sobrou nada. Imprime só PASSOU/FALHOU, nunca token ou link. N�
 (usa o token direto do Auth) e não toca em ninguém da equipe de verdade. Os eventos "entrou no
 painel" das pessoas de teste ficam na auditoria (ela não apaga nada), com o nome "TESTE QA".
 
-Rodado em produção em 18/10/2026: 22 de 22 passaram.
+Rodado em produção em 18/10/2026, antes e depois de publicar: 23 de 23 passaram (inclui o diagnóstico do e-mail em `GET /equipe/email`).
 
 ## Problemas comuns
 
