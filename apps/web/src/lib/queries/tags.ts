@@ -57,7 +57,7 @@ export function useTags() {
   });
 }
 
-/** Vínculos conversa↔etiqueta do escritório (1 query pra pintar a lista toda). */
+/** Vínculos conversa↔etiqueta do escritório (1 query para pintar a lista toda). */
 export function useChatTagLinks() {
   return useQuery({
     queryKey: ["whatsapp-chat-tags"],

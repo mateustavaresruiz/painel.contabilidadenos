@@ -419,7 +419,7 @@ function TambemAqui({ outros }: { outros: PresencaConversa[] }) {
 // ---------------------------------------------------------------------------
 
 // "digitando…/gravando…" obsoleto após esta janela (caso falte o evento de
-// saída); "online" obsoleto um pouco depois. Aí cai pra "visto por último".
+// saída); "online" obsoleto um pouco depois. Aí cai para "visto por último".
 const PRESENCA_TYPING_TTL_MS = 18_000;
 const PRESENCA_ONLINE_TTL_MS = 90_000;
 

@@ -72,6 +72,13 @@ export type CnpjInfo = {
   regime: "MEI" | "Simples Nacional" | null;
 };
 
+const cnpjNaoEncontrados = new Set<string>();
+
+/** true se a última consulta deste CNPJ voltou "não encontrado" na Receita (BrasilAPI 404). */
+export function cnpjNaoEncontrado(rawCnpj: string): boolean {
+  return cnpjNaoEncontrados.has(onlyDigits(rawCnpj));
+}
+
 export async function fetchCnpj(rawCnpj: string): Promise<CnpjInfo | null> {
   const cnpj = rawCnpj.replace(/\D/g, "");
   if (cnpj.length !== 14) return null;
@@ -82,6 +89,8 @@ export async function fetchCnpj(rawCnpj: string): Promise<CnpjInfo | null> {
       `https://brasilapi.com.br/api/cnpj/v1/${cnpj}`,
     );
     if (!res.ok) {
+      // 404 = a Receita não tem este CNPJ (a tela avisa); o resto é falha do serviço.
+      if (res.status === 404) cnpjNaoEncontrados.add(cnpj);
       cnpjCache.set(cnpj, null);
       return null;
     }
@@ -114,7 +123,7 @@ export async function fetchCnpj(rawCnpj: string): Promise<CnpjInfo | null> {
   }
 }
 
-/** Normaliza string com apenas dígitos (pra comparações/buscas). */
+/** Normaliza string com apenas dígitos (para comparações/buscas). */
 export function onlyDigits(s: string): string {
   return s.replace(/\D/g, "");
 }

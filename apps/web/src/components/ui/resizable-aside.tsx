@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 type Props = {
   /** Largura inicial em px se não há valor salvo. */
   defaultWidth?: number;
-  /** Limites pra não deixar o usuário esconder ou ocupar a tela toda. */
+  /** Limites para não deixar o usuário esconder ou ocupar a tela toda. */
   minWidth?: number;
   maxWidth?: number;
-  /** Chave de localStorage pra persistir a largura entre sessões. */
+  /** Chave de localStorage para persistir a largura entre sessões. */
   storageKey: string;
   className?: string;
   /** Aceito por compatibilidade — o recurso de recolher foi removido. */
@@ -19,9 +19,9 @@ type Props = {
 /**
  * Sidebar lateral redimensionável por arraste na borda direita. Em
  * desktop (`md+`) a largura é controlada por px e o usuário pode
- * arrastar; em mobile cai pra `w-full` (a aside ocupa a tela toda
+ * arrastar; em mobile cai para `w-full` (a aside ocupa a tela toda
  * via classes mobile do caller). Persiste a largura em localStorage
- * pra não perder o ajuste entre sessões.
+ * para não perder o ajuste entre sessões.
  *
  * Uso:
  *   <ResizableAside storageKey="chat-sidebar" defaultWidth={320}>
@@ -130,7 +130,7 @@ export function ResizableAside({
         role="separator"
         aria-orientation="vertical"
         aria-label="Redimensionar painel"
-        title="Arraste pra redimensionar"
+        title="Arraste para redimensionar"
       />
     </aside>
   );

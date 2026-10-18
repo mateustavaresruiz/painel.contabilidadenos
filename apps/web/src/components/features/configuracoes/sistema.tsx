@@ -226,7 +226,7 @@ function BackupCard() {
               >
                 {horas == null
                   ? "Ainda não há backup completo bem-sucedido (banco e arquivos)."
-                  : `O último backup completo bem-sucedido foi ${textoHoras(horas)} — mais de ${BACKUP_LIMITE_HORAS} h. Confira o serviço "backup" no Easypanel.`}
+                  : `O último backup completo bem-sucedido foi ${textoHoras(horas)}, mais de ${BACKUP_LIMITE_HORAS} h. Confira o serviço "backup" no Easypanel.`}
               </div>
             )}
             <ul className="divide-y divide-divider">

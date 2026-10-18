@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useColaboradoresMap, useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { parsePgTimestamp } from "@/lib/format";
+import { nomeDoModulo } from "@/lib/modulos";
 import {
   formatarValor,
   MODULO_LABEL,
@@ -67,6 +68,23 @@ function AtorAvatar({ ev }: { ev: AuditoriaEvento }) {
   );
 }
 
+/**
+ * Resumo com nomes humanos. Eventos de módulos gravados antes da migration 018
+ * podem trazer a chave crua ("portalCliente"): troca pelo nome da tela.
+ */
+function resumoLegivel(ev: AuditoriaEvento): string {
+  if (ev.acao !== "modulos") return ev.resumo;
+  const a = ev.resumo.indexOf("(");
+  const b = ev.resumo.lastIndexOf(")");
+  if (a < 0 || b < a) return ev.resumo;
+  const lista = ev.resumo
+    .slice(a + 1, b)
+    .split(", ")
+    .map((k) => (k.includes(" ") ? k : nomeDoModulo(k)))
+    .join(", ");
+  return ev.resumo.slice(0, a + 1) + lista + ev.resumo.slice(b);
+}
+
 /** Antes → depois, campos e comentário: nada de JSON cru. */
 function Detalhes({ ev }: { ev: AuditoriaEvento }) {
   const d = ev.detalhes;
@@ -75,7 +93,7 @@ function Detalhes({ ev }: { ev: AuditoriaEvento }) {
     <div className="mt-2 space-y-2 rounded-lg border border-border/70 bg-muted/30 p-2.5 text-xs">
       {d.alteracoes?.map((a, i) => (
         <div key={`${a.campo}-${i}`} className="space-y-1">
-          <p className="font-medium text-foreground">{a.rotulo}</p>
+          <p className="font-medium text-foreground">{ev.acao === "modulos" ? nomeDoModulo(a.rotulo) : a.rotulo}</p>
           <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
             <span className="max-w-full break-words rounded bg-destructive/10 px-1.5 py-0.5 text-destructive line-through decoration-destructive/40">
               {formatarValor(a.de)}
@@ -150,7 +168,7 @@ export function EventoItem({
           ) : (
             <span className="font-semibold">{ator}</span>
           )}{" "}
-          {ev.resumo}
+          {resumoLegivel(ev)}
         </p>
         {comentario && (
           <div className="mt-1.5 flex gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-sm">

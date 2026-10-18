@@ -64,6 +64,7 @@ import {
 } from "@/lib/queries/perfil";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/texto";
 
 const TODOS = "__todos__";
 
@@ -117,10 +118,10 @@ export function AbaAtividade({ p }: { p: PerfilColaborador }) {
     setExportando(true);
     try {
       const r = await exportarAtividadeCsv(p.id, p.nome, f);
-      toast.success(
+      (r.cortado ? toast.warning : toast.success)(
         r.cortado
           ? `Exportei os ${r.linhas.toLocaleString("pt-BR")} eventos mais recentes. Restrinja o período para ver o resto.`
-          : `${r.linhas.toLocaleString("pt-BR")} evento(s) exportado(s).`,
+          : `${plural(r.linhas, "evento exportado", "eventos exportados")}`,
       );
     } catch (e) {
       toast.error(msgErro(e));
@@ -166,7 +167,7 @@ export function AbaAtividade({ p }: { p: PerfilColaborador }) {
           <p className="text-xs text-muted-foreground" aria-live="polite">
             {q.isLoading
               ? "Carregando…"
-              : `${eventos.length.toLocaleString("pt-BR")}${q.hasNextPage ? "+" : ""} evento(s) ${filtrando ? "com estes filtros" : "no histórico"}`}
+              : `${eventos.length.toLocaleString("pt-BR")}${q.hasNextPage ? "+" : ""} ${plural(eventos.length, "evento", "eventos", { semNumero: true })} ${filtrando ? "com estes filtros" : "no histórico"}`}
           </p>
           <div className="flex items-center gap-2">
             {filtrando && (
@@ -285,7 +286,7 @@ export function AbaAtendimentos({ p }: { p: PerfilColaborador }) {
                   <div className="min-w-0 flex-1">
                     <p className="flex min-w-0 items-center gap-2">
                       <span className="truncate text-sm font-semibold">{c.nome ?? "Contato"}</span>
-                      {!!c.naoLidas && <Badge variant="success">{c.naoLidas} não lida(s)</Badge>}
+                      {!!c.naoLidas && <Badge variant="success">{plural(c.naoLidas, "não lida", "não lidas")}</Badge>}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {[c.cliente, c.conexao].filter(Boolean).join(" · ") || "Sem cliente vinculado"}
@@ -431,7 +432,7 @@ export function AbaChamados({ p }: { p: PerfilColaborador }) {
         {atrasados > 0 && (
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning">
             <AlertTriangle className="size-3.5" />
-            {atrasados} atrasado(s)
+            {plural(atrasados, "atrasado", "atrasados")}
           </span>
         )}
       </div>
@@ -550,7 +551,7 @@ function GraficoPorDia({ dados }: { dados: { dia: string; total: number }[] }) {
                   <p className="font-semibold">
                     {new Date(`${String(label)}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" })}
                   </p>
-                  <p className="nums">{String(payload[0]!.value)} mensagem(ns)</p>
+                  <p className="nums">{plural(Number(payload[0]!.value), "mensagem", "mensagens")}</p>
                 </div>
               ) : null
             }
@@ -664,7 +665,7 @@ export function BotaoEncerrarSessoes({ p }: { p: PerfilColaborador }) {
     });
     if (!ok) return;
     encerrar.mutate(p.id, {
-      onSuccess: (n) => toast.success(n ? `${n} sessão(ões) encerrada(s).` : "Não havia sessão aberta."),
+      onSuccess: (n) => (n ? toast.success(plural(n, "sessão encerrada", "sessões encerradas")) : toast.info("Não havia sessão aberta")),
       onError: (e) => toast.error(msgErro(e)),
     });
   }

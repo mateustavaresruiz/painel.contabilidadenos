@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useSerproStatus, type SerproStatus } from "@/lib/queries/denos";
 import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { supabase } from "@/lib/supabase";
+import { plural } from "@/lib/texto";
 
 export type CronSaude = {
   nome: string;
@@ -210,7 +211,7 @@ export function useResumoSaude(opts: { whatsapp: boolean; serpro: boolean }): It
             estado: (banco.data?.erros24h ?? 0) > 0 ? "atencao" : "ok",
             detalhe:
               (banco.data?.erros24h ?? 0) > 0
-                ? `${banco.data!.erros24h} erro(s) nas últimas 24h`
+                ? `${plural(banco.data!.erros24h, "erro", "erros")} nas últimas 24h`
                 : `Respondendo (${banco.data?.latenciaMs ?? 0} ms)`,
           },
   );

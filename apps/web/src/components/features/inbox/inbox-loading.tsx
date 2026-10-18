@@ -4,7 +4,7 @@ import { Skeleton, SkeletonAvatar, SkeletonText } from "@/components/ui/skeleton
  * Skeleton padronizado da Caixa de entrada. Usado enquanto a sessão
  * (WhatsApp) ou a conta (Gmail) estão sendo carregadas. Mostra o
  * formato esperado da tela — sidebar de threads/chats + área da
- * conversa — pra reduzir a sensação de "tela em branco".
+ * conversa — para reduzir a sensação de "tela em branco".
  */
 export function InboxLoading({
   variant = "conversa",

@@ -87,6 +87,15 @@ export const SUBFUNCOES: { chave: ModuloChave; pai: ModuloChave; nome: string; d
   },
 ];
 
+/** Nome humano do módulo ou da função (o mesmo da tela). */
+export function nomeDoModulo(chave: string): string {
+  return (
+    MODULOS_PRINCIPAIS.find((m) => m.chave === chave)?.nome ??
+    SUBFUNCOES.find((m) => m.chave === chave)?.nome ??
+    (chave === "loginSemVerificacao" ? "Entrar só com o e-mail" : chave)
+  );
+}
+
 export function useModulos() {
   const query = useQuery({
     queryKey: ["config", "modulos"],
@@ -141,7 +150,14 @@ export function useEhAdmin(): boolean {
 // Marca: nome do escritório e logo
 // ---------------------------------------------------------------------------
 
-export type Marca = { nome: string; logoUrl: string | null; logoPath: string | null };
+/** `nome` é o gravado (Tenant.nome, editável em Configurações); `nomeMarca` é o que a tela mostra. */
+export type Marca = { nome: string; nomeMarca: string; logoUrl: string | null; logoPath: string | null };
+
+/** Nome do escritório para a tela: o nome antigo do cadastro ("Contabilidade Denos") aparece como a marca, NÓS Contabilidade. */
+export function nomeDaMarca(nome: string | null | undefined): string {
+  const n = (nome ?? "").trim();
+  return !n || n.toLowerCase() === "contabilidade denos" ? "NÓS Contabilidade" : n;
+}
 
 export function useMarca() {
   // Sem sessão (tela de entrada) a RLS recusa: nem pergunta, usa a logo NÓS.
@@ -158,7 +174,8 @@ export function useMarca() {
       if (c.error) throw c.error;
       const path = typeof c.data?.valor === "string" ? c.data.valor : null;
       const logoUrl = path ? supabase.storage.from("marca").getPublicUrl(path).data.publicUrl : null;
-      return { nome: (t.data?.nome as string | undefined) ?? "Contabilidade Denos", logoUrl, logoPath: path };
+      const nome = (t.data?.nome as string | undefined) ?? "NÓS Contabilidade";
+      return { nome, nomeMarca: nomeDaMarca(nome), logoUrl, logoPath: path };
     },
     staleTime: 10 * 60_000,
   });

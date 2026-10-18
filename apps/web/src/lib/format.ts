@@ -7,7 +7,7 @@
  * vem sem o `Z`, o `new Date(...)` interpreta como LOCAL → erra em 3h
  * no Brasil. Forçamos UTC anexando `Z` quando não tem offset.
  *
- * Safari e date-fns estrito retornam Invalid Date pra formato sem `T`,
+ * Safari e date-fns estrito retornam Invalid Date para formato sem `T`,
  * por isso normalizamos antes.
  */
 export function parsePgTimestamp(input: string | null | undefined): Date | null {

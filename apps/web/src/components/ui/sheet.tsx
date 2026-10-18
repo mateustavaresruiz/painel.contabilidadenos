@@ -46,8 +46,8 @@ type SheetSide = "top" | "bottom" | "left" | "right";
 
 const SIDE_CLASSES: Record<SheetSide, string> = {
   top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
-  // 85dvh: sobra tela suficiente atrás pra pessoa entender que é uma camada
-  // (e ter onde tocar pra fechar). dvh, não vh — a barra do navegador móvel
+  // 85dvh: sobra tela suficiente atrás para pessoa entender que é uma camada
+  // (e ter onde tocar para fechar). dvh, não vh — a barra do navegador móvel
   // some e volta, e vh não acompanha.
   bottom:
     "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-2xl border-t pb-safe-b data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
@@ -89,7 +89,7 @@ export const SheetContent = forwardRef<
     const inicioY = useRef<number | null>(null);
     const [arrastando, setArrastando] = useState(false);
 
-    /* Arrastar pra baixo pra fechar. Escrito à mão (e não com a `vaul`)
+    /* Arrastar para baixo para fechar. Escrito à mão (e não com a `vaul`)
        porque o gesto vive só na alça: 40 linhas contra uma dependência.
        O deslocamento vai em style inline — com a transição desligada
        durante o gesto, senão o dedo "puxa" um painel atrasado. */
@@ -101,7 +101,7 @@ export const SheetContent = forwardRef<
 
     const aoMover = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
       if (inicioY.current === null || !painelRef.current) return;
-      // Só pra baixo: puxar pra cima não estica a folha.
+      // Só para baixo: puxar para cima não estica a folha.
       const delta = Math.max(0, e.clientY - inicioY.current);
       painelRef.current.style.transform = `translateY(${delta}px)`;
     }, []);

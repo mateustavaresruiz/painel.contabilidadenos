@@ -371,7 +371,7 @@ export function LoginPage() {
                       }}
                       placeholder="voce@contabilidadenos.com.br"
                       className={cn(
-                        "h-12 rounded-full pl-11 pr-4 text-[15px] transition-shadow",
+                        "h-12 rounded-full pl-11 pr-4 text-[15px] toque:text-base transition-shadow",
                         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:border-primary",
                         erro && "border-destructive focus-visible:ring-destructive/15 focus-visible:border-destructive",
                       )}

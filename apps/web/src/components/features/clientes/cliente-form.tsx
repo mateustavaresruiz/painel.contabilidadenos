@@ -18,7 +18,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useDebounced } from "@/hooks/use-debounced";
 import { msgErro } from "@/lib/erro";
-import { fetchCep, fetchCnpj, onlyDigits } from "@/lib/lookups";
+import { cnpjNaoEncontrado, fetchCep, fetchCnpj, onlyDigits } from "@/lib/lookups";
 import { isValidCnpj, maskCep, maskCpfCnpj, maskTelefone } from "@/lib/masks";
 import {
   type Cliente,
@@ -137,7 +137,10 @@ export function ClienteForm(props: Props) {
     void fetchCnpj(sanit).then((info) => {
       if (!active) return;
       setCnpjLoading(false);
-      if (!info) return;
+      if (!info) {
+        if (cnpjNaoEncontrado(sanit)) toast.warning("CNPJ não encontrado na Receita. Confira os números ou preencha os dados à mão.");
+        return;
+      }
       const set = <K extends keyof ClienteFormValues>(k: K, v: string | null | undefined) => {
         if (!form.getValues(k) && v) form.setValue(k, v as never);
       };
@@ -479,7 +482,7 @@ export function ClienteForm(props: Props) {
         </Link>
         <Button type="submit" disabled={pending || duplicadoBloqueio}>
           {pending ? <Loader2 className="animate-spin" /> : null}
-          {props.mode === "edit" ? "Salvar alterações" : "Cadastrar cliente"}
+          {props.mode === "edit" ? "Salvar" : "Cadastrar cliente"}
         </Button>
       </div>
     </form>

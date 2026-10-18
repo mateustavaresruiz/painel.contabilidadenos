@@ -16,7 +16,7 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
 /**
  * Checkbox nativo estilizado com Tailwind. Suporta `indeterminate`
  * (estado tri-state usado em headers de tabela). Mantém role=checkbox
- * pra integração com os seletores do <Table> (`[&:has([role=checkbox])]`).
+ * para integração com os seletores do <Table> (`[&:has([role=checkbox])]`).
  */
 export const Checkbox = forwardRef<HTMLInputElement, Props>(
   ({ className, indeterminate, checked, ...props }, ref) => {

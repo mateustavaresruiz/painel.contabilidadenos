@@ -1,4 +1,4 @@
-// Etiquetas da conversa (CRM-lite). Chip no header abre um popover pra aplicar/
+// Etiquetas da conversa (CRM-lite). Chip no header abre um popover para aplicar/
 // remover etiquetas e criar novas. Quem tem whatsapp.responder etiqueta,
 // cria e apaga etiquetas.
 
@@ -84,7 +84,7 @@ export function ConversaTagsBotao({
     try {
       await criar.mutateAsync({ label, cor });
       setNovo("");
-      toast.success("Etiqueta criada.");
+      toast.success("Etiqueta criada");
     } catch (e) {
       toast.error(msgErro(e));
     }
@@ -100,7 +100,7 @@ export function ConversaTagsBotao({
     if (!ok) return;
     try {
       await excluir.mutateAsync(id);
-      toast.success("Etiqueta removida.");
+      toast.success("Etiqueta removida");
     } catch (e) {
       toast.error(msgErro(e));
     }

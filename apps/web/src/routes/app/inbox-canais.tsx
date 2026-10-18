@@ -57,6 +57,7 @@ import {
   useWhatsappSessoes,
   type WhatsappSessao,
 } from "@/lib/queries/whatsapp";
+import { plural } from "@/lib/texto";
 
 type StatusUi = ConexaoStatus;
 
@@ -110,7 +111,7 @@ export function WhatsappInstanciasSection({ ehDono }: { ehDono: boolean }) {
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
             {ehDono
               ? "Nenhuma instância configurada ainda. Clique em “Adicionar instância”."
-              : "Nenhuma instância configurada. Peça pra conta principal adicionar."}
+              : "Nenhuma instância configurada. Peça à conta principal para adicionar."}
           </CardContent>
         </Card>
       ) : (
@@ -131,7 +132,7 @@ export function WhatsappInstanciasSection({ ehDono }: { ehDono: boolean }) {
  * (disponibilidade global — um número por instância na plataforma inteira)
  * e, depois que o usuário escaneia o QR, o backend confere se o número
  * que conectou bate com o que foi declarado aqui. Se conectar errado,
- * a sessão vai pra FAILED.
+ * a sessão vai para FAILED.
  */
 function NovaInstanciaDialog({
   open,
@@ -145,7 +146,7 @@ function NovaInstanciaDialog({
   const [apelido, setApelido] = useState("");
   const [numero, setNumero] = useState("");
 
-  // Reset quando o dialog fecha pra não vazar estado entre criações.
+  // Reset quando o dialog fecha para não vazar estado entre criações.
   useEffect(() => {
     if (!open) {
       setApelido("");
@@ -156,7 +157,7 @@ function NovaInstanciaDialog({
   const numeroNacional = numero.replace(/\D/g, "");
   // 11 dígitos = celular com o nono; 10 = celular antigo sem ele ou linha
   // fixa (o WhatsApp Business roda em fixo). Recusar o de 10 deixava esses
-  // clientes sem caminho nenhum pra conectar.
+  // clientes sem caminho nenhum para conectar.
   const numeroValido =
     numeroNacional.length === 10 || numeroNacional.length === 11;
   const digits = numeroValido ? `55${numeroNacional}` : numeroNacional;
@@ -190,7 +191,7 @@ function NovaInstanciaDialog({
       await criar.mutateAsync({ apelido: apelido.trim(), numero: digits });
       await qc.refetchQueries({ queryKey: ["whatsapp-sessoes"] });
       toast.success(
-        "Instância criada. Clique em Conectar pra escanear o QR.",
+        "Instância criada. Clique em Conectar para ler o QR",
       );
       onOpenChange(false);
     } catch (err) {
@@ -204,7 +205,7 @@ function NovaInstanciaDialog({
         <DialogHeader>
           <DialogTitle>Nova instância de WhatsApp</DialogTitle>
           <DialogDescription>
-            Dê um apelido pra identificar essa instância na sidebar e
+            Dê um apelido para identificar essa instância na sidebar e
             informe o número que você vai conectar pelo QR.
           </DialogDescription>
         </DialogHeader>
@@ -385,7 +386,7 @@ function WhatsappCard({
   ) {
     try {
       await mut.mutateAsync();
-      toast.success(`${name} executado.`);
+      toast.success(`${name} executado`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -406,14 +407,14 @@ function WhatsappCard({
     if (!ok) return;
     try {
       await refreshWebhook.mutateAsync();
-      toast.success("Eventos re-sincronizados. A conexão volta em instantes.");
+      toast.success("Eventos sincronizados de novo. A conexão volta em instantes");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function handleApagar() {
-    // Fecha o popup ANTES de qualquer coisa pra garantir que o
+    // Fecha o popup ANTES de qualquer coisa para garantir que o
     // auto-start interno do ConectarWhatsappDialog não dispare /start
     // contra um sessao.id que tá prestes a sumir (resultava em 404).
     setQrOpen(false);
@@ -433,7 +434,7 @@ function WhatsappCard({
           duration: 10_000,
         });
       } else {
-        toast.success("Instância apagada.");
+        toast.success("Instância apagada");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -444,7 +445,7 @@ function WhatsappCard({
     const ok = await confirmar({
       titulo: "Limpar todas as conversas?",
       descricao:
-        "Apaga do app todas as conversas, mensagens, contatos e mídias deste WhatsApp, sem desconectar o número. Bom pra começar do zero depois de reconectar. Não pode ser desfeito.",
+        "Apaga do app todas as conversas, mensagens, contatos e mídias deste WhatsApp, sem desconectar o número. Bom para começar do zero depois de reconectar. Não pode ser desfeito.",
       destructive: true,
       confirmLabel: "Limpar conversas",
     });
@@ -452,7 +453,7 @@ function WhatsappCard({
     try {
       const res = await limpar.mutateAsync();
       toast.success(
-        `Conversas limpas, ${res.chats} conversa(s) e ${res.mensagens} mensagem(ns) apagadas.`,
+        `Conversas limpas: ${plural(res.chats, "conversa", "conversas")} e ${plural(res.mensagens, "mensagem apagada", "mensagens apagadas")}`,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -583,15 +584,15 @@ function WhatsappCard({
           {/* Ações destrutivas — separadas das de operação, sempre à direita */}
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {/* Limpar conversas — zera o histórico no app, mantém a conexão.
-                Não aparece pra plano sem direito de apagar; "Excluir instância"
-                fica, porque é a única saída pra trocar de número. */}
+                Não aparece para plano sem direito de apagar; "Excluir instância"
+                fica, porque é a única saída para trocar de número. */}
             {planoDeixaApagar ? (
             <Button
               variant="ghost"
               className="text-destructive hover:text-destructive"
               onClick={handleLimparConversas}
               disabled={limpar.isPending}
-              title="Apaga todas as conversas e mensagens do app sem desconectar o número, pra começar do zero"
+              title="Apaga todas as conversas e mensagens do app sem desconectar o número, para começar do zero"
             >
               {limpar.isPending ? (
                 <Loader2 className="size-4 animate-spin mr-2" />
@@ -608,7 +609,7 @@ function WhatsappCard({
               className="text-destructive hover:text-destructive"
               onClick={handleApagar}
               disabled={deletar.isPending}
-              title="Remove a instância e apaga a sessão no servidor, precisa ler o QR de novo pra reconectar"
+              title="Remove a instância e apaga a sessão no servidor, precisa ler o QR de novo para reconectar"
             >
               {deletar.isPending ? (
                 <Loader2 className="size-4 animate-spin mr-2" />
@@ -727,7 +728,7 @@ function ConectarWhatsappDialog({
           <DialogTitle>Conectar WhatsApp</DialogTitle>
           <DialogDescription>
             {modo === "qr"
-              ? "Use o WhatsApp do seu celular pra escanear o QR code abaixo e conectar esta instância."
+              ? "Use o WhatsApp do seu celular para escanear o QR code abaixo e conectar esta instância."
               : "Sem câmera à mão (ou abrindo o painel no próprio celular)? Receba um código e digite no WhatsApp."}
           </DialogDescription>
         </DialogHeader>
@@ -754,7 +755,7 @@ function ConectarWhatsappDialog({
                     onClick={() => {
                       void navigator.clipboard
                         ?.writeText(codigo.replace(/-/g, ""))
-                        .then(() => toast.success("Código copiado."))
+                        .then(() => toast.success("Código copiado"))
                         .catch(() => {});
                     }}
                   >
@@ -828,7 +829,7 @@ function ConectarWhatsappDialog({
               <li>1. Abra o WhatsApp no celular</li>
               <li>2. Toque em Mais opções › Aparelhos conectados</li>
               <li>3. Toque em &ldquo;Conectar um aparelho&rdquo;</li>
-              <li>4. Aponte a câmera pra este QR code</li>
+              <li>4. Aponte a câmera para este QR code</li>
             </ol>
           ) : null}
         </div>
@@ -889,7 +890,7 @@ function SemPermissaoHint({
     <p className="text-xs text-muted-foreground">
       {conectado
         ? `${canal} está conectado. Para desconectar ou trocar a conta, peça à conta principal do escritório.`
-        : `Peça à conta principal do escritório pra conectar o ${canal}.`}
+        : `Peça à conta principal do escritório para conectar o ${canal}.`}
     </p>
   );
 }

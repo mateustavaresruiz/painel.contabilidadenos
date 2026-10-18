@@ -35,7 +35,7 @@ type Props = {
 };
 
 /**
- * Dialog pra encaminhar uma mensagem do WhatsApp pra uma ou mais conversas
+ * Dialog para encaminhar uma mensagem do WhatsApp para uma ou mais conversas
  * da mesma instância. A mensagem chega no destino via webhook/realtime.
  */
 export function EncaminharDialog({
@@ -83,7 +83,7 @@ export function EncaminharDialog({
         );
       } else {
         toast.success(
-          `Mensagem encaminhada para ${r.enviados} conversa${r.enviados === 1 ? "" : "s"}.`,
+          `Mensagem encaminhada para ${r.enviados} conversa${r.enviados === 1 ? "" : "s"}`,
         );
       }
       onOpenChange(false);

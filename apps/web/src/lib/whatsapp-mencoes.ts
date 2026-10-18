@@ -1,7 +1,7 @@
 import type { WhatsappContatosMap } from "@/lib/queries/whatsapp";
 
 /**
- * Resolução de menções `@<digits>` do WhatsApp pra TEXTO puro.
+ * Resolução de menções `@<digits>` do WhatsApp para TEXTO puro.
  *
  * O WhatsApp grava menções no corpo como `@<número>`, onde o número é
  * normalmente o LID cru (ex.: `@59253519872216`) — não o telefone. O
@@ -13,7 +13,7 @@ import type { WhatsappContatosMap } from "@/lib/queries/whatsapp";
 
 const RE_MENCAO = /@(\d{6,})/g;
 
-/** Formata número (só dígitos) pra menção: BR celular → "(11) 99785-3643". */
+/** Formata número (só dígitos) para menção: BR celular → "(11) 99785-3643". */
 function formatTelefoneMencao(numero: string): string {
   const d = numero.replace(/\D/g, "");
   if (d.length === 13 && d.startsWith("55")) {
@@ -62,7 +62,7 @@ function labelMencao(
 
 /**
  * Troca menções `@<digits>` (LID cru) pelo nome/telefone resolvido. Menção
- * sem resolução fica como está. Pra preview de lista (texto puro).
+ * sem resolução fica como está. Para preview de lista (texto puro).
  */
 export function substituirMencoes(
   texto: string | null,

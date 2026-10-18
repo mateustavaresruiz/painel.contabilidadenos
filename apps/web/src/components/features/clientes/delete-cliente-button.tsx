@@ -24,7 +24,7 @@ export function DeleteClienteButton({
   async function excluir() {
     const ok = await confirmar({
       titulo: "Excluir cliente?",
-      descricao: `${clienteNome} sai do cadastro junto com sócios, certificados e consultas fiscais. Conversas e chamados ficam, só sem o vínculo. Não dá pra desfazer, para só esconder, marque como inativo.`,
+      descricao: `${clienteNome} sai do cadastro junto com sócios, certificados e consultas fiscais. Conversas e chamados ficam, só sem o vínculo. Não dá para desfazer, para só esconder, marque como inativo.`,
       confirmLabel: "Excluir",
       destructive: true,
     });

@@ -68,7 +68,7 @@ export function useColaboradores() {
   });
 }
 
-/** Mapa id → colaborador, pra exibir responsável/autor sem join. */
+/** Mapa id → colaborador, para exibir responsável/autor sem join. */
 export function useColaboradoresMap() {
   const { data } = useColaboradores();
   return useMemo(() => {

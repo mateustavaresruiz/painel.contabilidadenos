@@ -8,7 +8,7 @@ type Valor = string | number | Date | null | undefined;
 /**
  * Ordenação client-side ESTÁVEL sobre uma lista já carregada (não vai ao
  * banco). `accessors` mapeia cada coluna ordenável a um valor comparável —
- * passe um objeto ESTÁVEL (module-level const ou useMemo) pra não re-ordenar à
+ * passe um objeto ESTÁVEL (module-level const ou useMemo) para não re-ordenar à
  * toa. Nulos vão sempre por último; strings comparam em pt-BR (numeric).
  */
 export function useSort<T, K extends string>(

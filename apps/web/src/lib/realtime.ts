@@ -5,9 +5,9 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 type Filter = {
-  /** Coluna pra filtrar no nível do canal (opcional). */
+  /** Coluna para filtrar no nível do canal (opcional). */
   column: string;
-  /** Valor pra match exato (Realtime só suporta `eq`). */
+  /** Valor para match exato (Realtime só suporta `eq`). */
   value: string;
 };
 
@@ -72,7 +72,7 @@ function assinarMudancas(
 
 /**
  * Subscreve mudanças em uma tabela e invalida query-keys associadas.
- * Usa o canal Realtime do Supabase — RLS continua aplicando pra entrega.
+ * Usa o canal Realtime do Supabase — RLS continua aplicando para entrega.
  *
  * **Throttle**: agrupa eventos numa janela de 250ms — em chat ativo
  * (vários eventos por segundo) evita N refetches em cascata. Custo de
@@ -86,14 +86,14 @@ function assinarMudancas(
  * `filter` ausente não quer dizer "assina pouco": quer dizer assina a TABELA
  * INTEIRA, e o `postgres_changes` roda a RLS do assinante contra cada registro
  * do WAL, uma vez por assinatura. O custo é `escritas x assinantes`, e quase
- * todo ele é gasto pra concluir que a linha não interessa àquele assinante.
+ * todo ele é gasto para concluir que a linha não interessa àquele assinante.
  *
  * ⚠️ **A armadilha é o hook pendurado num id que ainda não chegou.** Hook não
  * pode ser condicional, então o jeito óbvio de escrever isto é
  * `chatId ? { column: "chatId", value: chatId } : undefined` — que, no instante
  * em que `chatId` é `undefined`, troca o filtro estreito pela tabela inteira,
  * exatamente no estado em que a query correspondente está DESLIGADA e não há
- * nada pra invalidar. Ninguém percebe: não dá erro, não dá log, e a tela
+ * nada para invalidar. Ninguém percebe: não dá erro, não dá log, e a tela
  * funciona. Volta na conta de CPU do banco, semanas depois. O sentinela
  * (`value: id ?? "__none__"`) evita a tabela inteira e ainda paga um canal e
  * uma linha em `realtime.subscription` que jamais dispara.
@@ -116,7 +116,7 @@ export function useRealtimeInvalidate(
 ) {
   const qc = useQueryClient();
   const instanceId = useId();
-  // Serializa pra dependência estável (evita re-subscrição a cada render
+  // Serializa para dependência estável (evita re-subscrição a cada render
   // quando o array literal é recriado).
   const keysHash = JSON.stringify(invalidateKeys);
   const filterHash = filter ? `${filter.column}=eq.${filter.value}` : "";

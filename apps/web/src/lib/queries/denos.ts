@@ -139,7 +139,7 @@ export function useConsultarSerpro() {
   });
 }
 
-/** SITFIS em processamento: pede ao servidor pra continuar e buscar o relatório. */
+/** SITFIS em processamento: pede ao servidor para continuar e buscar o relatório. */
 export function useRetomarConsulta() {
   const qc = useQueryClient();
   return useMutation({

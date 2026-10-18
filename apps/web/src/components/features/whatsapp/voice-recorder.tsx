@@ -8,23 +8,23 @@ import { cn } from "@/lib/utils";
 type Props = {
   /** Bloqueia o microfone enquanto há outro envio em andamento. */
   disabled?: boolean;
-  /** Recebe o áudio gravado pronto pra enviar como nota de voz. */
+  /** Recebe o áudio gravado pronto para enviar como nota de voz. */
   onSend: (file: File) => void;
-  /** Avisa o composer pra esconder o campo de texto durante a gravação. */
+  /** Avisa o composer para esconder o campo de texto durante a gravação. */
   onRecordingChange?: (recording: boolean) => void;
 };
 
 // Quantas barras desenhamos no visualizador. Valor "estético" — o suficiente
-// pra dar a sensação de waveform sem custar caro no rAF.
+// para dar a sensação de waveform sem custar caro no rAF.
 const NUM_BARRAS = 28;
 
 /**
- * Gravador de áudio estilo WhatsApp pra notas de voz. Segura o microfone,
+ * Gravador de áudio estilo WhatsApp para notas de voz. Segura o microfone,
  * mostra timer + waveform reagindo ao volume, e oferece cancelar (lixeira)
  * ou enviar. Nota de voz NÃO leva texto — é só o áudio.
  *
  * O blob sai em `audio/webm;codecs=opus` (ou o que o browser suportar); o
- * backend manda com `convert: true`, então o WAHA transcodifica pra opus
+ * backend manda com `convert: true`, então o WAHA transcodifica para opus
  * que o WhatsApp aceita em voice note.
  */
 export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
@@ -33,7 +33,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
   // evita duplo-clique abrir dois streams.
   const [iniciando, setIniciando] = useState(false);
   const [segundos, setSegundos] = useState(0);
-  // Níveis de volume normalizados (0..1) das últimas amostras, pra waveform.
+  // Níveis de volume normalizados (0..1) das últimas amostras, para waveform.
   const [niveis, setNiveis] = useState<number[]>(() =>
     Array(NUM_BARRAS).fill(0.08),
   );
@@ -45,7 +45,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
   const rafRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  // Quando o usuário cancela, marcamos pra descartar o blob no onstop em vez
+  // Quando o usuário cancela, marcamos para descartar o blob no onstop em vez
   // de enviar (o onstop dispara de qualquer jeito ao parar o recorder).
   const cancelarRef = useRef(false);
 
@@ -116,7 +116,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
       streamRef.current = stream;
 
       // Escolhe o melhor container suportado. Safari não tem webm/opus —
-      // cai pra mp4/aac, que o WAHA também transcodifica.
+      // cai para mp4/aac, que o WAHA também transcodifica.
       const candidatos = [
         "audio/webm;codecs=opus",
         "audio/webm",
@@ -184,7 +184,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
         (err.name === "NotAllowedError" || err.name === "PermissionDeniedError");
       toast.error(
         negou
-          ? "Permita o acesso ao microfone pra gravar áudio."
+          ? "Permita o acesso ao microfone para gravar áudio."
           : "Não foi possível acessar o microfone.",
       );
     } finally {
@@ -202,7 +202,7 @@ export function VoiceRecorder({ disabled, onSend, onRecordingChange }: Props) {
   function cancelar() {
     const rec = mediaRecorderRef.current;
     if (!rec || rec.state !== "recording") {
-      // Nada pra parar — só garante limpeza/estado.
+      // Nada para parar — só garante limpeza/estado.
       limpar();
       setGravando(false);
       setSegundos(0);

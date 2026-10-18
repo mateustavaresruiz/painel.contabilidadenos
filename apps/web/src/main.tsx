@@ -20,7 +20,7 @@ bootTheme();
 
 /**
  * Deploy novo renomeia os chunks: quem estava com a aba aberta tenta baixar
- * um chunk que não existe mais. Recarrega uma vez (com trava de 30 s pra não
+ * um chunk que não existe mais. Recarrega uma vez (com trava de 30 s para não
  * entrar em loop se o chunk sumiu de verdade).
  */
 const RELOAD_KEY = "denos-chunk-reload-at";

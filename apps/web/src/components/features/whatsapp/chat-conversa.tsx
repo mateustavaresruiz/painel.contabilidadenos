@@ -65,7 +65,7 @@ type Props = {
   /** Sessão da conversa aberta — pode estar undefined no estado inicial. */
   sessaoId: string | undefined;
   chatId: string | undefined;
-  /** Todas as sessões (pra mostrar "via X" no header). */
+  /** Todas as sessões (para mostrar "via X" no header). */
   sessoes: WhatsappSessao[];
   /** Texto pré-preenchido no campo (ex.: "Parabenizar no WhatsApp"). */
   textoInicial?: string;
@@ -119,16 +119,16 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
   const ultimoMsgRef = useRef<string | null>(null);
   // "Grudar no fim": enquanto ligado, qualquer crescimento de altura do
   // conteúdo (imagens/áudios carregando depois do paint) re-ancora no fim.
-  // Liga ao abrir a conversa e ao enviar; desliga quando o usuário rola pra
+  // Liga ao abrir a conversa e ao enviar; desliga quando o usuário rola para
   // cima. É o que garante "abrir sempre lá embaixo, no limite".
   const grudarFimRef = useRef(true);
   // Timestamp (ms) até quando estamos "ancorando no fim": dentro dessa janela
-  // o handleScroll ignora scrolls programáticos (pin/ResizeObserver) pra não
+  // o handleScroll ignora scrolls programáticos (pin/ResizeObserver) para não
   // soltar o grudar cedo demais. Ver scrollParaFim/handleScroll.
   const ancorandoAteRef = useRef(0);
   // Ancoragem ao carregar mensagens antigas (prepend no topo): guarda a
   // métrica de scroll ANTES de buscar e restaura depois — senão a lista
-  // "pula" pra cima quando as antigas entram no topo.
+  // "pula" para cima quando as antigas entram no topo.
   const carregandoAntigasRef = useRef(false);
   const prevScrollHeightRef = useRef(0);
   const prevScrollTopRef = useRef(0);
@@ -158,7 +158,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
     }
     try {
       await limpar.mutateAsync(chatId);
-      toast.success("Mensagens apagadas.");
+      toast.success("Mensagens apagadas");
     } catch (err) {
       toast.error(msgErro(err));
     }
@@ -180,8 +180,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
     }
     try {
       await apagar.mutateAsync(chatId);
-      toast.success("Conversa apagada.");
-      // Limpa ?chat=... pra voltar pro estado "nenhuma conversa aberta"
+      toast.success("Conversa apagada");
+      // Limpa ?chat=... para voltar pro estado "nenhuma conversa aberta"
       setSearchParams(
         (curr) => {
           const next = new URLSearchParams(curr);
@@ -212,7 +212,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
     }
     try {
       await sairGrupo.mutateAsync(chatId);
-      toast.success("Você saiu do grupo.");
+      toast.success("Você saiu do grupo");
       setSearchParams(
         (curr) => {
           const next = new URLSearchParams(curr);
@@ -227,7 +227,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
     }
   }
 
-  // Achata páginas (vêm em ordem desc → inverte pra exibir asc).
+  // Achata páginas (vêm em ordem desc → inverte para exibir asc).
   // parsePgTimestamp no sort é OBRIGATÓRIO: o banco manda timestamp naive
   // (UTC sem Z → new Date lê como local, +3h no BR) e a msg otimista usa
   // ISO com Z (epoch correto). Misturar os dois com new Date() cru fazia a
@@ -239,7 +239,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
       // Mensagens otimistas (recém-enviadas, ainda sem eco do servidor) ficam
       // SEMPRE no fim, na ordem de envio. Sem isso, o timestamp do relógio do
       // CLIENTE da fantasma competia com o do SERVIDOR das já confirmadas e,
-      // com o skew sub-segundo, a 2ª msg "pulava" pra cima da 1ª e depois
+      // com o skew sub-segundo, a 2ª msg "pulava" para cima da 1ª e depois
       // voltava quando o realtime trocava pela linha do banco.
       const pa = a._pendente ? 1 : 0;
       const pb = b._pendente ? 1 : 0;
@@ -257,7 +257,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
     });
   }, [data]);
 
-  // Coleta IDs únicos pra buscar nome+foto de cada um (WhatsappContato
+  // Coleta IDs únicos para buscar nome+foto de cada um (WhatsappContato
   // cacheado pelo webhook):
   //   - Em grupo: remetentes das mensagens visíveis
   //   - Em qualquer chat: menções `@<digits>` no texto (tenta tanto
@@ -271,7 +271,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
       }
     }
     // Menções tanto no corpo quanto na citação do reply — a citação também
-    // precisa converter `@<lid>` pra nome/telefone.
+    // precisa converter `@<lid>` para nome/telefone.
     for (const m of mensagens) {
       for (const fonte of [m.texto, m.replyToTexto]) {
         if (!fonte) continue;
@@ -406,7 +406,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
   }, [chatId, sessaoId, chat?.nome, chat?.fotoPath, chat?.tipo]);
 
   // Backfill de participantes ao abrir um grupo: resolve @lid → @c.us
-  // pra mensagens antigas (antes do fix do webhook). Dispara 1x por
+  // para mensagens antigas (antes do fix do webhook). Dispara 1x por
   // grupo, em background — usuário vê os nomes aparecendo conforme o
   // backend atualiza + invalida a query de mensagens.
   const backfillDisparadoRef = useRef<string | null>(null);
@@ -438,7 +438,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
 
   // Force-refresh de fotos (chat + participantes). Limpa __none__
   // antigos e re-baixa via endpoints dedicados do WAHA (groups/{id}/picture
-  // pro grupo, contacts/profile-picture pra cada membro). 1x por chatId.
+  // pro grupo, contacts/profile-picture para cada membro). 1x por chatId.
   const refreshFotosDisparadoRef = useRef<string | null>(null);
   useEffect(() => {
     if (!chatId || !sessaoId) return;
@@ -490,12 +490,12 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
   // --- Scroll pro fim ------------------------------------------------
   // Ancora no fim só em momentos intencionais (abrir conversa / msg nova
   // estando perto do fim), NUNCA a cada render — senão o usuário fica
-  // preso embaixo e não consegue rolar pra cima.
+  // preso embaixo e não consegue rolar para cima.
   //
-  // Re-tenta por alguns frames (rAF) pra absorver a medição das bubbles:
+  // Re-tenta por alguns frames (rAF) para absorver a medição das bubbles:
   // elas têm altura variável (imagem, áudio, texto longo) e só são
   // medidas pelo DOM depois de renderizar, então um único scroll pararia
-  // "um pouco acima" da última msg. Aborta se o usuário rolar pra longe
+  // "um pouco acima" da última msg. Aborta se o usuário rolar para longe
   // no meio do caminho (exceto envio próprio, que sempre desce).
   const scrollParaFim = useCallback((forcar = false) => {
     // Janela de ancoragem: por ~1.2s qualquer crescimento de altura
@@ -523,8 +523,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
     requestAnimationFrame(passo);
   }, []);
 
-  // Ao trocar de chat, marca pra ancorar no fim assim que as mensagens
-  // chegarem (efeito declarado ANTES do de mensagens pra rodar primeiro).
+  // Ao trocar de chat, marca para ancorar no fim assim que as mensagens
+  // chegarem (efeito declarado ANTES do de mensagens para rodar primeiro).
   const ancorarRef = useRef(false);
   useLayoutEffect(() => {
     ancorarRef.current = true;
@@ -567,7 +567,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
   }, [mensagens, scrollParaFim]);
 
   // Atualiza o "grudar no fim" conforme o usuário rola: perto do fim → mantém
-  // ancorado; rolou pra cima → solta (não arranca quem lê o histórico).
+  // ancorado; rolou para cima → solta (não arranca quem lê o histórico).
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -583,8 +583,8 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
       el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }, []);
 
-  // Índice wamId → mensagem, pra resolver a mídia/preview da citação e
-  // permitir "pular" pra mensagem original ao clicar no reply.
+  // Índice wamId → mensagem, para resolver a mídia/preview da citação e
+  // permitir "pular" para mensagem original ao clicar no reply.
   const msgPorWamId = useMemo(() => {
     const m = new Map<string, WhatsappMensagem>();
     for (const msg of mensagens) if (msg.wamId) m.set(msg.wamId, msg);
@@ -680,7 +680,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
       }
 
       // 3) Pagina as antigas até a original aparecer. Saímos do "grudar no
-      //    fim" (estamos navegando pra cima) e preservamos a posição de
+      //    fim" (estamos navegando para cima) e preservamos a posição de
       //    leitura a cada prepend via carregandoAntigasRef.
       grudarFimRef.current = false;
       const esperarPaint = () =>
@@ -753,7 +753,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
 
   // Restaura a posição de leitura após o prepend das antigas: soma o quanto
   // a lista cresceu no topo ao scrollTop anterior, mantendo na tela a mesma
-  // mensagem que o usuário estava lendo (sem o "pulo" pra cima).
+  // mensagem que o usuário estava lendo (sem o "pulo" para cima).
   useLayoutEffect(() => {
     if (!carregandoAntigasRef.current) return;
     const el = scrollRef.current;
@@ -775,7 +775,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
             Suas conversas
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Selecione uma conversa à esquerda pra abrir.
+            Selecione uma conversa à esquerda para abrir.
             Mensagens chegam em tempo real conforme o WhatsApp recebe.
           </p>
         </div>
@@ -914,7 +914,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
               const trocouRemetente =
                 remetenteAnterior !== null &&
                 remetenteAtual !== remetenteAnterior;
-              // Animação de entrada só pra mensagens RECENTES (enviadas/
+              // Animação de entrada só para mensagens RECENTES (enviadas/
               // recebidas agora) — o histórico ao abrir a conversa não anima.
               // CSS animation roda uma vez no mount; re-renders não repetem.
               const recente =
@@ -1098,7 +1098,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
 }
 
 /**
- * Barra read-only no lugar do composer quando não dá pra enviar no
+ * Barra read-only no lugar do composer quando não dá para enviar no
  * grupo — "só admins enviam" ou número removido. Estilo discreto,
  * igual ao banner cinza do WhatsApp.
  */
@@ -1227,9 +1227,9 @@ function shouldShowRemetente(
 }
 
 /**
- * Formata um número (só dígitos) pra mostrar em menções `@<num>`.
+ * Formata um número (só dígitos) para mostrar em menções `@<num>`.
  * Brasil em DDD+celular vira "(11) 99785-3643"; outros formatos
- * pegam só `+<digits>` pra ficar legível. Usado como fallback do
+ * pegam só `+<digits>` para ficar legível. Usado como fallback do
  * `resolveMencao` quando o contato não tem nome nem pushName.
  */
 

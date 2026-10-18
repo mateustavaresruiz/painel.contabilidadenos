@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-// Regex pra capturar URLs:
+// Regex para capturar URLs:
 //   - http(s)://... — com ou sem caminho
 //   - www.foo.com — sem protocolo (prefixo `https://` adicionado ao
 //     gerar o href)
@@ -21,7 +21,7 @@ const MENCAO_REGEX = /@(\d{6,})/g;
  * Dado um @<digits> cru, o caller resolve pro nome + chatId real.
  * - `label`  → o que mostrar dentro da bubble (nome do cliente,
  *   pushName ou telefone formatado).
- * - `contatoId` → o `<digits>@c.us` resolvido pra navegar. Null
+ * - `contatoId` → o `<digits>@c.us` resolvido para navegar. Null
  *   quando não há contato cacheado — a menção renderiza como texto
  *   simples (sem virar botão clicável).
  */
@@ -40,8 +40,8 @@ export type MencaoResolvida = {
  * sendo escapado pelo React, só os links viram tags.
  *
  * @example
- *   <p>{renderTextoComLinks("Olha esse https://exemplo.com pra mim")}</p>
- *   // → ["Olha esse ", <a href="https://exemplo.com">https://exemplo.com</a>, " pra mim"]
+ *   <p>{renderTextoComLinks("Olha esse https://exemplo.com para mim")}</p>
+ *   // → ["Olha esse ", <a href="https://exemplo.com">https://exemplo.com</a>, " para mim"]
  */
 export function renderTextoComLinks(
   texto: string,
@@ -67,7 +67,7 @@ export function renderTextoComLinks(
     if (url.length <= 8) {
       // 8 = len("https://"). NÃO mexe em lastIdx: no adv3 isto apagava o
       // texto antes do link curto (defeito 57).
-      // Avança 1 char pra não loopar infinito.
+      // Avança 1 char para não loopar infinito.
       URL_REGEX.lastIndex = match.index + 1;
       continue;
     }
@@ -167,7 +167,7 @@ export function renderMensagemTexto(
         // não vira link clicável.
         out.push(`@${info.label}`);
       } else {
-        // Nada cacheado — preserva token cru pra não perder informação.
+        // Nada cacheado — preserva token cru para não perder informação.
         out.push(m[0]);
       }
       last = m.index + m[0].length;

@@ -27,7 +27,7 @@ import {
  *   ?chat=<chatId>          — conversa aberta
  *
  * Default:
- *   - 0 sessões → redireciona pra Canais
+ *   - 0 sessões → redireciona para Canais
  *   - 1 sessão  → usa essa, sem filtro
  *   - 2+ sessões → filtro "todas" (vazio) por padrão
  */
@@ -36,7 +36,7 @@ export function ChatPage() {
   // adv3: role === "owner". Aqui: quem gerencia os números.
   const ehDono = usePermissao("whatsapp.conexoes");
   const { data: sessoes = [], isLoading } = useWhatsappSessoes();
-  // Status suavizado pra exibição — evita o pisca-pisca "Desconectado"
+  // Status suavizado para exibição — evita o pisca-pisca "Desconectado"
   // em quedas transitórias do WAHA. Filtros/ids seguem usando `sessoes`
   // cru (identidade não muda, só o status).
   const sessoesUI = useStableSessaoStatus(sessoes);
@@ -142,7 +142,7 @@ export function ChatPage() {
   // chamar WAHA — retorna rápido se não tem nada pendente), mas o
   // roundtrip ainda custa, e o throttle elimina mesmo isso.
   //
-  // Quando o user passa de 1h sem entrar no chat, refaz pra pegar fotos
+  // Quando o user passa de 1h sem entrar no chat, refaz para pegar fotos
   // de chats novos que chegaram nesse meio tempo.
   const syncFotos = useSyncFotosPendentes();
   const syncDisparadoRef = useRef<Set<string>>(new Set());
@@ -159,7 +159,7 @@ export function ChatPage() {
       );
       if (AGORA - ultimo < THROTTLE_MS) {
         // Já rodou há menos de 1h — marca como disparado nessa sessão
-        // pra não checar o localStorage de novo a cada re-render.
+        // para não checar o localStorage de novo a cada re-render.
         syncDisparadoRef.current.add(s.id);
         continue;
       }
@@ -182,7 +182,7 @@ export function ChatPage() {
   // abrir o /whatsapp. Agora cai direto na tela de canais.
   // Usa o status ESTABILIZADO (sessoesUI) pro gate da página — assim um
   // pisca transitório (ex.: restart do WAHA) não derruba a tela inteira
-  // pra "conectar" e volta. `sessoes` cru fica só pra contagem/identidade.
+  // para "conectar" e volta. `sessoes` cru fica só para contagem/identidade.
   const algumaConectada = sessoesUI.some((s) => s.status === "WORKING");
   const algumaEmTransicao = sessoesUI.some(
     (s) => s.status === "STARTING" || s.status === "SCAN_QR_CODE",
@@ -200,7 +200,7 @@ export function ChatPage() {
 
   if (isLoading) return <InboxLoading variant="conversa" />;
 
-  // Sem sessões — manda pra Canais. Owner cria nova.
+  // Sem sessões — manda para Canais. Owner cria nova.
   if (sessoes.length === 0) {
     return (
       <CanalSemConfigurar
@@ -213,9 +213,9 @@ export function ChatPage() {
 
   // Pelo menos 1 sessão configurada — mas nenhuma conectada?
   // Pode ser só status defasado no carregamento (o valor gravado ainda
-  // não propagou pra WORKING) — `aguardandoStatus` segura uma janela
+  // não propagou para WORKING) — `aguardandoStatus` segura uma janela
   // curta enquanto o realtime/polling corrige, evitando o "flash" da
-  // tela de conectar pra quem já está conectado. Esgotada a janela sem
+  // tela de conectar para quem já está conectado. Esgotada a janela sem
   // nenhuma WORKING, aí sim mostra Canais (QR / status detalhado).
   if (!algumaConectada) {
     if (aguardandoStatus) return <InboxLoading variant="conversa" />;

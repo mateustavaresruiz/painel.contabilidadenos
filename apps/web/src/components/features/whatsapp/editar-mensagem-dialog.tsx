@@ -26,7 +26,7 @@ type Props = {
 };
 
 /**
- * Dialog pra editar o texto de uma mensagem enviada. A edição vai pro
+ * Dialog para editar o texto de uma mensagem enviada. A edição vai pro
  * WhatsApp via WAHA e o balão atualiza com o selo "editada" (mesma UX de
  * quando a edição chega de fora, pelo webhook).
  */
@@ -54,7 +54,7 @@ export function EditarMensagemDialog({
     }
     try {
       await editar.mutateAsync({ mensagemId, text: t });
-      toast.success("Mensagem editada.");
+      toast.success("Mensagem editada");
       onOpenChange(false);
     } catch (err) {
       if (ehConflitoAtendimento(err)) return; // aviso e recarga: main.tsx
@@ -68,7 +68,7 @@ export function EditarMensagemDialog({
         <DialogHeader>
           <DialogTitle>Editar mensagem</DialogTitle>
           <DialogDescription>
-            A alteração é enviada ao WhatsApp. Só dá pra editar até ~15 minutos
+            A alteração é enviada ao WhatsApp. Só dá para editar até ~15 minutos
             depois do envio (limite do próprio WhatsApp).
           </DialogDescription>
         </DialogHeader>

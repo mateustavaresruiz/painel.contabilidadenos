@@ -10,6 +10,7 @@ import {
   SUBFUNCOES,
   useModulos,
   useSalvarModulos,
+  nomeDoModulo,
   type ModuloChave,
 } from "@/lib/modulos";
 import { toast } from "@/lib/toast";
@@ -29,7 +30,7 @@ export function ConfigModulos() {
     salvar.mutate(
       { ...modulos, [chave]: valor },
       {
-        onSuccess: () => toast.success(valor ? "Ligado." : "Desligado."),
+        onSuccess: () => toast.success(`${nomeDoModulo(chave)} ${valor ? "ligado" : "desligado"}`),
         onError: (e) => toast.error("Não foi possível salvar: " + msgErro(e)),
       },
     );

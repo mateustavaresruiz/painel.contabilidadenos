@@ -37,15 +37,15 @@ type Props = {
   canal: "whatsapp" | "email";
   conversaId: string;
   sugestao: string | null;
-  /** Nome do contato (pushName do WhatsApp) pra pré-preencher o cadastro. */
+  /** Nome do contato (pushName do WhatsApp) para pré-preencher o cadastro. */
   nomeSugerido?: string | null;
   onConfirmar: (clienteId: string) => Promise<void> | void;
 };
 
 /**
- * Dialog pra vincular uma conversa (WhatsApp ou e-mail) a um cliente
+ * Dialog para vincular uma conversa (WhatsApp ou e-mail) a um cliente
  * cadastrado. Pré-preenche a busca com o número/e-mail da conversa
- * quando disponível pra acelerar o match.
+ * quando disponível para acelerar o match.
  */
 type Modo = "buscar" | "criar";
 
@@ -123,7 +123,7 @@ export function VincularClienteDialog({
         telefone: input.telefone?.trim() || undefined,
       });
       await onConfirmar(cliente.id);
-      toast.success("Cliente criado e vinculado.");
+      toast.success("Cliente criado e vinculado");
     } catch (err) {
       toast.error(msgErro(err));
     } finally {
@@ -167,7 +167,7 @@ export function VincularClienteDialog({
                     <p className="text-xs text-muted-foreground">
                       {busca.trim()
                         ? "Nenhum cliente encontrado com esses termos."
-                        : "Comece a digitar pra buscar um cliente."}
+                        : "Comece a digitar para buscar um cliente."}
                     </p>
                     {busca.trim() && (
                       <Button
@@ -210,7 +210,7 @@ export function VincularClienteDialog({
                 )}
               </div>
 
-              {/* Atalho sempre visível pra criar um novo direto */}
+              {/* Atalho sempre visível para criar um novo direto */}
               <button
                 type="button"
                 onClick={() => setModo("criar")}
@@ -323,7 +323,7 @@ function CriarClienteForm({
             type="button"
             onClick={onCancelar}
             className="size-7 grid place-items-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
-            aria-label="Voltar pra busca"
+            aria-label="Voltar para a busca"
           >
             <ArrowLeft className="size-4" />
           </button>
@@ -434,7 +434,7 @@ function Field({
 }
 
 /**
- * Converte um identificador da conversa em algo útil pra busca:
+ * Converte um identificador da conversa em algo útil para busca:
  *   - número WhatsApp `5511950218830@c.us` → `(11) 95021-8830`
  *     (formato legível com DDD + número; o user pode editar/encurtar)
  *   - e-mail → o próprio endereço
@@ -464,7 +464,7 @@ function sugestaoBusca(sugestao: string, canal: "whatsapp" | "email"): string {
   if (canal === "email") return sugestao;
   const digits = sugestao.replace(/\D/g, "");
   // 13 dígitos = formato BR completo (55 + DDD + 9 dígitos). Tira o 55
-  // pra ficar com DDD + número, que é o que costuma estar no cadastro.
+  // para ficar com DDD + número, que é o que costuma estar no cadastro.
   const semCodigoPais =
     digits.length === 13 && digits.startsWith("55") ? digits.slice(2) : digits;
   // 11 dígitos = DDD (2) + número (9). Formata "(XX) XXXXX-XXXX".

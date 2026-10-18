@@ -65,6 +65,7 @@ import {
   type PeriodoPerfil,
 } from "@/lib/queries/perfil";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/texto";
 
 const ABAS = ["atividade", "atendimentos", "chamados", "mensagens", "acessos"] as const;
 type Aba = (typeof ABAS)[number];
@@ -420,7 +421,7 @@ function tilesDe(k: PerfilKpis, proprio: boolean): Tile[] {
       rotulo: "1ª resposta (aprox.)",
       valor: minutos(k.primeiraResposta.mediaMin),
       sub: k.primeiraResposta.respondidas
-        ? `mediana ${minutos(k.primeiraResposta.medianaMin)} · ${n(k.primeiraResposta.respondidas)} conversa(s)`
+        ? `mediana ${minutos(k.primeiraResposta.medianaMin)} · ${n(k.primeiraResposta.respondidas)} ${plural(k.primeiraResposta.respondidas, "conversa", "conversas", { semNumero: true })}`
         : "sem respostas no período",
       dica: "Aproximado: por conversa e por dia, o tempo entre a 1ª mensagem do cliente e a 1ª resposta, quando essa resposta foi desta pessoa. Esperas acima de 24 h não entram.",
     },

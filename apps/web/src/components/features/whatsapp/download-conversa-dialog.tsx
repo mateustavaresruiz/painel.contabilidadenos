@@ -47,7 +47,7 @@ export function DownloadConversaDialog({
     try {
       const mensagens = await carregarTodasMensagens(sessaoId, chatId);
       if (mensagens.length === 0) {
-        toast.error("Esta conversa não tem mensagens pra salvar.");
+        toast.error("Esta conversa não tem mensagens para salvar.");
         return;
       }
       // jsPDF só carrega quando alguém realmente exporta.
@@ -61,7 +61,7 @@ export function DownloadConversaDialog({
       const stamp = new Date().toISOString().slice(0, 10);
       const safeNome = chatNome.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 60);
       doc.save(`conversa-${safeNome}-${stamp}.pdf`);
-      toast.success("Conversa baixada.");
+      toast.success("Conversa baixada");
       onOpenChange(false);
     } catch (err) {
       toast.error(msgErro(err));

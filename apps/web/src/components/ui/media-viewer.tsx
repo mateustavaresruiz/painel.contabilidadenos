@@ -27,7 +27,7 @@ export type MediaItem = {
   /** URL já pronta (pública ou assinada). */
   url?: string | null;
   /** Resolver preguiçoso — chamado só quando o item entra em foco.
-   *  Use pra signed URLs do Supabase (mediaSignedUrl / urlAnexo). */
+   *  Use para signed URLs do Supabase (mediaSignedUrl / urlAnexo). */
   getUrl?: () => Promise<string | null>;
   /** Sobrescreve a classificação automática por MIME/extensão. */
   kind?: MediaKind;
@@ -103,7 +103,7 @@ let externalOpen: ((items: MediaItem[], index: number) => void) | null = null;
  *
  *   openMediaViewer([{ name, mimeType, getUrl: () => urlAnexo(path) }]);
  *
- * Passe um array pra habilitar navegação por setas (galeria) — útil pra
+ * Passe um array para habilitar navegação por setas (galeria) — útil para
  * e-mails/conversas com vários anexos. `startIndex` define qual abre.
  */
 export function openMediaViewer(items: MediaItem[], startIndex = 0): void {
@@ -177,7 +177,7 @@ function MediaViewerOverlay({
 }) {
   const [index, setIndex] = useState(startIndex);
   const [zoom, setZoom] = useState(false);
-  // URLs resolvidas por índice (ref + tick pra forçar render sem recriar
+  // URLs resolvidas por índice (ref + tick para forçar render sem recriar
   // o efeito de resolução). undefined = carregando, null = falhou.
   const urlsRef = useRef<Record<number, string | null>>({});
   const resolvingRef = useRef<Set<number>>(new Set());
@@ -256,8 +256,8 @@ function MediaViewerOverlay({
       className="fixed inset-0 z-[120] flex flex-col animate-in fade-in-0 duration-150 backdrop-blur-md"
       // Sem mais o scrim espresso opaco: agora é só um desfoque leve do
       // fundo (backdrop-blur-md) com um véu escuro bem sutil. O véu existe
-      // só pra manter o texto branco do header/controles legível por cima
-      // de imagens claras — neutro (sem o marrom da marca) pra não tingir
+      // só para manter o texto branco do header/controles legível por cima
+      // de imagens claras — neutro (sem o marrom da marca) para não tingir
       // o conteúdo. Inline porque os tokens de cor do projeto não têm canal
       // <alpha-value>, então o modificador `/xx` do Tailwind não funciona neles.
       style={{ backgroundColor: "oklch(0.15 0 0 / 0.4)" }}

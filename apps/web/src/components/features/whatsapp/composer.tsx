@@ -70,20 +70,20 @@ export function Composer({
   const [gravando, setGravando] = useState(false);
   // Tipo da mídia que está sendo enviada (upload + envio no WAHA levam ~2s).
   // Enquanto não-nulo, mostramos a trava "Enviando…" e bloqueamos o composer
-  // pra não disparar dois envios em cima do outro.
+  // para não disparar dois envios em cima do outro.
   const [enviandoMidia, setEnviandoMidia] = useState<
     "voice" | "image" | "video" | "file" | null
   >(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  // Última posição do cursor no textarea — usada pra inserir o emoji no
+  // Última posição do cursor no textarea — usada para inserir o emoji no
   // ponto certo mesmo com o popover aberto (textarea sem foco).
   const caretRef = useRef(0);
 
   const enviarTexto = useEnviarTexto();
   const enviarMidia = useEnviarMidia();
 
-  // Pendente só pra mídia — texto é otimista (msg fantasma vai pro
+  // Pendente só para mídia — texto é otimista (msg fantasma vai pro
   // cache na hora), então o botão não precisa travar.
   const isPending = enviarMidia.isPending;
 
@@ -198,7 +198,7 @@ export function Composer({
   }
 
   // Insere o emoji na posição atual do cursor (caretRef) e avança o cursor
-  // pra depois dele, pra dar pra emendar vários sem reabrir o popover.
+  // para depois dele, para dar para emendar vários sem reabrir o popover.
   function inserirEmoji(emoji: string) {
     const pos = Math.min(caretRef.current, texto.length);
     setTexto(texto.slice(0, pos) + emoji + texto.slice(pos));
@@ -338,7 +338,7 @@ export function Composer({
               }}
               disabled={!!arquivo}
               placeholder={
-                arquivo ? "Remova o anexo pra escrever" : "Mensagem…"
+                arquivo ? "Remova o anexo para escrever" : "Mensagem…"
               }
               rows={1}
               enterKeyHint={toque ? "enter" : "send"}

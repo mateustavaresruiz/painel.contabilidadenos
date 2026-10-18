@@ -31,7 +31,7 @@ export function ConfigGeral() {
     }
     try {
       await salvarNome.mutateAsync(nome);
-      toast.success("Nome salvo.");
+      toast.success("Nome salvo");
     } catch (err) {
       toast.error(msgErro(err));
     }
@@ -40,7 +40,7 @@ export function ConfigGeral() {
   async function enviarLogo(arquivo: File | null) {
     try {
       await salvarLogo.mutateAsync(arquivo);
-      toast.success(arquivo ? "Logo atualizada." : "Voltou para a logo NÓS.");
+      toast.success(arquivo ? "Logo atualizada" : "Voltou para a logo NÓS");
     } catch (err) {
       toast.error(msgErro(err));
     } finally {

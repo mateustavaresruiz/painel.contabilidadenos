@@ -3,14 +3,14 @@
  *
  * 🔴 O desenho é FICTÍCIO e arbitrário: ele identifica a CONVERSA, não a
  * pessoa. Nada aqui é derivado do nome, do gênero ou de qualquer dado do
- * contato — só do identificador do chat —, justamente pra ninguém ler o boneco
+ * contato — só do identificador do chat —, justamente para ninguém ler o boneco
  * como "é assim que ele é". O que se ganha é o que faltava: bater o olho na
  * lista e distinguir uma conversa da outra quando ninguém tem foto (o WhatsApp
  * não entrega a foto de quem restringiu a privacidade, e é a maioria de quem
  * chega por anúncio).
  *
  * Mesmo traço dos avatares da conta de demonstração, que foi o pedido. Sai como
- * data URI: nada é gravado no storage, nada vai pra rede, e o mesmo número dá
+ * data URI: nada é gravado no storage, nada vai para rede, e o mesmo número dá
  * sempre o mesmo rosto - inclusive entre usuários do mesmo escritório.
  */
 

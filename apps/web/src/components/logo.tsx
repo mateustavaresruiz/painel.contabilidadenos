@@ -13,7 +13,7 @@ export function Logo({ className, branca }: { className?: string; /** Sempre a v
   if (marca?.logoUrl) {
     return (
       <span className={cn("inline-flex items-center", className)}>
-        <img src={marca.logoUrl} alt={marca.nome} className="h-full w-auto max-w-[200px] object-contain" />
+        <img src={marca.logoUrl} alt={marca.nomeMarca} className="h-full w-auto max-w-[200px] object-contain" />
       </span>
     );
   }

@@ -1,5 +1,5 @@
 import { PageContainer } from "@/components/page-container";
-import { Building2, Loader2, MessageCircle, PartyPopper, User, Users } from "lucide-react";
+import { Building2, Cake, Loader2, MessageCircle, PartyPopper, User, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -71,9 +71,9 @@ export function AniversariosPage() {
   return (
     <PageContainer>
       <PageHeader
-        icon={Users}
-        title="Clientes"
-        description="Aniversários: abertura das empresas, nascimento das pessoas e dos sócios."
+        icon={Cake}
+        title="Aniversários"
+        description="Abertura das empresas e nascimento das pessoas e dos sócios."
       />
 
       <ModuloAbas abas={ABAS_CLIENTES} />

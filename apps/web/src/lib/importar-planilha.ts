@@ -498,7 +498,7 @@ export async function baixarModelo(alvo: "clientes" | "certificados") {
   const abas: Array<[string, Campo[]]> =
     alvo === "clientes" ? [["Clientes", CAMPOS_CLIENTE], ["Sócios", CAMPOS_SOCIO]] : [["Certificados", CAMPOS_CERTIFICADO]];
   const leia: string[][] = [
-    [alvo === "clientes" ? "Importar clientes e sócios no Painel Denos" : "Importar certificados digitais no Painel Denos"],
+    [alvo === "clientes" ? "Importar clientes e sócios no Painel NÓS" : "Importar certificados digitais no Painel NÓS"],
     [],
     ["• Uma linha por registro. A primeira linha é o cabeçalho; os nomes das colunas podem mudar, a tela pergunta qual é qual."],
     alvo === "clientes"

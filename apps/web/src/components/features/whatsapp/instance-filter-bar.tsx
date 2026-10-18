@@ -16,14 +16,14 @@ type Props = {
   /** IDs selecionadas. Vazio = "todas". */
   selecionadas: string[];
   onChange: (selecionadas: string[]) => void;
-  /** Mostra botão "+" pra ir pra Canais. */
+  /** Mostra botão "+" para ir para Canais. */
   ehDono: boolean;
 };
 
 /**
  * Card no topo da sidebar mostrando a(s) instância(s) ativa(s).
  *
- *   - 1 sessão → exibe ela com status pulse, dropdown abre só pra
+ *   - 1 sessão → exibe ela com status pulse, dropdown abre só para
  *     mostrar info (com link "adicionar instância").
  *   - 2+ sessões → multi-select com checkboxes. "Todas" no topo.
  *     Default = todas (Set vazio = todas).
@@ -40,7 +40,7 @@ export function InstanceFilterBar({
   const [open, setOpen] = useState(false);
 
   // Set vazio significa "todas" — quando o usuário desmarca todas, volta
-  // a esse estado pra não ficar com filtro impossível ("nenhuma").
+  // a esse estado para não ficar com filtro impossível ("nenhuma").
   const todas = selecionadas.length === 0 || selecionadas.length === sessoes.length;
   const visiveis = todas ? sessoes : sessoes.filter((s) => selecionadas.includes(s.id));
 
@@ -51,7 +51,7 @@ export function InstanceFilterBar({
     visiveis[0]?.status ??
     "STOPPED";
 
-  // Apelido principal pra mostrar no header colapsado
+  // Apelido principal para mostrar no header colapsado
   const principal = visiveis.find((s) => s.status === "WORKING") ?? visiveis[0];
 
   function toggle(id: string) {
@@ -62,7 +62,7 @@ export function InstanceFilterBar({
     }
     if (selecionadas.includes(id)) {
       const novo = selecionadas.filter((x) => x !== id);
-      // Se desmarcou todas, volta pra "todas" em vez de filtro vazio.
+      // Se desmarcou todas, volta para "todas" em vez de filtro vazio.
       onChange(novo.length === 0 ? [] : novo);
     } else {
       onChange([...selecionadas, id]);
@@ -99,7 +99,7 @@ export function InstanceFilterBar({
                        formatNumero(principal?.numero) ??
                        "WhatsApp")}
                 </p>
-                {/* Pill de contagem quando filtrado pra > 1 explicitamente */}
+                {/* Pill de contagem quando filtrado para > 1 explicitamente */}
                 {!todas && selecionadas.length > 1 && (
                   <span className="text-[11px] font-medium bg-foreground/[0.06] text-foreground rounded-full px-1.5 py-0.5 leading-none">
                     {selecionadas.length}
@@ -202,7 +202,7 @@ export function InstanceFilterBar({
 }
 
 /**
- * Avatar quadrado pra instância — usa as iniciais do apelido ou do número.
+ * Avatar quadrado para instância — usa as iniciais do apelido ou do número.
  * Se múltiplas selecionadas, mostra um badge com a contagem.
  */
 function InstanceAvatar({
@@ -305,5 +305,5 @@ function formatNumero(numero: string | null | undefined): string | null {
   return numero;
 }
 
-/** Util exportado pra reuso no header da conversa. */
+/** Util exportado para reuso no header da conversa. */
 export { formatNumero as formatInstanceNumber };

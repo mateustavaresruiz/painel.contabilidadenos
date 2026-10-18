@@ -9,7 +9,7 @@ import {
 
 // Paleta curada de emojis comuns — sem dependência externa nem fetch. O
 // objetivo é "mandar um emoji" rápido no chat, não um teclado completo. Se
-// um dia precisar de busca/skin tones, dá pra trocar por @emoji-mart.
+// um dia precisar de busca/skin tones, dá para trocar por @emoji-mart.
 const GRUPOS: { titulo: string; emojis: string[] }[] = [
   {
     titulo: "Rostos",
@@ -52,7 +52,7 @@ const GRUPOS: { titulo: string; emojis: string[] }[] = [
 /**
  * Botão de emoji + popover com paleta curada. Chama `onPick(emoji)` a cada
  * clique e MANTÉM o popover aberto (foco fica dentro do conteúdo do Radix),
- * pra dar pra mandar vários sem reabrir. A inserção no cursor é
+ * para dar para mandar vários sem reabrir. A inserção no cursor é
  * responsabilidade do chamador (ver Composer).
  */
 export function EmojiPicker({

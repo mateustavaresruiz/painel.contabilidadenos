@@ -2,7 +2,7 @@
  * Máscaras e validações de campos brasileiros (CPF, CNPJ, telefone, CEP,
  * número CNJ). Tudo client-side. As funções `mask*` aceitam qualquer string
  * (descartam não-dígitos) e devolvem o valor formatado — usadas no onChange
- * dos inputs pra impedir letras e formatar enquanto digita. As `isValid*`
+ * dos inputs para impedir letras e formatar enquanto digita. As `isValid*`
  * checam os dígitos verificadores / comprimento e alimentam os refines do zod.
  */
 

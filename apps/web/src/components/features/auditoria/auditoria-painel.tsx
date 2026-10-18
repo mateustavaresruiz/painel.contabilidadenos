@@ -24,6 +24,7 @@ import {
   type FiltrosAuditoria,
 } from "@/lib/queries/auditoria";
 import { toast } from "@/lib/toast";
+import { plural } from "@/lib/texto";
 
 const TODOS = "__todos__";
 
@@ -80,10 +81,10 @@ export function AuditoriaPainel() {
     setExportando(true);
     try {
       const r = await exportarAuditoriaCsv(filtros);
-      toast.success(
+      (r.cortado ? toast.warning : toast.success)(
         r.cortado
           ? `Exportei os ${r.linhas.toLocaleString("pt-BR")} eventos mais recentes (limite de ${LIMITE_EXPORTACAO.toLocaleString("pt-BR")}). Restrinja o período para ver o resto.`
-          : `${r.linhas.toLocaleString("pt-BR")} evento(s) exportado(s).`,
+          : `${plural(r.linhas, "evento exportado", "eventos exportados")}`,
       );
     } catch (e) {
       toast.error(msgErro(e));
@@ -115,7 +116,7 @@ export function AuditoriaPainel() {
           <p className="text-xs text-muted-foreground" aria-live="polite">
             {q.isLoading
               ? "Carregando…"
-              : `${eventos.length.toLocaleString("pt-BR")}${q.hasNextPage ? "+" : ""} evento(s) ${filtrando ? "com estes filtros" : "no histórico"}`}
+              : `${eventos.length.toLocaleString("pt-BR")}${q.hasNextPage ? "+" : ""} ${plural(eventos.length, "evento", "eventos", { semNumero: true })} ${filtrando ? "com estes filtros" : "no histórico"}`}
           </p>
           <div className="flex items-center gap-2">
             {filtrando && (

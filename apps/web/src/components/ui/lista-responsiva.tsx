@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  *
  * Cards e NÃO grid de 2 colunas: num viewport de 375px, meia largura dá
  * ~170px por cartão — não cabe nome + documento + contato sem truncar os
- * três. Grid continua certo pra conteúdo visual (pasta, foto), não pra
+ * três. Grid continua certo para conteúdo visual (pasta, foto), não para
  * registro de dado.
  *
  * O padrão é uma extração do que a tela de Equipe já fazia à mão desde
@@ -55,10 +55,10 @@ export function ListaResponsiva({
   /** Os `<ItemCard>` — o que aparece no celular. */
   children: ReactNode;
   className?: string;
-  /** Moldura da tabela. Existe pra cada tela manter a borda que já tinha —
+  /** Moldura da tabela. Existe para cada tela manter a borda que já tinha —
       esta peça é sobre o celular, não é hora de repintar o desktop. */
   classeTabela?: string;
-  /** Só pra lista com seleção: o "selecionar todos" mora no CABEÇALHO da
+  /** Só para lista com seleção: o "selecionar todos" mora no CABEÇALHO da
       tabela, que não existe no modo card. Sem isto, converter uma listagem
       tira do celular uma ação que o desktop tem. */
   selecionarTodos?: {

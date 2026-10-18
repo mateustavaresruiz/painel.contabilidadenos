@@ -6,14 +6,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Tela mostrada quando o canal selecionado (WhatsApp ou E-mail) ainda
- * não foi configurado. Redireciona pra Configurações → Conexões, onde o
+ * não foi configurado. Redireciona para Configurações → Conexões, onde o
  * dono cria/conecta tudo.
  *
- * Pra usuários que não são donos, mostra só uma mensagem informativa —
+ * Para usuários que não são donos, mostra só uma mensagem informativa —
  * eles não podem configurar canais.
  *
  * Usa o EmptyState padrão (mesmo do módulo de E-mail) num container
- * centralizado e responsivo, pra manter os dois canais consistentes.
+ * centralizado e responsivo, para manter os dois canais consistentes.
  */
 export function CanalSemConfigurar({
   icone: Icon,
@@ -30,7 +30,7 @@ export function CanalSemConfigurar({
         <EmptyState
           icon={Icon}
           title={`${canal} não configurado`}
-          description="Configure em Configurações → Conexões pra começar a enviar e receber mensagens dos seus clientes direto aqui."
+          description="Configure em Configurações → Conexões para começar a enviar e receber mensagens dos seus clientes direto aqui."
           action={
             <Button asChild>
               <Link to="/configuracoes?tab=conexoes">
@@ -44,7 +44,7 @@ export function CanalSemConfigurar({
         <EmptyState
           icon={Lock}
           title={`${canal} não configurado`}
-          description="Quem configura os canais é quem gerencia os números do escritório. Peça pra conectar; depois disso você vai poder ler e responder mensagens por aqui."
+          description="Quem configura os canais é quem gerencia os números do escritório. Peça para conectar; depois disso você vai poder ler e responder mensagens por aqui."
         />
       )}
     </div>

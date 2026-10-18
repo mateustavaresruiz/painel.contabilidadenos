@@ -1,5 +1,5 @@
 /**
- * Gravador de atendimento: captura o áudio, entrega um arquivo pronto pra
+ * Gravador de atendimento: captura o áudio, entrega um arquivo pronto para
  * subir. Só isso. Não fala com o Supabase, não conhece cliente nem gravação:
  * quem costura é `queries/gravacoes.ts`.
  *
@@ -20,7 +20,7 @@
  *   v1 — duas faixas, mas PICADAS A CADA 5 MINUTOS. A separação de quem falou
  *        funcionava; o picote é que era ruim (emenda cortando palavra no meio,
  *        idioma detectado pedaço a pedaço).
- *   v2 — arquivo único MISTURADO, pra matar o picote. Matou junto a separação de
+ *   v2 — arquivo único MISTURADO, para matar o picote. Matou junto a separação de
  *        quem falou, que era o diferencial, e ainda pôs o `AudioContext` no
  *        caminho crítico: contexto suspenso grava silêncio SEM DAR ERRO.
  *   v3 — o que está aqui: separado como a v1, contínuo como a v2. O picote nunca
@@ -52,7 +52,7 @@
  * 🔴 O VÍDEO É UMA TRILHA À PARTE, e não substitui as de áudio
  * ────────────────────────────────────────────────────────────────────────
  * Gravar a imagem da guia é opcional e desligado por padrão. Quando entra, ela é
- * uma TERCEIRA trilha, com o áudio misturado só pra ficar assistível.
+ * uma TERCEIRA trilha, com o áudio misturado só para ficar assistível.
  *
  * Extrair o som do arquivo de vídeo na hora de transcrever seria "mais
  * econômico" e não funcionaria por dois motivos: a API recusa acima de 25 MB (e
@@ -85,8 +85,8 @@ export type PartePronta = {
 export type EstadoGravador = "ocioso" | "gravando" | "pausado" | "encerrado";
 
 /**
- * Bitrate do áudio gravado. 32 kbps em opus é folgado pra VOZ (opus foi
- * desenhado pra fala e a esta taxa ela sai limpa), e é o que torna a conta do
+ * Bitrate do áudio gravado. 32 kbps em opus é folgado para VOZ (opus foi
+ * desenhado para fala e a esta taxa ela sai limpa), e é o que torna a conta do
  * teto previsível: 25 MB / 32 kbps ≈ 104 minutos por parte.
  */
 const BITRATE = 32_000;
@@ -99,7 +99,7 @@ const BITRATE = 32_000;
  */
 const MAX_BYTES_PARTE = 22 * 1024 * 1024;
 
-/** De quanto em quanto tempo o recorder entrega bytes pra gente somar. */
+/** De quanto em quanto tempo o recorder entrega bytes para gente somar. */
 const FATIA_MS = 5_000;
 
 /** Teto duro: 8 horas. Passou disso, encerra sozinho em vez de comer memória. */
@@ -134,7 +134,7 @@ function extDoMime(mime: string): string {
   return "webm";
 }
 
-/** O navegador tem o que é preciso pra gravar? */
+/** O navegador tem o que é preciso para gravar? */
 export function gravacaoSuportada(): boolean {
   return (
     typeof MediaRecorder !== "undefined" &&
@@ -143,7 +143,7 @@ export function gravacaoSuportada(): boolean {
   );
 }
 
-/** Dá pra capturar a tela? (Chrome/Edge no desktop; Safari não) */
+/** Dá para capturar a tela? (Chrome/Edge no desktop; Safari não) */
 export function capturaDeTelaSuportada(): boolean {
   return (
     typeof navigator !== "undefined" &&
@@ -243,7 +243,7 @@ type OpcoesDeTela = DisplayMediaStreamOptions & {
  * #15418, os dois fechados sem correção. Aba com áudio funciona; tela inteira
  * com áudio quebra.
  *
- * Como o produto precisa do som dos dois lados pra transcrição valer alguma
+ * Como o produto precisa do som dos dois lados para transcrição valer alguma
  * coisa, a superfície deixou de ser escolha: pede-se a GUIA, cujo áudio sai do
  * processo da própria aba e não encosta na saída do Windows.
  *
@@ -395,7 +395,7 @@ export async function capturarTelaDaReuniao(
         const nome2 = (e2 as Error)?.name ?? "";
         // 🔴 O NOME DO ERRO VAI JUNTO, E AQUI ELE TINHA SUMIDO. Esta é a
         // mensagem final da captura: engolir os dois nomes deixa "não consegui"
-        // valendo pra sete causas diferentes, e o diagnóstico volta a ser
+        // valendo para sete causas diferentes, e o diagnóstico volta a ser
         // adivinhação. Já custou caro neste módulo, e custou de novo em
         // 27/08/2026, quando o relato veio sem o único dado que decidia.
         // 🔴 TEXTO PLANO, E NÃO UM OBJETO. Objeto no console chega colapsado
@@ -449,7 +449,7 @@ export async function capturarTelaDaReuniao(
         "permissao",
       );
     }
-    // 🔴 O NOME DO ERRO VAI JUNTO. Sem ele esta linha vira "não consegui" pra
+    // 🔴 O NOME DO ERRO VAI JUNTO. Sem ele esta linha vira "não consegui" para
     // sete causas diferentes, e o diagnóstico volta a ser adivinhação — que é o
     // que já custou caro neste módulo.
     throw new ErroDeGravacao(
@@ -484,7 +484,7 @@ export async function capturarTelaDaReuniao(
     );
   }
 
-  // O som da guia é exigido, e dá pra exigir porque dá pra DETECTAR: a caixinha
+  // O som da guia é exigido, e dá para exigir porque dá para DETECTAR: a caixinha
   // vem ligada por padrão, mas pode ser desmarcada, e desmarcada em silêncio (o
   // stream volta com imagem e nenhuma faixa de áudio). Pré-marcar é que não dá:
   // consentimento de áudio é ato do usuário, e quem decide é o navegador.
@@ -553,7 +553,7 @@ async function abrirMicrofone(): Promise<MediaStream> {
   try {
     return await navigator.mediaDevices.getUserMedia({
       audio: {
-        // Desligados de propósito. Os três existem pra deixar CHAMADA
+        // Desligados de propósito. Os três existem para deixar CHAMADA
         // agradável, e fazem isso cortando o que julgam ruído. Numa sala com
         // duas pessoas falando ao mesmo tempo, o que eles cortam é fala — e
         // fala cortada não volta na transcrição.
@@ -608,7 +608,7 @@ function picoDoMedidor(m: Medidor): number {
 
 
 /**
- * O que está acontecendo com a IMAGEM, pra tela poder mostrar.
+ * O que está acontecendo com a IMAGEM, para tela poder mostrar.
  *
  * 🔴 ISTO EXISTE PORQUE O VÍDEO PODE MORRER SOZINHO, EM SILÊNCIO. O Chrome
  * coloca a faixa de imagem de uma guia capturada em `muted` quando julga que
@@ -621,7 +621,7 @@ function picoDoMedidor(m: Medidor): number {
  * Aconteceu de verdade em 27/08/2026: gravação de 17min41 com as DUAS faixas de
  * áudio inteiras e zero bytes de vídeo, sem uma linha de aviso em lugar nenhum.
  * É o mesmo modo de falha que deu origem ao medidor de áudio, e a resposta é a
- * mesma: mostrar DURANTE, enquanto ainda dá pra consertar.
+ * mesma: mostrar DURANTE, enquanto ainda dá para consertar.
  */
 export type SaudeDoVideo = {
   /** A faixa de imagem ainda existe (o compartilhamento não foi encerrado). */
@@ -638,7 +638,7 @@ export type SaudeDoVideo = {
    */
   desenhos: number;
   /**
-   * Quantos arquivos de vídeo a trilha chegou a ENTREGAR pra subir. Zero com
+   * Quantos arquivos de vídeo a trilha chegou a ENTREGAR para subir. Zero com
    * `bytes` alto é o caso mais traiçoeiro: gravou e perdeu antes de sair da aba.
    */
   partes: number;
@@ -711,7 +711,7 @@ const HEARTBEAT_VIDEO_MS = 1_000;
 
 /**
  * Teto por parte de VÍDEO. Diferente do áudio, e o motivo é outro: aqui não há
- * limite de API pra respeitar (vídeo não vai pra transcrição), o que manda é o
+ * limite de API para respeitar (vídeo não vai para transcrição), o que manda é o
  * teto do bucket e a memória da aba, porque a parte inteira fica em RAM até
  * fechar. 200 MB cobre ~1h05 de reunião num arquivo só, que é o que faz o vídeo
  * ser ASSISTÍVEL: partido em pedaços, vira um monte de arquivo solto.
@@ -732,7 +732,7 @@ const LARGURA_CAPA = 480;
  * entregou 11 quadros em 1min46 (o Chrome só manda quadro quando a tela
  * repinta), então aos 3 segundos o relé ainda mostrava o preto inicial e a
  * miniatura saiu preta. Insistir até vir um quadro com conteúdo é o que resolve,
- * e o teto existe pra não ficar tentando a reunião inteira.
+ * e o teto existe para não ficar tentando a reunião inteira.
  */
 const ESPERA_CAPA_MS = 5_000;
 const TENTATIVAS_CAPA = 24;
@@ -790,7 +790,7 @@ const SEM_QUADRO_MS = 4_000;
  *
  * 🔴 POR QUE DUAS GRAVAÇÕES, e não um arquivo de vídeo do qual se extrai o som:
  * a transcrição recusa acima de 25 MB, e vídeo passa disso em minutos. O áudio
- * precisa sair PURO e leve pra ir ao Whisper. O vídeo é outro artefato, pra
+ * precisa sair PURO e leve para ir ao Whisper. O vídeo é outro artefato, para
  * gente assistir, e por isso pode ser grande e pode ser apagado sozinho depois.
  */
 class TrilhaGravada {
@@ -856,12 +856,12 @@ class TrilhaGravada {
       this.entregarParte(rec.mimeType);
       // 🔴 NÃO REABRIR SOBRE FONTE MORTA. Um `MediaRecorder` novo sobre um
       // stream cujas faixas já terminaram não dá erro: ele fica gravando nada,
-      // pra sempre, e o único vestígio é um arquivo que nunca aparece.
+      // para sempre, e o único vestígio é um arquivo que nunca aparece.
       const viva = this.stream.getTracks().some((t) => t.readyState === "live");
       if (!this.encerrando && this.aindaGravando() && viva) this.abrir();
     };
 
-    // O `timeslice` NÃO é pra fatiar arquivo — é pra PESAR. Os pedaços que ele
+    // O `timeslice` NÃO é para fatiar arquivo — é para PESAR. Os pedaços que ele
     // entrega não abrem sozinhos; são acumulados e só viram arquivo no `stop`,
     // que é quando o contêiner ganha cabeçalho e final de verdade.
     rec.start(FATIA_MS);
@@ -899,7 +899,7 @@ class TrilhaGravada {
     return this.bytesTotais;
   }
 
-  /** Quantas partes esta trilha chegou a ENTREGAR pra subir. */
+  /** Quantas partes esta trilha chegou a ENTREGAR para subir. */
   totalDePartes(): number {
     return this.partesEntregues;
   }
@@ -939,11 +939,11 @@ class TrilhaGravada {
         }
       };
       // Recorder pausado não dispara `stop` direito em todo navegador: retoma
-      // por um instante só pra ele conseguir fechar o arquivo.
+      // por um instante só para ele conseguir fechar o arquivo.
       if (rec.state === "paused") rec.resume();
       rec.stop();
       // Rede de segurança: se o `onstop` não vier (navegador travado), não deixa
-      // a promessa pendurada pra sempre segurando a tela do usuário.
+      // a promessa pendurada para sempre segurando a tela do usuário.
       setTimeout(resolve, 4000);
     });
   }
@@ -956,7 +956,7 @@ export class Gravador {
   private medidores = new Map<FonteDeAudio, Medidor>();
   private trilhas: TrilhaGravada[] = [];
   private comVideo = false;
-  /** A trilha de vídeo, separada, pra poder ser perguntada pela tela. */
+  /** A trilha de vídeo, separada, para poder ser perguntada pela tela. */
   private trilhaVideo: TrilhaGravada | null = null;
   private faixaVideo: MediaStreamTrack | null = null;
   private capa: Blob | null = null;
@@ -1037,7 +1037,7 @@ export class Gravador {
     return this.audioCtx?.state === "running";
   }
 
-  /** Nível de áudio de uma fonte, 0 a 1. Pra desenhar o medidor.
+  /** Nível de áudio de uma fonte, 0 a 1. Para desenhar o medidor.
    *  Os medidores continuam SEPARADOS mesmo com a gravação misturada: é o que
    *  permite ver que a guia está mesmo entrando, antes de perder a audiência. */
   nivel(fonte: FonteDeAudio): number {
@@ -1097,7 +1097,7 @@ export class Gravador {
     // 🔴 BASTA HAVER VÍDEO, e não é detalhe: quando o compartilhamento vem sem
     // som (janela, ou tela inteira com a caixinha desmarcada), exigir o áudio da
     // reunião aqui deixava o vídeo MUDO. Com a mistura ligada só por existir
-    // imagem, o vídeo sai pelo menos com o seu microfone — que é o mínimo pra
+    // imagem, o vídeo sai pelo menos com o seu microfone — que é o mínimo para
     // ele servir de registro.
     const querMisturaParaVideo = !!trilhaDeVideo;
     if (querMisturaParaVideo && this.audioCtx.state === "running") {
@@ -1150,7 +1150,7 @@ export class Gravador {
       };
       if (mimeVideo) opcoesVideo.mimeType = mimeVideo;
       // O áudio do vídeo: a mistura quando ela existe (assistir a reunião sem
-      // ouvir o lado de cá não serviria pra nada) e, quando o AudioContext não
+      // ouvir o lado de cá não serviria para nada) e, quando o AudioContext não
       // subiu, o áudio da própria guia — melhor vídeo com metade do som do que
       // vídeo mudo. A transcrição não depende de nada disto.
       // A mistura quando ela existe; sem ela, o que houver — o som do
@@ -1191,8 +1191,8 @@ export class Gravador {
     // ══════════════════════════════════════════════════════════════════════════
     // 🔴 A TELA COMPARTILHADA PRECISA ENTRAR NA LISTA DO QUE SE ENCERRA.
     //
-    // `this.fontes` é o que o `encerrar()` percorre pra parar as faixas, e quem
-    // enchia essa lista era o `ligarFonte` — chamado pra guia SÓ QUANDO ELA TEM
+    // `this.fontes` é o que o `encerrar()` percorre para parar as faixas, e quem
+    // enchia essa lista era o `ligarFonte` — chamado para guia SÓ QUANDO ELA TEM
     // ÁUDIO. Compartilhamento sem som (janela, ou tela inteira sem a caixinha)
     // nunca era registrado, e a faixa de IMAGEM ficava viva depois do fim: o
     // Chrome seguia anunciando "você está compartilhando a tela" para sempre.
@@ -1214,7 +1214,7 @@ export class Gravador {
     }, 1000);
   }
 
-  /** Um quadro da reunião, pra listagem. `null` quando não houve vídeo. */
+  /** Um quadro da reunião, para listagem. `null` quando não houve vídeo. */
   capaDaReuniao(): Blob | null {
     return this.capa;
   }
@@ -1261,9 +1261,9 @@ export class Gravador {
 
       // 🔴 "text" É GANHO DE NITIDEZ DE GRAÇA. `contentHint` diz ao codificador
       // o que ele está codificando; com "text" ele preserva DETALHE espacial em
-      // vez de suavidade de movimento, que é exatamente a troca certa pra tela
+      // vez de suavidade de movimento, que é exatamente a troca certa para tela
       // de reunião (slide, documento, petição). Sem a dica, ele assume vídeo
-      // comum e borra letra pra economizar bits que aqui não faltam.
+      // comum e borra letra para economizar bits que aqui não faltam.
       definirDica(faixa, "text");
 
       const v = document.createElement("video");
@@ -1288,7 +1288,7 @@ export class Gravador {
         };
         pedirQuadro.call(v, passo);
       } else {
-        // Navegador sem `requestVideoFrameCallback`: não dá pra contar, e
+        // Navegador sem `requestVideoFrameCallback`: não dá para contar, e
         // fingir que chegou quadro seria pior que admitir que não se sabe.
         this.ultimoQuadroEm = Date.now();
       }
@@ -1378,7 +1378,7 @@ export class Gravador {
   }
 
   /**
-   * Tira um quadro da reunião e guarda como JPEG pequeno, pra listagem.
+   * Tira um quadro da reunião e guarda como JPEG pequeno, para listagem.
    *
    * Sai do canvas do relé, que já está sendo repintado: não precisa de um
    * segundo `<video>` nem de esperar a guia colaborar.
@@ -1444,7 +1444,7 @@ export class Gravador {
     // stream passou a chegar com as duas.
     //
     // Montar um `MediaStream` só com as trilhas de áudio deixa a intenção
-    // explícita e tira a ambiguidade — o nó passa a ter uma coisa só pra pegar.
+    // explícita e tira a ambiguidade — o nó passa a ter uma coisa só para pegar.
     const soAudio = new MediaStream(stream.getAudioTracks());
     const origem = ctx.createMediaStreamSource(soAudio);
     if (misturar && this.destino) origem.connect(this.destino);
@@ -1538,7 +1538,7 @@ export class Gravador {
  *  grava, o efeito era gravar a 1 quadro por segundo justamente
  * durante a reunião inteira. Na aba visível parecia bom; em uso real, não.
  *
- * O compasso vai pra um Web Worker, que roda em outra thread e não sofre esse
+ * O compasso vai para um Web Worker, que roda em outra thread e não sofre esse
  * limite. O worker só apita; quem desenha continua sendo a thread principal,
  * que é onde o canvas vive.
  * ══════════════════════════════════════════════════════════════════════════
@@ -1549,7 +1549,7 @@ export class Gravador {
 function criarRelogio(aoBater: () => void, intervaloMs: number): { parar: () => void } {
   try {
     // O worker não faz nada além de apitar no compasso. Mora aqui como texto
-    // pra não virar um arquivo separado que o build teria de saber empacotar.
+    // para não virar um arquivo separado que o build teria de saber empacotar.
     const fonte =
       "let id=null;" +
       "onmessage=function(e){" +
@@ -1601,7 +1601,7 @@ export function temConteudo(
 ): boolean {
   try {
     const dados = ctx.getImageData(0, 0, largura, altura).data;
-    // 4 bytes por pixel; o passo pula pra amostrar ~1 pixel a cada 64.
+    // 4 bytes por pixel; o passo pula para amostrar ~1 pixel a cada 64.
     const passo = 4 * 64;
     let claro = 0;
     let vistos = 0;
@@ -1614,7 +1614,7 @@ export function temConteudo(
     // clara no canto continua sendo uma miniatura útil.
     return vistos > 0 && claro / vistos > 0.02;
   } catch {
-    // `getImageData` falhou (canvas de outra origem). Não dá pra julgar, e
+    // `getImageData` falhou (canvas de outra origem). Não dá para julgar, e
     // recusar aqui deixaria a gravação sem miniatura por precaução demais.
     return true;
   }

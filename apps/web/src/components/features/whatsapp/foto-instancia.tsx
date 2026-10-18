@@ -3,7 +3,7 @@
 //
 // 🔴 É foto interna. Trocar aqui NÃO mexe no perfil do WhatsApp: os clientes
 // do escritório continuam vendo a mesma foto de sempre. O backend só LÊ o
-// perfil do WAHA (`getMyProfile`) — não existe rota pra escrever nele, e não
+// perfil do WAHA (`getMyProfile`) — não existe rota para escrever nele, e não
 // deve passar a existir sem o dono pedir.
 
 import { Camera, Loader2, RotateCcw, Upload } from "lucide-react";
@@ -37,7 +37,7 @@ function iniciaisDe(sessao: WhatsappSessao): string {
 }
 
 /**
- * Reduz a imagem pra no máximo 512px de lado e devolve um data URL JPEG.
+ * Reduz a imagem para no máximo 512px de lado e devolve um data URL JPEG.
  * Sem isso, a foto de 6 MB do celular estoura o limite de 2 MB da rota.
  */
 async function paraDataUrlReduzido(file: File): Promise<string> {
@@ -167,7 +167,7 @@ function FotoInstanciaDialog({
   async function handleRestaurar() {
     try {
       await remover.mutateAsync();
-      toast.success("Voltou pra foto do WhatsApp.");
+      toast.success("Voltou para a foto do WhatsApp");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -180,7 +180,7 @@ function FotoInstanciaDialog({
         <DialogHeader>
           <DialogTitle>Foto da instância</DialogTitle>
           <DialogDescription>
-            Serve pra você identificar {sessao.apelido ?? "este número"} dentro
+            Serve para você identificar {sessao.apelido ?? "este número"} dentro
             do painel. <span className="font-medium text-foreground">
               O perfil do WhatsApp não muda:
             </span>{" "}
@@ -208,7 +208,7 @@ function FotoInstanciaDialog({
                 : "Foto vinda do WhatsApp"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              JPG, PNG ou WEBP. Redimensiono pra 512px.
+              JPG, PNG ou WEBP. Redimensiono para 512px.
             </p>
           </div>
         </div>

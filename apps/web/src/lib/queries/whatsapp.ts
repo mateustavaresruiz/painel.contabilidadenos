@@ -2,7 +2,7 @@
 //
 // Padrão:
 //   - Leituras (sessões, chats, mensagens) → supabase direto, com
-//     realtime subscription pra invalidar cache.
+//     realtime subscription para invalidar cache.
 //   - Escritas (enviar texto/mídia, iniciar/parar sessão, reagir,
 //     apagar) → Edge Function `whatsapp`.
 //
@@ -74,7 +74,7 @@ export type WhatsappChat = {
   motivoBloqueio: string | null;
   /** Presença do contato (só individual): última observada via presence.update. */
   presenceEstado: "online" | "offline" | "typing" | "recording" | null;
-  /** Quando presenceEstado foi observado — usado pra expirar typing/online. */
+  /** Quando presenceEstado foi observado — usado para expirar typing/online. */
   presenceEm: string | null;
   /** "Visto por último" que o WhatsApp expôs (null quando privacidade oculta). */
   ultimoVistoEm: string | null;
@@ -104,7 +104,7 @@ export type WhatsappPayloadEnquete = {
   multipleAnswers: boolean;
   /** Contagem por opção (o que a UI renderiza). */
   votes?: Record<string, number>;
-  /** Escolha por votante (id → opções) — base pra recalcular `votes`. */
+  /** Escolha por votante (id → opções) — base para recalcular `votes`. */
   voters?: Record<string, string[]>;
 };
 export type WhatsappPayloadContato = {
@@ -168,7 +168,7 @@ export type WhatsappMensagem = {
   replyToWamId: string | null;
   replyToTexto: string | null;
   /** Miniatura (data URI) da mídia citada, capturada na ingestão a partir do
-   *  jpegThumbnail do proto. Fallback instantâneo pra citação quando a
+   *  jpegThumbnail do proto. Fallback instantâneo para citação quando a
    *  mensagem original está fora da janela carregada (ou já expirou no WAHA). */
   replyToThumb: string | null;
   /** Tipo da mensagem citada (image|video|audio|document|sticker|…). */
@@ -185,7 +185,7 @@ export type WhatsappMensagem = {
   origem: "humano" | "ia" | "externo" | "sistema" | null;
   /** Colaborador que disparou (só em fromMe). No adv3 apontava para User. */
   enviadoPorUserId: string | null;
-  /** Dados do Colaborador pra exibir iniciais coloridas + nome na bubble (join). */
+  /** Dados do Colaborador para exibir iniciais coloridas + nome na bubble (join). */
   enviadoPor: {
     id: string;
     nome: string;
@@ -233,11 +233,11 @@ export function useWhatsappSessoes() {
   });
 }
 
-/** Janela de carência pra segurar o WORKING antes de mostrar uma queda. */
+/** Janela de carência para segurar o WORKING antes de mostrar uma queda. */
 const STATUS_GRACE_MS = 8000;
 
 /**
- * Suaviza o status das sessões pra UI do Chat. O WAHA emite eventos
+ * Suaviza o status das sessões para UI do Chat. O WAHA emite eventos
  * `session.status` transitórios — uma sessão WORKING pode piscar
  * STOPPED/STARTING/FAILED por 1-2s numa reconexão do celular e voltar
  * logo (o webhook grava cada um na hora, e o realtime reflete na UI).
@@ -245,7 +245,7 @@ const STATUS_GRACE_MS = 8000;
  * o usuário (bug reportado).
  *
  * Regra: segura o último WORKING por STATUS_GRACE_MS. Só refletimos uma
- * queda se ela PERSISTIR além da carência. Subir pra WORKING é sempre
+ * queda se ela PERSISTIR além da carência. Subir para WORKING é sempre
  * instantâneo, e sessão que nunca esteve WORKING (QR inicial etc.)
  * mostra o status real direto.
  *
@@ -296,7 +296,7 @@ export function useStableSessaoStatus(
  * `syncSessaoComWaha`, que só roda dentro de `GET /whatsapp/sessoes` — sem
  * esta chamada, nada na tela dispara a conferência: status que mudou por
  * fora, e o número da instância que o WAHA conhece e o banco não, só
- * apareciam pra quem clicasse em "Atualizar status" instância por instância.
+ * apareciam para quem clicasse em "Atualizar status" instância por instância.
  *
  * Uma requisição cobre TODAS as sessões do escritório (o handler consulta o
  * WAHA em paralelo). O gatilho é abrir a tela, não um relógio: `staleTime`
@@ -348,7 +348,7 @@ export function useSyncWhatsappSessao(sessaoId: string | undefined) {
  * amigável) quanto `numero` (formato 5511XXXXXXXXX, 13 dígitos) são
  * obrigatórios — o número é validado contra o WhatsApp que vai
  * conectar, e tem unicidade global (um número por instância na
- * plataforma inteira). Veja `useChecarNumeroSessao` pra a checagem
+ * plataforma inteira). Veja `useChecarNumeroSessao` para a checagem
  * antecipada no form.
  */
 export function useCriarSessao() {
@@ -370,10 +370,10 @@ export type ChecagemNumero =
   | { disponivel: false; motivo: "outra-conta" };
 
 /**
- * Checa, JÁ na digitação, se um número de WhatsApp está livre pra conectar.
+ * Checa, JÁ na digitação, se um número de WhatsApp está livre para conectar.
  * Unicidade é global (uma instância por número na plataforma inteira).
  * Só dispara quando `numero` está completo (13 dígitos com o nono, 12 sem
- * ele) — passe o número já com debounce pra não bater a cada tecla.
+ * ele) — passe o número já com debounce para não bater a cada tecla.
  */
 export function useChecarNumeroSessao(numero: string) {
   const digits = numero.replace(/\D/g, "");
@@ -449,7 +449,7 @@ export function useLogoutWhatsappSessao(sessaoId: string | undefined) {
 
 /**
  * Limpa TODAS as conversas da instância (mensagens, chats, contatos e mídia),
- * MANTENDO a instância conectada. Owner-only no backend. Útil pra começar do
+ * MANTENDO a instância conectada. Owner-only no backend. Útil para começar do
  * zero depois de reconectar/trocar o número, sem ver as conversas antigas.
  */
 export function useLimparConversasWhatsapp(sessaoId: string | undefined) {
@@ -475,12 +475,12 @@ export function useLimparConversasWhatsapp(sessaoId: string | undefined) {
 }
 
 /**
- * Apaga sessão (cascade pra chats/mensagens). Owner-only no backend.
+ * Apaga sessão (cascade para chats/mensagens). Owner-only no backend.
  *
  * Retorna `wahaError` quando o WAHA server falha em remover a sessão
  * (e.g., engine travada, rede). A sessão é apagada do nosso banco
  * mesmo nesses casos — o usuário precisa limpar manualmente no painel
- * do WAHA pra liberar o slot.
+ * do WAHA para liberar o slot.
  */
 export function useDeleteWhatsappSessao() {
   const qc = useQueryClient();
@@ -502,7 +502,7 @@ export function useDeleteWhatsappSessao() {
  *
  * 🔴 É foto INTERNA: vale só dentro do adv3 (seletor de instância, Canais).
  * O perfil do WhatsApp que os clientes do escritório veem NÃO é alterado —
- * não existe chamada ao WAHA pra definir foto, e não deve passar a existir.
+ * não existe chamada ao WAHA para definir foto, e não deve passar a existir.
  */
 export function useTrocarFotoSessao(sessaoId: string | undefined) {
   const qc = useQueryClient();
@@ -518,7 +518,7 @@ export function useTrocarFotoSessao(sessaoId: string | undefined) {
   });
 }
 
-/** Descarta a foto interna e volta pra foto real do WhatsApp. Owner-only. */
+/** Descarta a foto interna e volta para foto real do WhatsApp. Owner-only. */
 export function useRemoverFotoSessao(sessaoId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
@@ -619,7 +619,7 @@ export function useWhatsappChats(
   },
   limite: number = PAGINA_CHATS,
 ) {
-  // Normaliza pra array — facilita o resto da lógica.
+  // Normaliza para array — facilita o resto da lógica.
   const sessoes = Array.isArray(sessaoId)
     ? sessaoId
     : sessaoId
@@ -637,7 +637,7 @@ export function useWhatsappChats(
   // impede é o Realtime AVALIAR: sem `filter`, o canal assina a tabela inteira
   // e o `postgres_changes` roda a RLS do assinante contra cada registro do WAL,
   // uma vez por assinatura. O custo é escritas x clientes conectados, e quase
-  // todo ele é gasto pra concluir que a linha não é daquele assinante.
+  // todo ele é gasto para concluir que a linha não é daquele assinante.
   //
   // `WhatsappChat` é o canal que vale filtrar: concentra ~90% das escritas de
   // todos os canais juntos (um UPDATE por mensagem recebida).
@@ -739,7 +739,7 @@ export function useWhatsappChats(
 /**
  * Ordena a lista igual ao servidor: fixadas primeiro, depois pela última
  * mensagem (mais recente no topo; sem mensagem vai pro fim). Usado nos
- * updates otimistas pra refletir reordenação na hora.
+ * updates otimistas para refletir reordenação na hora.
  */
 function ordenarChats(list: WhatsappChat[]): WhatsappChat[] {
   return [...list].sort((a, b) => {
@@ -755,7 +755,7 @@ function ordenarChats(list: WhatsappChat[]): WhatsappChat[] {
 /**
  * Aplica um patch otimista a uma conversa em TODAS as queries de lista
  * (`whatsapp-chats`, qualquer filtro), reordenando em seguida. Devolve os
- * snapshots pra rollback em caso de erro.
+ * snapshots para rollback em caso de erro.
  */
 function patchChatsCache(
   qc: ReturnType<typeof useQueryClient>,
@@ -850,7 +850,7 @@ export function useMarcarChatLido(sessaoId: string | undefined) {
  *   3. Atualiza no banco apenas os que estão com nome=null
  *
  * Muito mais eficiente que N chamadas /refresh-profile separadas.
- * `sessaoId` é passado no `mutate(id)` pra suportar várias sessões.
+ * `sessaoId` é passado no `mutate(id)` para suportar várias sessões.
  */
 export function useRefreshGruposSemNome() {
   const qc = useQueryClient();
@@ -873,7 +873,7 @@ export function useRefreshGruposSemNome() {
 
 /**
  * Atualiza nome + foto + "sobre" do contato/grupo direto do WAHA.
- * Útil pra refletir mudanças que o contato fez no perfil dele.
+ * Útil para refletir mudanças que o contato fez no perfil dele.
  */
 export function useRefreshContact(sessaoId: string | undefined) {
   const qc = useQueryClient();
@@ -1157,7 +1157,7 @@ async function buscarPaginaMensagens(sessaoId: string, chatId: string, pageParam
   const to = from + PAGE_SIZE - 1;
   const { data, error } = await supabase
     .from("WhatsappMensagem")
-    // Join no User pra exibir avatar+nome do membro que enviou
+    // Join no User para exibir avatar+nome do membro que enviou
     // ("enviadoPor" só vem preenchido em mensagens fromMe
     // enviadas pelo nosso app — recebidas e antigas ficam null).
     .select(
@@ -1251,9 +1251,9 @@ export function useQuotedMensagens(
 }
 
 /**
- * Cria uma "mensagem fantasma" pra otimismo — vai pro topo da lista
+ * Cria uma "mensagem fantasma" para otimismo — vai pro topo da lista
  * (primeira page) enquanto a chamada ao backend roda. Tipo pendente,
- * ack=0 (sem confirmação), com id `temp-...` pra identificar/remover.
+ * ack=0 (sem confirmação), com id `temp-...` para identificar/remover.
  */
 function fantasmaTexto(args: {
   sessaoId: string;
@@ -1389,11 +1389,11 @@ export function useEnviarTexto() {
       chatId: string;
       texto: string;
       replyTo?: string;
-      /** Preview da citação — preenche a fantasma E persiste no backend, pra
+      /** Preview da citação — preenche a fantasma E persiste no backend, para
        *  que o reply não suma quando o realtime substitui a fantasma pela
        *  linha do banco (o webhook não deriva preview de mídia sem legenda). */
       replyToTexto?: string;
-      /** Só pra fantasma (iniciais na bolha); não vai no corpo. */
+      /** Só para fantasma (iniciais na bolha); não vai no corpo. */
       colaborador?: { id: string; nome: string; cor: string } | null;
       /** Reenvio: id da fantasma com erro que esta tentativa substitui. */
       reenviarDe?: string;
@@ -1405,7 +1405,7 @@ export function useEnviarTexto() {
       });
     },
     onMutate: async (args) => {
-      // Cancela qualquer refetch em voo pra não sobrescrever nosso
+      // Cancela qualquer refetch em voo para não sobrescrever nosso
       // update otimista.
       await qc.cancelQueries({
         queryKey: ["whatsapp-mensagens", args.sessaoId, args.chatId],
@@ -1416,7 +1416,7 @@ export function useEnviarTexto() {
       prependFantasma(qc, args.sessaoId, args.chatId, msg);
       // Bumpa a conversa pro topo da lista NA HORA (última mensagem = agora),
       // sem esperar o refetch do onSettled. Antes a conversa que estava lá
-      // embaixo demorava pra subir após enviar.
+      // embaixo demorava para subir após enviar.
       const snapshots = patchChatsCache(
         qc,
         (c) => c.sessaoId === args.sessaoId && c.chatId === args.chatId,
@@ -1454,7 +1454,7 @@ export function useEnviarTexto() {
     // Não invalidamos a lista aqui: o bump otimista já deixou a conversa no
     // topo com o preview certo. Um refetch imediato traria a ordem ANTIGA (o
     // servidor só atualiza `ultimaMensagemEm` quando o webhook ecoa), jogando
-    // a conversa de volta pra baixo até o eco chegar. O realtime do
+    // a conversa de volta para baixo até o eco chegar. O realtime do
     // WhatsappChat reconcilia quando a linha muda de verdade.
   });
 }
@@ -1467,7 +1467,7 @@ export type EnviarMidiaArgs = {
   file: File;
   caption?: string;
   replyTo?: string;
-  /** Preview da citação ("📷 Foto", "🎤 Áudio"…) — persistido no backend pra
+  /** Preview da citação ("📷 Foto", "🎤 Áudio"…) — persistido no backend para
    *  o reply de mídia aparecer (webhook não deriva preview sem legenda). */
   replyToTexto?: string;
 };
@@ -1529,7 +1529,7 @@ export function useEnviarMidia() {
     },
     onError: (_err, args, ctx) => {
       if (ctx?.snapshots) restaurarChatsSnapshots(qc, ctx.snapshots);
-      // 424: a linha foi gravada com ack -1 — recarrega pra mostrar a falha.
+      // 424: a linha foi gravada com ack -1 — recarrega para mostrar a falha.
       qc.invalidateQueries({ queryKey: ["whatsapp-mensagens", args.sessaoId, args.chatId] });
     },
     onSuccess: (_, args) => {
@@ -1556,7 +1556,7 @@ export function useReagirMensagem() {
   });
 }
 
-/** Encaminha uma mensagem (por wamId) pra um ou mais chats da mesma sessão.
+/** Encaminha uma mensagem (por wamId) para um ou mais chats da mesma sessão.
  *  A msg encaminhada aparece no destino via webhook/realtime. */
 /** Resultado de cada destino do encaminhar (na ordem pedida). */
 export type ResultadoEncaminhar = { chatId: string; ok: boolean; id?: string; motivo?: string; erro?: string };
@@ -1616,7 +1616,7 @@ export function useSendTyping() {
 }
 
 /**
- * Assina a presença do contato (individual) no WAHA pra receber
+ * Assina a presença do contato (individual) no WAHA para receber
  * "online/digitando/gravando". Auto-disparado ao abrir a conversa; sem isso
  * a engine GOWS não emite presence.update pro contato. O resultado aparece
  * no header via realtime do WhatsappChat (presenceEstado/presenceEm).
@@ -1632,7 +1632,7 @@ export function useSubscribePresence() {
 }
 
 // ===========================================================================
-// Mídia — signed URL pra exibir no front
+// Mídia — signed URL para exibir no front
 // ===========================================================================
 
 /**
@@ -1650,7 +1650,7 @@ export function useSubscribePresence() {
  *    de a primeira responder, e o cache não teria o que devolver);
  *  • o micro-lote (logo abaixo) junta os pedidos de caminhos DIFERENTES que
  *    caem no mesmo tique numa requisição só — é o que segura abrir conversa;
- *  • a validade guardada corta um minuto da assinatura, pra nunca entregar
+ *  • a validade guardada corta um minuto da assinatura, para nunca entregar
  *    uma URL que expira no caminho entre o cache e o <img>.
  */
 const urlsAssinadas = new Map<string, { url: string; expiraEm: number }>();
@@ -1695,7 +1695,7 @@ function guardarUrl(chave: string, url: string, expiresIn: number): void {
   }
   urlsAssinadas.set(chave, {
     url,
-    // Corta um minuto da assinatura, pra nunca entregar uma URL que expira no
+    // Corta um minuto da assinatura, para nunca entregar uma URL que expira no
     // caminho entre o cache e o <img>.
     expiraEm: Date.now() + Math.max(expiresIn - 60, 30) * 1000,
   });
@@ -1723,7 +1723,7 @@ async function assinarLote(expiresIn: number, itens: PedidoDeUrl[]): Promise<voi
       item.resolve(url);
     });
   } catch {
-    // Nunca rejeita: quem chamou espera `null` pra mostrar o placeholder, e uma
+    // Nunca rejeita: quem chamou espera `null` para mostrar o placeholder, e uma
     // promessa rejeitada aqui viraria erro não tratado em 50 bolhas de uma vez.
     itens.forEach((i) => i.resolve(null));
   }
@@ -1864,7 +1864,7 @@ export function useRefetchMedias() {
 }
 
 /**
- * Backfill: resolve @lid → @c.us pra mensagens antigas de um grupo
+ * Backfill: resolve @lid → @c.us para mensagens antigas de um grupo
  * (caso típico de grupos que vinham anônimos antes do fix do webhook).
  * Auto-disparado ao abrir conversa de grupo via chat-conversa.
  */
@@ -1905,7 +1905,7 @@ export type WhatsappContatosMap = {
 };
 
 export function useWhatsappContatos(contatoIds: string[]) {
-  // Ordem fixa pra estabilizar queryKey
+  // Ordem fixa para estabilizar queryKey
   const sortedIds = [...new Set(contatoIds)].sort();
   return useQuery({
     queryKey: ["whatsapp-contatos", sortedIds.join(",")],
@@ -1936,7 +1936,7 @@ export function useWhatsappContatos(contatoIds: string[]) {
 
 /**
  * Re-busca a mídia de uma mensagem cujo download falhou no webhook
- * (mediaPath ainda null). Útil pra figurinhas/imagens que vieram sem
+ * (mediaPath ainda null). Útil para figurinhas/imagens que vieram sem
  * `media.url` em algumas engines do WAHA.
  */
 export function useRefetchMedia() {
@@ -1974,7 +1974,7 @@ export function useApagarMensagem() {
 
 /**
  * Edita o texto de uma mensagem própria. Manda a edição pro WhatsApp via
- * WAHA (PATCH) e atualiza texto/editadoEm no banco. Só funciona pra msg de
+ * WAHA (PATCH) e atualiza texto/editadoEm no banco. Só funciona para msg de
  * texto enviada por você e dentro da janela de edição do WhatsApp (~15min).
  */
 export function useEditarMensagem() {

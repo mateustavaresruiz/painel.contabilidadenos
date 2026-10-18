@@ -39,6 +39,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/texto";
 
 type Alvo = "clientes" | "certificados";
 type Etapa = "arquivo" | "mapa" | "previa" | "importando" | "fim";
@@ -112,6 +113,11 @@ function BlocoMapa({
   opcional?: boolean;
 }) {
   const aba = abaIdx >= 0 ? abas[abaIdx] : undefined;
+  // Primeiro só o que importa: obrigatórios e campos que já casaram com uma coluna.
+  const [todos, setTodos] = useState(false);
+  const usados = campos.filter((c) => c.obrigatorio || (mapa[c.campo] ?? NAO_USAR) !== NAO_USAR);
+  const visiveis = todos ? campos : usados;
+  const escondidos = campos.length - usados.length;
   return (
     <section className="rounded-card border p-3 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -129,17 +135,24 @@ function BlocoMapa({
           {opcional && <option value={-1}>(não importar)</option>}
           {abas.map((a, i) => (
             <option key={i} value={i}>
-              Aba {a.nome} ({a.linhas.length} linhas)
+              Aba {a.nome} ({plural(a.linhas.length, "linha", "linhas")})
             </option>
           ))}
         </select>
       </div>
       {aba && (
-        <div className="divide-y divide-divider">
-          {campos.map((c) => (
-            <SeletorColuna key={c.campo} campo={c} aba={aba} valor={mapa[c.campo] ?? NAO_USAR} onChange={(v) => setMapa({ ...mapa, [c.campo]: v })} />
-          ))}
-        </div>
+        <>
+          <div className="divide-y divide-divider">
+            {visiveis.map((c) => (
+              <SeletorColuna key={c.campo} campo={c} aba={aba} valor={mapa[c.campo] ?? NAO_USAR} onChange={(v) => setMapa({ ...mapa, [c.campo]: v })} />
+            ))}
+          </div>
+          {escondidos > 0 || todos ? (
+            <button type="button" onClick={() => setTodos((v) => !v)} className="text-xs font-semibold text-primary hover:underline">
+              {todos ? "Mostrar só os campos usados" : `Mostrar todos os campos (mais ${escondidos})`}
+            </button>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -163,7 +176,7 @@ function TabelaPrevia<T extends { linha: number; erros: string[] }>({
     <section className="space-y-2">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold flex-1">
-          {titulo} <span className="text-muted-foreground font-normal">· {linhas.length} linha(s){erros ? `, ${erros} com erro` : ""}</span>
+          {titulo} <span className="text-muted-foreground font-normal">· {plural(linhas.length, "linha", "linhas")}{erros ? `, ${erros} com erro` : ""}</span>
         </h3>
         {erros > 0 && (
           <label className="flex items-center gap-1.5 text-xs">
@@ -401,13 +414,13 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
       return {
         ok: previa.clientes.filter((c) => c.dados && !c.erros.length).length + previa.socios.filter((s) => s.dados).length,
         erro: previa.clientes.filter((c) => c.erros.length).length + previa.socios.filter((s) => s.erros.length).length,
-        texto: `${previa.clientes.filter((c) => c.acao === "criar" && !c.erros.length).length} novo(s), ${previa.clientes.filter((c) => c.acao === "atualizar" && !c.erros.length).length} a atualizar${previa.socios.length ? `, ${previa.socios.filter((s) => s.dados).length} sócio(s)` : ""}`,
+        texto: `${plural(previa.clientes.filter((c) => c.acao === "criar" && !c.erros.length).length, "novo", "novos")}, ${previa.clientes.filter((c) => c.acao === "atualizar" && !c.erros.length).length} a atualizar${previa.socios.length ? `, ${plural(previa.socios.filter((s) => s.dados).length, "sócio", "sócios")}` : ""}`,
       };
     }
     return {
       ok: previa.certificados.filter((c) => c.dados && !c.repetido).length,
       erro: previa.certificados.filter((c) => c.erros.length).length,
-      texto: `${previa.certificados.filter((c) => c.dados && !c.repetido).length} certificado(s) novo(s), ${previa.certificados.filter((c) => c.repetido).length} já cadastrado(s)`,
+      texto: `${plural(previa.certificados.filter((c) => c.dados && !c.repetido).length, "certificado novo", "certificados novos")}, ${plural(previa.certificados.filter((c) => c.repetido).length, "já cadastrado", "já cadastrados")}`,
     };
   }, [previa, alvo]);
 
@@ -492,7 +505,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                 <TabelaPrevia
                   titulo="Clientes"
                   linhas={previa.clientes}
-                  colunas={[["Nome", (l) => l.nome], ["CPF/CNPJ", (l) => (l.doc ? formatDoc(l.doc) : "")]]}
+                  colunas={[["Nome", (l) => (l.dados?.nomeFantasia?.trim() && l.dados.nomeFantasia.trim() !== l.nome ? `${l.dados.nomeFantasia.trim()} (${l.nome})` : l.nome)], ["CPF/CNPJ", (l) => (l.doc ? formatDoc(l.doc) : "")]]}
                   status={(l) =>
                     l.erros.length
                       ? { texto: "Erro", tom: "destructive" }
@@ -522,7 +535,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                 }
               />
             )}
-            {contagem && <p className="text-sm">Vai gravar: <strong>{contagem.texto}</strong>{contagem.erro ? ` · ${contagem.erro} linha(s) com erro ficam de fora` : ""}.</p>}
+            {contagem && <p className="text-sm">Vai gravar: <strong>{contagem.texto}</strong>{contagem.erro ? ` · ${plural(contagem.erro, "linha com erro fica", "linhas com erro ficam")} de fora` : ""}.</p>}
           </div>
         )}
 
@@ -541,11 +554,11 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
               <CheckCircle2 className="size-5" />
               <p className="text-sm font-medium">
                 {alvo === "clientes"
-                  ? `${resumo.criados} cliente(s) criado(s), ${resumo.atualizados} atualizado(s), ${resumo.socios} sócio(s).`
-                  : `${resumo.certificados} certificado(s) cadastrado(s).`}
+                  ? `${plural(resumo.criados, "cliente criado", "clientes criados")}, ${plural(resumo.atualizados, "atualizado", "atualizados")}, ${plural(resumo.socios, "sócio", "sócios")}.`
+                  : `${plural(resumo.certificados, "certificado cadastrado", "certificados cadastrados")}.`}
               </p>
             </div>
-            {resumo.pulados > 0 && <p className="text-xs text-muted-foreground">{resumo.pulados} linha(s) ficaram de fora (erro ou já cadastradas).</p>}
+            {resumo.pulados > 0 && <p className="text-xs text-muted-foreground">{plural(resumo.pulados, "linha ficou", "linhas ficaram")} de fora (erro ou já cadastradas).</p>}
             {resumo.falhas.length > 0 && (
               <ul className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive list-disc pl-6">
                 {resumo.falhas.slice(0, 20).map((f, i) => (
@@ -575,7 +588,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
               </Button>
               <Button onClick={() => void importar()} disabled={!contagem?.ok}>
                 <Upload />
-                Importar {contagem?.ok ?? 0} linha(s)
+                Importar {plural(contagem?.ok ?? 0, "linha", "linhas")}
               </Button>
             </>
           )}

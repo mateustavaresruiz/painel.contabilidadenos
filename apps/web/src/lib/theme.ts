@@ -5,14 +5,14 @@
  * paletas vivem em `:root` (claro) e `.dark` (escuro) no index.css. Trocar de
  * tema = só adicionar/remover a classe `.dark` no <html>. O default é CLARO.
  * A escolha persiste em localStorage e é re-aplicada no boot —
- * e também por um script inline no index.html, ANTES do bundle, pra não dar
+ * e também por um script inline no index.html, ANTES do bundle, para não dar
  * flash do tema claro antes do React subir.
  */
 
 export type Theme = "light" | "dark";
 
 const STORAGE_KEY = "denos:theme";
-/** Tema atual do produto — default pra quem nunca escolheu. */
+/** Tema atual do produto — default para quem nunca escolheu. */
 const DEFAULT_THEME: Theme = "light";
 
 export function getStoredTheme(): Theme {

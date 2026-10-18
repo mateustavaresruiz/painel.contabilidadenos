@@ -73,12 +73,12 @@ type MessageBubbleProps = {
   /** True quando o chat é um grupo — habilita render do remetente em cima. */
   ehGrupo?: boolean;
   /** True quando esta msg deve mostrar o nome do remetente em cima
-   *  (controle do parent pra agrupar consecutivas — vide
+   *  (controle do parent para agrupar consecutivas — vide
    *  shouldShowRemetente em chat-conversa.tsx). */
   mostrarRemetente?: boolean;
   /** Metadata do remetente (nome canônico + foto) — só em grupo. */
   contato?: WhatsappContato | null;
-  /** Resolve `@<digits>` no texto pra { label, contatoId }. Null =
+  /** Resolve `@<digits>` no texto para { label, contatoId }. Null =
    *  contato não encontrado, mantém o token cru. */
   resolveMencao?: (digits: string) => MencaoResolvida | null;
   /** Click numa menção: parent troca o chat aberto. */
@@ -86,7 +86,7 @@ type MessageBubbleProps = {
   /** Responder a esta mensagem (citação) — parent preenche o composer. */
   onReply?: (reply: { wamId: string; texto: string }) => void;
   /** Mensagem original citada (resolvida pelo parent via replyToWamId) —
-   *  usada pra renderizar a miniatura da mídia na citação. */
+   *  usada para renderizar a miniatura da mídia na citação. */
   quotedMsg?: WhatsappMensagem | null;
   /** Click na citação: parent rola/centraliza a mensagem original. */
   onQuotedClick?: (wamId: string) => void;
@@ -102,13 +102,13 @@ const REACOES_RAPIDAS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 /**
  * Acima deste tamanho (em caracteres) a mensagem colapsa num preview com
- * "Ler mais". Calibrado pra mostrar algumas linhas sem chegar perto do fim
+ * "Ler mais". Calibrado para mostrar algumas linhas sem chegar perto do fim
  * da tela — ajuste aqui se quiser preview mais curto/longo.
  */
 const LIMITE_PREVIEW = 600;
 
 /**
- * Resolve `@<digits>` (LID cru) pra `@Nome`/`@(telefone)` num texto puro —
+ * Resolve `@<digits>` (LID cru) para `@Nome`/`@(telefone)` num texto puro —
  * usado na citação do reply, que antes mostrava o LID cru. Menção sem
  * resolução fica como está.
  */
@@ -123,7 +123,7 @@ function resolverMencoesTexto(
   });
 }
 
-/** Preview curto da mensagem pra exibir na citação do reply. */
+/** Preview curto da mensagem para exibir na citação do reply. */
 function previewParaReply(msg: WhatsappMensagem): string {
   const t = msg.texto?.trim();
   if (t) return t;
@@ -177,7 +177,7 @@ export const MessageBubble = memo(function MessageBubble({
   const [editarOpen, setEditarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   // Mensagens muito longas colapsam num preview com "Ler mais" (estilo
-  // WhatsApp), pra não esticar o balão até o fim da tela.
+  // WhatsApp), para não esticar o balão até o fim da tela.
   const [expandido, setExpandido] = useState(false);
   const apagar = useApagarMensagem();
   const reagir = useReagirMensagem();
@@ -187,7 +187,7 @@ export const MessageBubble = memo(function MessageBubble({
   const podeApagar =
     !somenteLeitura && direita && !apagada && !pendente && tem("whatsapp.apagar_mensagens");
   // Encaminhar precisa do wamId real (msg já existente no WhatsApp) e
-  // só faz sentido pra conteúdo — não pra reaction/system nem apagada.
+  // só faz sentido para conteúdo — não para reaction/system nem apagada.
   const podeEncaminhar =
     !somenteLeitura &&
     !!msg.wamId &&
@@ -196,7 +196,7 @@ export const MessageBubble = memo(function MessageBubble({
     msg.tipo !== "system" &&
     msg.tipo !== "placeholder" &&
     msg.tipo !== "nao_suportado";
-  // Responder (citar) precisa do wamId real e não faz sentido pra
+  // Responder (citar) precisa do wamId real e não faz sentido para
   // reaction/system, placeholder (sem conteúdo) nem mensagem apagada.
   const podeResponder =
     !somenteLeitura &&
@@ -213,7 +213,7 @@ export const MessageBubble = memo(function MessageBubble({
   const podeCopiar = !!textoCopiavel && !apagada;
   // Editar: só msg de texto PRÓPRIA, não apagada, com wamId real e dentro da
   // janela de edição do WhatsApp (~15min). Fora disso o WAHA recusaria —
-  // escondemos pra não oferecer uma ação que vai falhar.
+  // escondemos para não oferecer uma ação que vai falhar.
   const tsEnvio = parsePgTimestamp(msg.timestamp);
   const idadeMin = tsEnvio
     ? (Date.now() - tsEnvio.getTime()) / 60_000
@@ -281,7 +281,7 @@ export const MessageBubble = memo(function MessageBubble({
     if (!textoCopiavel) return;
     try {
       await navigator.clipboard.writeText(textoCopiavel);
-      toast.success("Mensagem copiada.");
+      toast.success("Mensagem copiada");
     } catch {
       toast.error("Não consegui copiar.");
     }
@@ -304,7 +304,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   // Preview de mensagem longa: corta num limite de caracteres (um pouco antes
   // de estourar a tela) e mostra "Ler mais"; expande in-place no clique. O
-  // corte é por code point (`[...]`) pra não partir emoji no meio.
+  // corte é por code point (`[...]`) para não partir emoji no meio.
   const textoCompleto = msg.texto ?? "";
   const textoLongo = textoCompleto.length > LIMITE_PREVIEW;
   const textoExibido =
@@ -317,16 +317,16 @@ export const MessageBubble = memo(function MessageBubble({
       !(await confirmar({
         titulo: "Apagar mensagem?",
         descricao:
-          "Apaga pra todos no WhatsApp. Quem recebeu vê \"Mensagem apagada\". Sem desfazer.",
+          "Apaga para todos no WhatsApp. Quem recebeu vê \"Mensagem apagada\". Sem desfazer.",
         destructive: true,
-        confirmLabel: "Apagar",
+        confirmLabel: "Excluir",
       }))
     ) {
       return;
     }
     try {
       await apagar.mutateAsync(msg.id);
-      toast.success("Mensagem apagada.");
+      toast.success("Mensagem apagada");
     } catch (err) {
       if (ehConflitoAtendimento(err)) return;
       toast.error(err instanceof Error ? err.message : "Erro ao apagar");
@@ -336,7 +336,7 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        "group flex flex-col max-w-[78%]",
+        "group flex flex-col max-w-[min(78%,640px)]",
         direita ? "ml-auto mr-3 items-end" : "ml-3 items-start",
       )}
     >
@@ -367,7 +367,7 @@ export const MessageBubble = memo(function MessageBubble({
             : cn(
                 "px-3.5 py-2 shadow-sm",
                 // Mensagem própria: acento (LUZ no tema escuro) — balão claro.
-                // Recebida: superfície ELEVADA (secondary) + borda de luz, pra
+                // Recebida: superfície ELEVADA (secondary) + borda de luz, para
                 // destacar do fundo preto (bg-card sumia). Canto inferior reto.
                 direita
                   ? "bg-primary text-primary-foreground rounded-br-sm shadow-primary/20"
@@ -472,9 +472,9 @@ export const MessageBubble = memo(function MessageBubble({
               : "text-primary-foreground/70",
           )}
         >
-          {/* Em grupos, o nome do remetente vai pra cima da bubble
+          {/* Em grupos, o nome do remetente vai para cima da bubble
               (via prop `mostrarRemetente`). Não duplica aqui no
-              rodapé pra economizar espaço.
+              rodapé para economizar espaço.
               Em msgs próprias, mostra o membro do escritório que
               disparou — só visível internamente, convidado vê só
               "vocês" no app dele. */}
@@ -498,7 +498,7 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Menu de ações (estilo WhatsApp Web): três pontinhos no hover ao
             lado do balão; no mobile/touch abre no segurar (onContextMenu).
-            Fica flutuante (absolute) pra NÃO reservar espaço — a linha de
+            Fica flutuante (absolute) para NÃO reservar espaço — a linha de
             botões antiga deixava o vão entre mensagens grande e esquisito. */}
         {temAcoes && (
           <Popover open={menuOpen} onOpenChange={setMenuOpen}>
@@ -693,7 +693,7 @@ export const MessageBubble = memo(function MessageBubble({
 /**
  * Mini-badge clicável que aparece em mensagens próprias. Mostra a
  * inicial+primeiro nome do membro que disparou; clicar abre popover
- * com nome completo, e-mail, cargo e OAB — útil pra desambiguar
+ * com nome completo, e-mail, cargo e OAB — útil para desambiguar
  * quando há 2+ pessoas com mesmo primeiro nome no escritório.
  *
  * Só interno: convidado/cliente continua vendo só "vocês".
@@ -843,7 +843,7 @@ function AckIcon({
   // Ainda sem eco do servidor: relógio (o adv3 não mostrava nada).
   if (pendente && ack <= 0) return <Clock className="size-3" aria-label="Enviando" />;
   // Dentro de bubble própria (charcoal sólido), o ✓✓ "lida" usa um tom
-  // claro pra contrastar; fora de bubble própria (não usado hoje mas
+  // claro para contrastar; fora de bubble própria (não usado hoje mas
   // defensive) usa charcoal.
   // Lida (3+) ganha cor própria; entregue (2) fica no tom do rodapé — no
   // adv3 os dois eram idênticos.
@@ -879,7 +879,7 @@ function MediaContent({
     msg.tipo === "document" ||
     msg.tipo === "sticker";
   // Webhook não conseguiu baixar a mídia — oferece retry em vez de
-  // skeleton pulsando pra sempre. Mantém a feedback loop pro usuário.
+  // skeleton pulsando para sempre. Mantém a feedback loop pro usuário.
   if (ehMidia && !msg.mediaPath) {
     return <MediaAutoRefetch msg={msg} sticker={msg.tipo === "sticker"} />;
   }
@@ -927,7 +927,7 @@ function MediaContent({
     );
   }
   // Tipo não tratado: se tem texto, deixa o texto renderizar (não polui
-  // com "[tipo]"). Só mostra o marcador quando não há nada pra exibir.
+  // com "[tipo]"). Só mostra o marcador quando não há nada para exibir.
   if (msg.texto?.trim()) return null;
   return (
     <span className="text-xs text-muted-foreground italic">
@@ -965,7 +965,7 @@ function LocationBubble({ msg }: { msg: WhatsappMensagem }) {
   );
 }
 
-/** Enquete: pergunta + opções com barra de votos. Toca numa opção pra
+/** Enquete: pergunta + opções com barra de votos. Toca numa opção para
  *  votar (só em enquetes recebidas — best-effort conforme a engine WAHA). */
 function PollBubble({ msg }: { msg: WhatsappMensagem }) {
   const p = msg.payload as WhatsappPayloadEnquete | null;
@@ -988,7 +988,7 @@ function PollBubble({ msg }: { msg: WhatsappMensagem }) {
         pollMessageId: msg.wamId,
         votes: [opt],
       });
-      toast.success("Voto enviado.");
+      toast.success("Voto enviado");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao votar");
     } finally {
@@ -1090,7 +1090,7 @@ function PollBubble({ msg }: { msg: WhatsappMensagem }) {
   );
 }
 
-/** Contato (vCard): nome + telefone + atalho pra abrir a conversa NO APP. */
+/** Contato (vCard): nome + telefone + atalho para abrir a conversa NO APP. */
 function ContatoBubble({
   msg,
   onMencaoClick,
@@ -1172,7 +1172,7 @@ function BotaoRespostaBubble({ msg }: { msg: WhatsappMensagem }) {
  * automaticamente assim que a bubble renderiza. Sem botão — o usuário
  * só vê o skeleton pulsando, e a imagem aparece quando o backend
  * conseguir trazer do WAHA. Se 2 tentativas falharem, mostra um
- * placeholder discreto pra parar o skeleton infinito.
+ * placeholder discreto para parar o skeleton infinito.
  *
  * Refetch é deduplicado por msg.id num Set global (cada msg só
  * tenta 2x na vida do componente — evita loop infinito).
@@ -1396,7 +1396,7 @@ function VideoPreview({ msg }: { msg: WhatsappMensagem }) {
 }
 
 // Gera alturas de barra "estáveis" (0.25..1) a partir do id da mensagem,
-// pra cada áudio ter um desenho de onda próprio e consistente entre renders.
+// para cada áudio ter um desenho de onda próprio e consistente entre renders.
 const NUM_ONDAS = 34;
 function gerarOndas(seed: string): number[] {
   let h = 0;
@@ -1422,7 +1422,7 @@ function AudioPreview({ msg }: { msg: WhatsappMensagem }) {
   const ondas = useMemo(() => gerarOndas(msg.id), [msg.id]);
 
   // Própria (balão primary, texto claro) vs recebida (card branco). As cores
-  // do player herdam disso pra não brigar com o fundo — bronze fixo sobre o
+  // do player herdam disso para não brigar com o fundo — bronze fixo sobre o
   // primary ficava horrível.
   const direita = msg.fromMe;
 

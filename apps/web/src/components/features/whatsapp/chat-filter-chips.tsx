@@ -25,13 +25,13 @@ const CHIPS: Array<{
 ];
 
 /**
- * Linha horizontal de chips pra filtrar a lista de conversas.
+ * Linha horizontal de chips para filtrar a lista de conversas.
  *
  * Comportamentos de rolagem:
  *   - Touch (mobile/tablet): swipe horizontal nativo do navegador.
- *   - Mouse wheel: converte rolagem vertical → horizontal pra não
+ *   - Mouse wheel: converte rolagem vertical → horizontal para não
  *     precisar do Shift+wheel.
- *   - Drag (mouse): clica e arrasta o container pra rolar — útil
+ *   - Drag (mouse): clica e arrasta o container para rolar — útil
  *     em desktop quando os chips extrapolam a largura.
  */
 export function ChatFilterChips({ ativo, onChange }: Props) {
@@ -45,7 +45,7 @@ export function ChatFilterChips({ ativo, onChange }: Props) {
     let isDown = false;
     let startX = 0;
     let startScroll = 0;
-    let movedPx = 0; // pra distinguir click de drag (evita disparar onClick após arrastar)
+    let movedPx = 0; // para distinguir click de drag (evita disparar onClick após arrastar)
     const DRAG_THRESHOLD = 5;
 
     function onPointerDown(e: PointerEvent) {
@@ -74,7 +74,7 @@ export function ChatFilterChips({ ativo, onChange }: Props) {
 
     function onClickCapture(e: MouseEvent) {
       // Engole o click se o usuário arrastou > threshold — senão
-      // arrastar pra ver os chips dispararia a seleção do filtro.
+      // arrastar para ver os chips dispararia a seleção do filtro.
       if (movedPx > DRAG_THRESHOLD) {
         e.stopPropagation();
         e.preventDefault();
