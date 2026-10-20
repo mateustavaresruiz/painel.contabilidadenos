@@ -1099,9 +1099,18 @@ async function handlePresence(ev: WahaWebhookEvent, ctx: Ctx) {
  * topo — no adv3 nada era marcado (defeito 24). A original é achada como na
  * edição, por `LIKE '%_<id curto>%'`.
  */
+/**
+ * Id curto de mensagem vindo do CONTATO (edição/apagar). Vai para um LIKE: sem
+ * esta checagem, um id "%" (cliente modificado) casaria todas as mensagens da
+ * sessão e reescreveria ou apagaria o histórico inteiro.
+ */
+export function idCurtoValido(id: unknown): id is string {
+  return typeof id === "string" && /^[0-9A-Za-z]{8,64}$/.test(id);
+}
+
 async function handleRevoked(ev: WahaWebhookEvent, ctx: Ctx) {
   const payload = ev.payload as { revokedMessageId?: string; id?: string };
-  const curto = payload.revokedMessageId;
+  const curto = idCurtoValido(payload.revokedMessageId) ? payload.revokedMessageId : undefined;
   const agora = new Date().toISOString();
   if (curto) {
     const { error } = await supabaseAdmin
@@ -1136,7 +1145,7 @@ async function handleEdited(ev: WahaWebhookEvent, ctx: Ctx) {
   const patch = { texto: novo, editadoEm: new Date().toISOString() };
 
   let updated = 0;
-  if (payload.editedMessageId) {
+  if (idCurtoValido(payload.editedMessageId)) {
     const { count, error } = await supabaseAdmin
       .from("WhatsappMensagem")
       .update(patch, { count: "exact" })

@@ -36,6 +36,7 @@ import { supabaseAdmin, TENANT_ID } from "../_shared/supabase.ts";
 import { esquecerUsuario, exigirColaborador, tem } from "../_shared/acesso.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { avisosSmtp, provedorSmtp, sondarSmtp } from "../_shared/smtp-diagnostico.ts";
+import { padraoIlikeExato } from "../_shared/email-exato.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -227,7 +228,7 @@ serve(async (req) => {
     if (cor && !COR_RE.test(cor)) return badRequest("Cor inválida.");
 
     const { data: jaTem } = await supabaseAdmin
-      .from("Colaborador").select("id").eq("tenantId", TENANT_ID).ilike("email", email).maybeSingle();
+      .from("Colaborador").select("id").eq("tenantId", TENANT_ID).ilike("email", padraoIlikeExato(email)).maybeSingle();
     if (jaTem) return conflict("Já existe alguém da equipe com este e-mail.");
 
     // Usuário do Auth: novo, ou o que sobrou de um convite antigo.
@@ -371,7 +372,18 @@ serve(async (req) => {
   if (b === "link" && req.method === "POST") {
     if (!alvo.ativo) return badRequest("Pessoa desativada: reative antes de gerar o acesso.");
     if (!alvo.email || !alvo.userId) return badRequest("Esta pessoa não tem e-mail de acesso.");
-    return json({ link: await gerarLink(alvo.email.toLowerCase()) });
+    const link = await gerarLink(alvo.email.toLowerCase());
+    // Quem tem o link entra como a pessoa: fica registrado quem gerou (o login
+    // depois aparece como da própria pessoa).
+    await supabaseAdmin.rpc("auditoria_evento", {
+      p_modulo: "equipe",
+      p_entidade: "colaborador",
+      p_entidade_id: alvo.id,
+      p_acao: "link_gerado",
+      p_resumo: `gerou um link de acesso para ${alvo.nome ?? "uma pessoa da equipe"}`,
+      p_ator: eu.id,
+    });
+    return json({ link });
   }
 
   if (b === "enviar-acesso" && req.method === "POST") {

@@ -28,6 +28,7 @@ import { exigirColaborador, timingSafeEqual } from "../_shared/acesso.ts";
 import { enviarTexto } from "../_shared/whatsapp-envio.ts";
 import { onlyDigits } from "../_shared/phone-utils.ts";
 import { serproAgendado } from "./serpro-agendado.ts";
+import { recordError } from "../_shared/error-log.ts";
 import { avisoBloqueado, STATUS_RETENTAVEIS } from "./avisos-regra.ts";
 import { CHAVE_MODELO, CHAVE_MODELO_PADRAO, modeloEfetivo, montarTextoAviso } from "../_shared/aviso-certificado.ts";
 
@@ -344,6 +345,9 @@ async function sessaoDosAvisos(sessaoIdCfg: string | null): Promise<{ id: string
   return lista.find((s) => s.id === sessaoIdCfg) ?? null;
 }
 
+/** Teto de tempo dos envios numa execução (o worker morre aos 150 s). */
+const TEMPO_MAX_AVISOS_MS = 100_000;
+
 async function certificadosAvisos(dryRun: boolean) {
   const hoje = hojeSaoPaulo();
   const { marcos, sessaoId, modelo } = await lerConfig();
@@ -370,14 +374,19 @@ async function certificadosAvisos(dryRun: boolean) {
   const { data: jaFeitos } = ids.length
     ? await supabaseAdmin
       .from("CertificadoAviso")
-      .select("certificadoId, marco, status")
+      .select("certificadoId, validoAte, marco, status")
       .in("certificadoId", ids)
     : { data: [] };
+  // Histórico por certificado E validade: renovar editando a data começa os
+  // marcos do zero (migração 021).
   const feitos = new Map<string, Array<{ marco: number; status: string }>>();
-  for (const f of (jaFeitos ?? []) as Array<{ certificadoId: string; marco: number; status: string }>) {
-    const arr = feitos.get(f.certificadoId) ?? [];
+  for (
+    const f of (jaFeitos ?? []) as Array<{ certificadoId: string; validoAte: string | null; marco: number; status: string }>
+  ) {
+    const k = `${f.certificadoId}|${f.validoAte ?? ""}`;
+    const arr = feitos.get(k) ?? [];
     arr.push({ marco: f.marco, status: f.status });
-    feitos.set(f.certificadoId, arr);
+    feitos.set(k, arr);
   }
 
   // Monta a lista do que é devido hoje.
@@ -391,7 +400,7 @@ async function certificadosAvisos(dryRun: boolean) {
     if (dias < 0) continue;
     const marco = marcos.find((m) => m >= dias);
     if (marco === undefined) continue;
-    const historico = feitos.get(c.id as string) ?? [];
+    const historico = feitos.get(`${c.id}|${c.validoAte}`) ?? [];
     // Já registrado este marco ou um MAIS PERTO do vencimento → nada a fazer
     // (exceto sem_conexao/sem_telefone do próprio marco, que repetem; ver avisos-regra.ts).
     if (avisoBloqueado(historico, marco)) continue;
@@ -424,10 +433,24 @@ async function certificadosAvisos(dryRun: boolean) {
 
   const sessao = waha.wahaIsConfigured() ? await sessaoDosAvisos(sessaoId) : null;
   const resultado: Aviso[] = [];
+  const inicio = Date.now();
   for (const d of devidos) {
+    // O worker morre aos 150 s (e o pg_net desiste aos 145 s). O que não couber
+    // fica para a próxima execução: a trava impede duplicar e o marco seguinte
+    // ainda cobre quem ficou (ver avisos-regra.ts).
+    if (Date.now() - inicio > TEMPO_MAX_AVISOS_MS) {
+      resultado.push({ ...d, status: "pulado", erro: "fica para a próxima execução (tempo da execução esgotado)" });
+      continue;
+    }
     // TRAVA: a linha nasce antes do envio. Retentativa de sem_conexao/sem_telefone
     // troca o status só se ainda for um desses (outro cron pode ter pegado).
-    const travou = await travarAviso(d);
+    let travou: boolean;
+    try {
+      travou = await travarAviso(d);
+    } catch (err) {
+      resultado.push({ ...d, status: "pulado", erro: `trava: ${err instanceof Error ? err.message : String(err)}` });
+      continue;
+    }
     if (!travou) {
       resultado.push({ ...d, status: "pulado", erro: "já em andamento por outra execução" });
       continue;
@@ -435,61 +458,81 @@ async function certificadosAvisos(dryRun: boolean) {
     let status: NonNullable<Aviso["status"]>;
     let erro: string | null = null;
     let mensagemId: string | null = null;
-
-    if (!d.telefone) {
-      status = "sem_telefone";
-      erro = "Cliente sem telefone válido (nem telefone de aviso no certificado).";
-    } else if (!sessao) {
-      status = "sem_conexao";
-      erro = waha.wahaIsConfigured() ? "Nenhuma instância de WhatsApp conectada." : waha.WAHA_NAO_CONFIGURADO;
-    } else {
-      let chatId = `${d.telefone}@c.us`;
-      let semWhats = false;
-      try {
-        const r = await waha.checkNumberExists(sessao.nome, d.telefone);
-        if (r?.numberExists === false) semWhats = true;
-        else if (r?.chatId) chatId = r.chatId;
-      } catch (err) {
-        // Conferência indisponível (WAHA Core pode não ter): segue com o
-        // número como está — o pior caso é o WAHA recusar o envio.
-        console.warn("[certificados] check-exists", err instanceof Error ? err.message : String(err));
-      }
-      if (semWhats) {
+    // Uma exceção aqui é sempre ANTES do envio (o enviarTexto captura a falha do
+    // WAHA e devolve ok: false): não consome o marco, sem_conexao repete amanhã.
+    try {
+      if (!d.telefone) {
         status = "sem_telefone";
-        erro = `O número ${d.telefone} não tem WhatsApp.`;
+        erro = "Cliente sem telefone válido (nem telefone de aviso no certificado).";
+      } else if (!sessao) {
+        status = "sem_conexao";
+        erro = waha.wahaIsConfigured() ? "Nenhuma instância de WhatsApp conectada." : waha.WAHA_NAO_CONFIGURADO;
       } else {
-        const r = await enviarTexto({
-          tenantId: TENANT_ID,
-          sessao,
-          chatId,
-          texto: d.texto,
-          origem: "sistema",
-          colaborador: null,
-          garantirConversa: true,
-        });
-        mensagemId = r.mensagemId;
-        if (r.ok) {
-          status = "enviado";
-        } else {
-          status = "falhou";
-          erro = r.erro.slice(0, 500);
+        let chatId = `${d.telefone}@c.us`;
+        let semWhats = false;
+        try {
+          const r = await waha.checkNumberExists(sessao.nome, d.telefone);
+          if (r?.numberExists === false) semWhats = true;
+          else if (r?.chatId) chatId = r.chatId;
+        } catch (err) {
+          // Conferência indisponível (WAHA Core pode não ter): segue com o
+          // número como está — o pior caso é o WAHA recusar o envio.
+          console.warn("[certificados] check-exists", err instanceof Error ? err.message : String(err));
         }
-        // Espaça os envios: rajada de mensagens iguais é o que o WhatsApp
-        // marca como spam.
-        await new Promise((res) => setTimeout(res, 1500));
+        if (semWhats) {
+          status = "sem_telefone";
+          erro = `O número ${d.telefone} não tem WhatsApp.`;
+        } else {
+          const r = await enviarTexto({
+            tenantId: TENANT_ID,
+            sessao,
+            chatId,
+            texto: d.texto,
+            origem: "sistema",
+            colaborador: null,
+            garantirConversa: true,
+          });
+          mensagemId = r.mensagemId;
+          if (r.ok) {
+            status = "enviado";
+          } else {
+            status = "falhou";
+            erro = r.erro.slice(0, 500);
+          }
+          // Espaça os envios: rajada de mensagens iguais é o que o WhatsApp
+          // marca como spam.
+          await new Promise((res) => setTimeout(res, 1500));
+        }
       }
+    } catch (err) {
+      status = "sem_conexao";
+      erro = `Erro inesperado: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500);
+      console.error("[certificados] aviso", d.certificadoId, err);
     }
 
-    await supabaseAdmin
+    const { error: eUpd } = await supabaseAdmin
       .from("CertificadoAviso")
       .update({ status, erro, mensagemId, telefone: d.telefone, criadoEm: new Date().toISOString() })
       .eq("certificadoId", d.certificadoId)
+      .eq("validoAte", d.validoAte)
       .eq("marco", d.marco);
+    if (eUpd) console.error("[certificados] não gravou o resultado do aviso", d.certificadoId, eUpd.message);
     resultado.push({ ...d, status, erro, mensagemId });
   }
 
   const enviados = resultado.filter((r) => r.status === "enviado").length;
   const falhas = resultado.filter((r) => r.status === "falhou").length;
+  const problemas = resultado.filter((r) => r.status === "falhou" || r.status === "sem_conexao").length;
+  if (problemas > 0) {
+    // A tela de Saúde só vê o HTTP do cron (200): a falha de envio entra no Log de erros.
+    await recordError({
+      origem: "cron",
+      nivel: "warn",
+      mensagem: `Avisos de certificado: ${problemas} de ${resultado.length} não saíram (${falhas} falharam no envio).`,
+      rota: "crons/certificados-avisos",
+      contexto: { hoje, falhas, semConexao: problemas - falhas },
+    }).catch(() => {});
+  }
   return {
     ok: falhas === 0,
     hoje,
@@ -507,6 +550,7 @@ async function travarAviso(d: Aviso): Promise<boolean> {
   const { error } = await supabaseAdmin.from("CertificadoAviso").insert({
     tenantId: TENANT_ID,
     certificadoId: d.certificadoId,
+    validoAte: d.validoAte,
     marco: d.marco,
     telefone: d.telefone,
     status: "falhou",
@@ -518,6 +562,7 @@ async function travarAviso(d: Aviso): Promise<boolean> {
     .from("CertificadoAviso")
     .update({ status: "falhou", erro: "em andamento" })
     .eq("certificadoId", d.certificadoId)
+    .eq("validoAte", d.validoAte)
     .eq("marco", d.marco)
     .in("status", [...STATUS_RETENTAVEIS])
     .select("id");

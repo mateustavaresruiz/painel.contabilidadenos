@@ -306,7 +306,9 @@ Deno.serve(async (req: Request) => {
   const path_parts = pathname.split('/')
   const service_name = path_parts[1]
 
-  if (!service_name || service_name === '') {
+  // Painel Denos: `_shared` (código comum) e `main` (este roteador) não são
+  // functions; nome fora do padrão também não.
+  if (!service_name || service_name === 'main' || !/^[a-z][a-z0-9-]*$/.test(service_name)) {
     return getFunctionErrorResponse({
       code: RequestErrors.NotFound,
       message: 'Requested function was not found',
@@ -353,7 +355,11 @@ Deno.serve(async (req: Request) => {
   // SUPABASE_FUNCTION_SLUG is listed after the container env snapshot so
   // nothing in it can shadow the value, and it is per-request because only this
   // worker knows which function the request resolved to.
-  const envVarsObj = { ...Deno.env.toObject(), SUPABASE_FUNCTION_SLUG: service_name }
+  const envVarsObj: Record<string, string> = { ...Deno.env.toObject(), SUPABASE_FUNCTION_SLUG: service_name }
+  // Painel Denos: as functions validam o usuário no Auth (_shared/acesso.ts) e
+  // não assinam JWT; o segredo que assina TODOS os tokens não precisa ir a elas.
+  delete envVarsObj.JWT_SECRET
+  delete envVarsObj.SUPABASE_JWKS
   const envVars = Object.keys(envVarsObj).map((k) => [k, envVarsObj[k]])
 
   const callWorker = async (req: Request, retriesLeft = MAX_WORKER_RETRIES): Promise<Response> => {

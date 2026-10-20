@@ -1870,11 +1870,22 @@ serve(async (req) => {
       if (!sessaoMsg) return notFound("Sessão não encontrada");
 
       // O mediaPath vem do body e é assinado com a service role (fura a RLS
-      // do bucket). Exige o prefixo do escritório e rejeita path traversal.
-      if (!mediaPath.startsWith(`${tenantId}/`) || mediaPath.includes("..")) {
-        return forbidden("Arquivo fora do escritório.");
+      // do bucket). Só vale o que a tela sobe (`<tenant>/uploads/<uuid>.<ext>`):
+      // com qualquer caminho do escritório dava para mandar pelo WhatsApp o
+      // anexo de uma conversa que está com outra pessoa.
+      const uploads = `${tenantId}/uploads/`;
+      const nomeUpload = mediaPath.slice(uploads.length);
+      if (!mediaPath.startsWith(uploads) || !/^[\w-]+(\.[\w]{1,10})?$/.test(nomeUpload)) {
+        return forbidden("Arquivo fora da pasta de envios.");
       }
-      if (tamanho && tamanho > waha.MAX_MEDIA_BYTES) {
+      // Tamanho REAL do objeto (o do corpo é opcional e a tela não manda).
+      const { data: achados } = await supabaseAdmin.storage
+        .from(BUCKET)
+        .list(`${tenantId}/uploads`, { search: nomeUpload, limit: 2 });
+      const objeto = achados?.find((o) => o.name === nomeUpload);
+      if (!objeto) return notFound("Arquivo não encontrado. Envie de novo.");
+      const tamanhoReal = Number((objeto.metadata as { size?: number } | null)?.size ?? tamanho ?? 0);
+      if (tamanhoReal > waha.MAX_MEDIA_BYTES) {
         return badRequest("Arquivo maior que 25 MB.");
       }
 

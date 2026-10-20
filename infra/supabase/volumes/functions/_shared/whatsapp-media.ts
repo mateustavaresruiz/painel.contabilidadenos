@@ -12,6 +12,20 @@ import * as waha from "./waha.ts";
 
 const BUCKET = "whatsapp-media";
 
+/**
+ * Tipo com que o arquivo RECEBIDO é servido pelo Storage. O tipo vem de quem
+ * mandou a mensagem: um "boleto.pdf" declarado como text/html (ou um SVG)
+ * abriria como página, com script, no domínio do Supabase. Fora desta lista,
+ * vira download (application/octet-stream). A coluna mediaMime guarda o
+ * original, para a tela escolher o ícone.
+ */
+const MIME_SERVIDOS = /^(image\/(jpeg|png|gif|webp|heic|heif|bmp)|video\/(mp4|3gpp|quicktime|webm|mpeg)|audio\/[\w.+-]+|application\/pdf|text\/plain|text\/csv)$/;
+
+export function contentTypeSeguro(mime: string | null | undefined): string {
+  const m = (mime ?? "").split(";")[0]!.trim().toLowerCase();
+  return MIME_SERVIDOS.test(m) ? m : "application/octet-stream";
+}
+
 export type PersistedMedia = {
   mediaPath: string | null;
   mediaMime: string | null;
@@ -217,7 +231,7 @@ export async function persistMediaIfAny(
     const { error } = await supabaseAdmin.storage
       .from(BUCKET)
       .upload(path, bytes, {
-        contentType: media.mimetype ?? contentType,
+        contentType: contentTypeSeguro(media.mimetype ?? contentType),
         upsert: true,
       });
     if (error) {

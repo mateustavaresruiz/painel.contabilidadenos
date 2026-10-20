@@ -20,7 +20,7 @@
 // (`WAHA_WEBHOOK_SECRET`, `CRON_SECRET`), comparado em tempo constante.
 
 import { definirAtor } from "./request-context.ts";
-import { forbidden, unauthorized } from "./response.ts";
+import { forbidden, serviceUnavailable, unauthorized } from "./response.ts";
 import { supabaseAdmin, TENANT_ID } from "./supabase.ts";
 
 /** Comparação timing-safe pra reduzir risco de side-channel no header. */
@@ -104,6 +104,13 @@ export async function exigirColaborador(
 
   if (!colaborador) {
     const { data, error } = await supabaseAdmin.auth.getUser(token);
+    // Auth fora do ar (deploy do supabase, rede): 503, NÃO 401. O 401 faz a
+    // tela tentar renovar a sessão e, se a renovação também falhar, deslogar
+    // quem só pegou o soluço.
+    const st = (error as { status?: number } | null)?.status ?? 0;
+    if (error && !(st >= 400 && st < 500)) {
+      return serviceUnavailable("O login está indisponível por um instante. Tente de novo.");
+    }
     if (error || !data?.user) {
       return unauthorized("Sessão expirada. Entre de novo.");
     }
