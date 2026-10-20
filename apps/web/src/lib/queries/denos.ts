@@ -33,9 +33,23 @@ export function useAniversarios() {
   return useQuery({
     queryKey: ["aniversarios"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("Aniversario").select("*").limit(5000);
-      if (error) throw error;
-      return calcularAniversarios((data ?? []) as Aniversario[]);
+      // O PostgREST corta em 1000 linhas por pedido (PGRST_DB_MAX_ROWS): pagina
+      // até acabar. A view não tem id; origem + cliente + sócio é único e dá
+      // ordem estável entre as páginas.
+      const lista: Aniversario[] = [];
+      for (let de = 0; ; de += 1000) {
+        const { data, error } = await supabase
+          .from("Aniversario")
+          .select("*")
+          .order("origem")
+          .order("clienteId")
+          .order("socioId", { nullsFirst: true })
+          .range(de, de + 999);
+        if (error) throw error;
+        lista.push(...((data ?? []) as Aniversario[]));
+        if (!data || data.length < 1000) break;
+      }
+      return calcularAniversarios(lista);
     },
     staleTime: 5 * 60_000,
   });

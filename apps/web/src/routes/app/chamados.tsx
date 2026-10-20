@@ -71,6 +71,7 @@ import { formatData, formatDataHora, formatTelefone, hojeISO } from "@/lib/forma
 import {
   chamadoAtrasado,
   contatoDoChamado,
+  LIMITE_SOLICITACOES,
   STATUS_SOLICITACAO,
   useExcluirSolicitacao,
   useExcluirSolicitacaoTipo,
@@ -498,7 +499,12 @@ function ListaAba() {
           })}
         </ListaResponsiva>
       )}
-      {data.length > 0 && <p className="text-xs text-muted-foreground">{plural(data.length, "chamado", "chamados")}</p>}
+      {data.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {plural(data.length, "chamado", "chamados")}
+          {data.length >= LIMITE_SOLICITACOES ? ` (mostrando os ${LIMITE_SOLICITACOES} mais recentes, refine os filtros)` : ""}
+        </p>
+      )}
     </div>
   );
 }

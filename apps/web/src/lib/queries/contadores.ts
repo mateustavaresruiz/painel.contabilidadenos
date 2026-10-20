@@ -51,3 +51,25 @@ export function useContadorChamados(enabled: boolean) {
     },
   });
 }
+
+/**
+ * Certificados que vencem de hoje até 7 dias (sem os já renovados). Atualiza
+ * pelas invalidações de ["certificados"] que salvar/excluir/renovar já fazem.
+ */
+export function useContadorCertificados(enabled: boolean) {
+  return useQuery({
+    queryKey: ["certificados", "contador-menu"],
+    enabled,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("CertificadoDigital")
+        .select("id", { count: "exact", head: true })
+        .is("renovadoPorId", null)
+        .gte("validoAte", hojeISO())
+        .lte("validoAte", hojeISO(7));
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}

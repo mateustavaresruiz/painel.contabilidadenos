@@ -19,6 +19,7 @@ import { ErroDaApi } from "@/lib/api";
 import { useEu, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatBRL, formatData, formatDataHora, formatDoc } from "@/lib/format";
+import { normalizarDoc } from "@/lib/masks";
 import { useConsultarSerpro, useSerproStatus } from "@/lib/queries/denos";
 import {
   type AgendamentoSerpro,
@@ -110,11 +111,13 @@ export function PainelResumoSerpro() {
   }, [data]);
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const d = q.replace(/\D/g, "");
+    // CPF/CNPJ como gravado (o CNPJ alfanumérico tem letras); só com algum dígito.
+    const d = normalizarDoc(q);
+    const porDoc = /\d/.test(d);
     return data.filter(
       (l) =>
         (filtro === "todos" || l.situacao === filtro) &&
-        (!q || nomeDe(l).toLowerCase().includes(q) || l.cliente.nome.toLowerCase().includes(q) || (d && (l.cliente.cpfCnpj ?? "").includes(d))),
+        (!q || nomeDe(l).toLowerCase().includes(q) || l.cliente.nome.toLowerCase().includes(q) || (porDoc && (l.cliente.cpfCnpj ?? "").toUpperCase().includes(d))),
     );
   }, [data, filtro, busca]);
 

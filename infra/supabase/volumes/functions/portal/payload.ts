@@ -103,11 +103,15 @@ export function certPublico(c: CertRow, hoje: string): CertPublico {
 // Cadastro
 // ---------------------------------------------------------------------------
 
-/** CNPJ é dado público e sai inteiro; CPF é dado pessoal e sai mascarado (•••.456.789-••). */
+/**
+ * CNPJ é dado público e sai inteiro; CPF é dado pessoal e sai mascarado (•••.456.789-••).
+ * Normaliza como o painel (maiúsculas, sem `.`, `/`, `-` e espaços): o CNPJ
+ * alfanumérico (IN RFB 2.229/2024) mantém as letras, 12 de [0-9A-Z] + 2 dígitos.
+ */
 export function documentoPublico(_tipo: string, doc: string | null): string | null {
-  const d = (doc ?? "").replace(/\D/g, "");
-  if (d.length === 14) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
-  if (d.length === 11) return `•••.${d.slice(3, 6)}.${d.slice(6, 9)}-••`;
+  const d = (doc ?? "").toUpperCase().replace(/[./\-\s]/g, "");
+  if (/^[0-9A-Z]{12}\d{2}$/.test(d)) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+  if (/^\d{11}$/.test(d)) return `•••.${d.slice(3, 6)}.${d.slice(6, 9)}-••`;
   return null;
 }
 

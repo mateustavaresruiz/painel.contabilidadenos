@@ -55,7 +55,7 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { useColaboradores, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
-import { isValidCpf, isValidTelefone, maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { isValidCpf, isValidTelefone, maskCpf, maskTelefone } from "@/lib/masks";
 import { optionalEmail } from "@/lib/validations/cliente";
 import { useModulos } from "@/lib/modulos";
 import { useCertificados, useExcluirCertificado, type Certificado } from "@/lib/queries/certificados";
@@ -422,7 +422,7 @@ function SocioDialog({
     setIniciado(chave);
     if (chave) {
       setNome(socio?.nome ?? "");
-      setCpf(socio?.cpf ? maskCpfCnpj(socio.cpf) : "");
+      setCpf(socio?.cpf ? maskCpf(socio.cpf) : "");
       setNasc(socio?.dataNascimento ?? "");
       setTel(socio?.telefone ? maskTelefone(socio.telefone) : "");
       setEmail(socio?.email ?? "");
@@ -484,7 +484,7 @@ function SocioDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="so-cpf">CPF</Label>
-            <Input id="so-cpf" inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskCpfCnpj(e.target.value).slice(0, 14))} aria-invalid={!!ver("cpf") || undefined} className={inv("cpf")} />
+            <Input id="so-cpf" inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} aria-invalid={!!ver("cpf") || undefined} className={inv("cpf")} />
             <CampoErro msg={ver("cpf")} />
           </div>
           <div className="space-y-1.5">

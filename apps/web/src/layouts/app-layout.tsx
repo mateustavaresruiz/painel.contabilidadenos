@@ -14,7 +14,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
 import { useAplicarEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
-import { useContadorChamados, useContadorWhatsapp } from "@/lib/queries/contadores";
+import { useContadorCertificados, useContadorChamados, useContadorWhatsapp } from "@/lib/queries/contadores";
 import { useModulos } from "@/lib/modulos";
 import { useAnunciarPresencaPainel } from "@/lib/presenca-painel";
 import { useTheme } from "@/lib/use-theme";
@@ -251,6 +251,7 @@ function Sidebar({
   const AlternarIcone = recolhida ? PanelLeftOpen : PanelLeftClose;
   const { data: contWhats } = useContadorWhatsapp(itens.some((i) => i.to === "/whatsapp"));
   const { data: contChamados } = useContadorChamados(itens.some((i) => i.to === "/chamados"));
+  const { data: contCertificados } = useContadorCertificados(itens.some((i) => i.to === "/certificados"));
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className={cn("shrink-0 flex items-center mb-1", recolhida ? "flex-col justify-center gap-3 px-3 pt-5 pb-3" : "h-[92px] pl-5 pr-3 gap-2")}>
@@ -318,7 +319,15 @@ function Sidebar({
             item={item}
             onNavigate={onNavigate}
             recolhida={recolhida}
-            contador={item.to === "/whatsapp" ? contWhats : item.to === "/chamados" ? contChamados : undefined}
+            contador={
+              item.to === "/whatsapp"
+                ? contWhats
+                : item.to === "/chamados"
+                  ? contChamados
+                  : item.to === "/certificados"
+                    ? contCertificados
+                    : undefined
+            }
           />
         ))}
       </nav>

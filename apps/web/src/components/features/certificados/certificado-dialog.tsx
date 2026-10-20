@@ -40,12 +40,18 @@ export function CertificadoDialog({
   onOpenChange,
   certificado,
   clienteIdFixo,
+  renovarDe,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   certificado?: Certificado | null;
   /** Abre já com o cliente (detalhe do cliente / link do painel da conversa). */
   clienteIdFixo?: string | null;
+  /**
+   * Renovação: cadastro NOVO com os dados deste (sem as datas). Ao salvar, este
+   * fica marcado como renovado e sai dos avisos e dos vencidos.
+   */
+  renovarDe?: Certificado | null;
 }) {
   const salvar = useSalvarCertificado();
   const [clienteId, setClienteId] = useState<string | null>(null);
@@ -66,28 +72,28 @@ export function CertificadoDialog({
 
   useEffect(() => {
     if (!open) return;
-    const c = certificado;
+    const c = certificado ?? renovarDe;
     setClienteId(c?.clienteId ?? clienteIdFixo ?? null);
     setTipo(c?.tipo ?? "e-CNPJ A1");
     setTitular(c?.titular ?? "");
     setDocumento(c?.documento ? maskCpfCnpj(c.documento) : "");
     setEmissora(c?.emissora ?? "");
-    setEmitidoEm(c?.emitidoEm ?? "");
-    setValidoAte(c?.validoAte ?? "");
+    setEmitidoEm(renovarDe ? "" : (c?.emitidoEm ?? ""));
+    setValidoAte(renovarDe ? "" : (c?.validoAte ?? ""));
     setTelefoneAviso(c?.telefoneAviso ? maskTelefone(c.telefoneAviso) : "");
     setAvisar(c?.avisarWhatsapp ?? true);
     setObs(c?.observacoes ?? "");
     setTentou(false);
     tipoEscolhido.current = !!c;
-  }, [open, certificado, clienteIdFixo]);
+  }, [open, certificado, clienteIdFixo, renovarDe]);
 
   // Certificado novo: o tipo padrão acompanha o cliente (PF -> e-CPF A1, PJ -> e-CNPJ A1)
   // até a pessoa escolher o tipo na mão.
   const tipoDoCliente = clientes.data?.find((c) => c.id === clienteId)?.tipo;
   useEffect(() => {
-    if (!open || certificado || tipoEscolhido.current || !tipoDoCliente) return;
+    if (!open || certificado || renovarDe || tipoEscolhido.current || !tipoDoCliente) return;
     setTipo(tipoDoCliente === "PF" ? "e-CPF A1" : "e-CNPJ A1");
-  }, [open, certificado, tipoDoCliente]);
+  }, [open, certificado, renovarDe, tipoDoCliente]);
 
   const erros = {
     cliente: clienteId ? null : "Escolha o cliente.",
@@ -112,6 +118,7 @@ export function CertificadoDialog({
     try {
       await salvar.mutateAsync({
         id: certificado?.id,
+        renovarDe: certificado ? undefined : renovarDe?.id,
         input: {
           clienteId,
           tipo,
@@ -125,6 +132,7 @@ export function CertificadoDialog({
           observacoes: obs,
         },
       });
+      if (renovarDe && !certificado) toast.success("Certificado renovado");
       onOpenChange(false);
     } catch (err) {
       toast.error(msgErro(err));
@@ -135,7 +143,9 @@ export function CertificadoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{certificado ? "Editar certificado" : "Novo certificado digital"}</DialogTitle>
+          <DialogTitle>
+            {certificado ? "Editar certificado" : renovarDe ? "Renovar certificado" : "Novo certificado digital"}
+          </DialogTitle>
           <DialogDescription>
             O aviso automático pelo WhatsApp usa os marcos e o modelo configurados na tela de
             Certificados.
@@ -180,7 +190,10 @@ export function CertificadoDialog({
             <Label htmlFor="cd-doc">CPF/CNPJ do titular</Label>
             <Input
               id="cd-doc"
-              inputMode="numeric"
+              inputMode="text"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
               value={documento}
               onChange={(e) => setDocumento(maskCpfCnpj(e.target.value))}
               aria-invalid={!!ver("documento") || undefined}

@@ -171,12 +171,17 @@ function useInicio() {
   ].filter(Boolean) as Atalho[];
 
   const pendentes = atencao.filter((a) => a.valor > 0);
+  // Vencido não entra no "vence em 30 dias", mas também não é "tudo em dia"
+  // (só conta com o cartão de certificados à vista).
+  const certVencidos = atencao.some((a) => a.chave === "certificados") ? (d?.certificados.vencidos ?? 0) : 0;
   const resumoFrase = !verNumeros
     ? "Tudo o que você precisa está no menu."
     : q.isLoading || (q.isError && !d)
       ? ""
       : pendentes.length === 0
-        ? "Está tudo em dia por aqui. Bom trabalho!"
+        ? certVencidos > 0
+          ? `Hoje tem ${pluralTexto(certVencidos, "certificado vencido", "certificados vencidos")}.`
+          : "Está tudo em dia por aqui. Bom trabalho!"
         : `Hoje tem ${juntar(pendentes.map((a) => a.frase))}.`;
 
   const h = new Date().getHours();
@@ -184,7 +189,7 @@ function useInicio() {
   const nome = eu?.nome?.split(" ")[0];
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
-  return { d, q, verNumeros, atencao, atalhos, resumoFrase, saudacao, nome, hoje, ativo };
+  return { d, q, verNumeros, atencao, certVencidos, atalhos, resumoFrase, saudacao, nome, hoje, ativo };
 }
 
 type Inicio = ReturnType<typeof useInicio>;
@@ -324,7 +329,7 @@ function InicioMarinho(p: Inicio) {
 // ---------------------------------------------------------------------------
 
 function InicioColorido(p: Inicio) {
-  const tudoEmDia = !p.q.isLoading && !p.q.isError && p.atencao.every((a) => a.valor === 0);
+  const tudoEmDia = !p.q.isLoading && !p.q.isError && p.atencao.every((a) => a.valor === 0) && p.certVencidos === 0;
   return (
     <PageContainer className="lg:space-y-8">
       <header className="relative flex flex-col gap-1.5 animate-rise">

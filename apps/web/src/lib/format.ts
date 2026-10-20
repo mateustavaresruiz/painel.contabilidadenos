@@ -1,3 +1,5 @@
+import { CNPJ_RE, CPF_RE, normalizarDoc } from "@/lib/masks";
+
 /**
  * Postgres `timestamp` (sem timezone) vem via supabase-js como string
  * `"2026-05-19 04:08:32.530767"` — com espaço, sem `T`, sem `Z`.
@@ -68,12 +70,12 @@ export function formatDataHora(input: string | null | undefined): string {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-/** CPF/CNPJ só com dígitos → com máscara. */
+/** CPF/CNPJ normalizado → com máscara. CNPJ alfanumérico mantém as letras (AA.AAA.AAA/AAAA-DD). */
 export function formatDoc(doc: string | null | undefined): string {
   if (!doc) return "-";
-  const d = doc.replace(/\D/g, "");
-  if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-  if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  const d = normalizarDoc(doc);
+  if (CPF_RE.test(d)) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  if (CNPJ_RE.test(d)) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
   return doc;
 }
 

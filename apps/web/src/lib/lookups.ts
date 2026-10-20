@@ -15,6 +15,8 @@ export type CepInfo = {
   estado: string; // UF
 };
 
+import { normalizarDoc, tipoDoc } from "@/lib/masks";
+
 const cepCache = new Map<string, CepInfo | null>();
 const cnpjCache = new Map<string, CnpjInfo | null>();
 
@@ -76,12 +78,14 @@ const cnpjNaoEncontrados = new Set<string>();
 
 /** true se a última consulta deste CNPJ voltou "não encontrado" na Receita (BrasilAPI 404). */
 export function cnpjNaoEncontrado(rawCnpj: string): boolean {
-  return cnpjNaoEncontrados.has(onlyDigits(rawCnpj));
+  return cnpjNaoEncontrados.has(normalizarDoc(rawCnpj));
 }
 
 export async function fetchCnpj(rawCnpj: string): Promise<CnpjInfo | null> {
-  const cnpj = rawCnpj.replace(/\D/g, "");
-  if (cnpj.length !== 14) return null;
+  // CNPJ alfanumérico vai com as letras; se a BrasilAPI ainda não o conhecer,
+  // volta 404 e a tela só avisa (o cadastro segue à mão).
+  const cnpj = normalizarDoc(rawCnpj);
+  if (tipoDoc(cnpj) !== "PJ") return null;
   if (cnpjCache.has(cnpj)) return cnpjCache.get(cnpj) ?? null;
 
   try {
@@ -128,10 +132,8 @@ export function onlyDigits(s: string): string {
   return s.replace(/\D/g, "");
 }
 
-/** true se a string sanitizada tem 11 (CPF) ou 14 (CNPJ) dígitos. */
+/** "cpf" (11 dígitos), "cnpj" (14 caracteres, numérico ou alfanumérico) ou null. */
 export function isValidDocLength(s: string): "cpf" | "cnpj" | null {
-  const n = onlyDigits(s);
-  if (n.length === 11) return "cpf";
-  if (n.length === 14) return "cnpj";
-  return null;
+  const t = tipoDoc(s);
+  return t === "PF" ? "cpf" : t === "PJ" ? "cnpj" : null;
 }

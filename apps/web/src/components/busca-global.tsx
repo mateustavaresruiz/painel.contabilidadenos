@@ -65,8 +65,9 @@ export function BuscaGlobal({ aberto, onOpenChange }: { aberto: boolean; onOpenC
   const verClientes = ativo("clientes") && tem("clientes.ver");
   const verConversas = ativo("whatsapp") && tem("whatsapp.ver");
   const verChamados = ativo("chamados") && (tem("chamados.ver") || tem("chamados.criar") || tem("chamados.gerenciar"));
-  // Só número (CPF/CNPJ, telefone): procura só clientes.
-  const soDigitos = /^[0-9.-/()s+]+$/.test(q) && q.replace(/[^0-9]/g, "").length >= 3;
+  // Só número (CPF/CNPJ, telefone): procura só clientes. O hífen vai escapado
+  // (".-/" era um intervalo e deixava "-" de fora) e o espaço é \s, não "s".
+  const soDigitos = /^[0-9.\-/()\s+]+$/.test(q) && q.replace(/[^0-9]/g, "").length >= 3;
   const buscar = q.length >= 2;
 
   const clientes = useQuery({

@@ -6,6 +6,7 @@ import {
   History,
   Loader2,
   Pencil,
+  RefreshCcw,
   Plus,
   Save,
   Search,
@@ -104,6 +105,9 @@ export function CertificadosPage() {
   const [configAberta, setConfigAberta] = useState(false);
   const [tipo, setTipo] = useState<string>(TODOS);
   const [editando, setEditando] = useState<Certificado | "novo" | null>(null);
+  // Renovar: abre um cadastro novo com os dados deste; ao salvar, este sai dos
+  // avisos e dos vencidos (renovadoPorId).
+  const [renovando, setRenovando] = useState<Certificado | null>(null);
   const [historico, setHistorico] = useState<string | null>(null);
   // ?novo=<clienteId> (link do painel da conversa) abre o cadastro direto.
   const novoPara = params.get("novo");
@@ -114,7 +118,8 @@ export function CertificadosPage() {
   const filtrados = useMemo(() => {
     const t = normalizarBusca(busca);
     return data.filter((c) => {
-      if (status !== TODOS && statusCertificado(c.validoAte) !== status) return false;
+      // Renovado (já substituído por outro) não conta como vencido nem vencendo.
+      if (status !== TODOS && (c.renovadoPorId || statusCertificado(c.validoAte) !== status)) return false;
       if (tipo !== TODOS && c.tipo !== tipo) return false;
       if (!t) return true;
       return [c.cliente?.nome, c.cliente?.nomeFantasia, c.titular, c.emissora, c.documento]
@@ -125,7 +130,7 @@ export function CertificadosPage() {
 
   const contagem = useMemo(() => {
     const r = { vencido: 0, vencendo: 0, ok: 0 };
-    for (const c of data) r[statusCertificado(c.validoAte)]++;
+    for (const c of data) if (!c.renovadoPorId) r[statusCertificado(c.validoAte)]++;
     return r;
   }, [data]);
 
@@ -280,7 +285,7 @@ export function CertificadosPage() {
                   <TableHead>Válido até</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead>Aviso</TableHead>
-                  <TableHead className="w-28" />
+                  <TableHead className="w-36" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -291,6 +296,7 @@ export function CertificadosPage() {
                     aberto={historico === c.id}
                     onHistorico={() => setHistorico(historico === c.id ? null : c.id)}
                     onEditar={podeEditar ? () => setEditando(c) : undefined}
+                    onRenovar={podeEditar && !c.renovadoPorId ? () => setRenovando(c) : undefined}
                     onExcluir={async () => {
                       if (!(await confirmar({ titulo: "Excluir certificado?", descricao: "O histórico de avisos vai junto.", confirmLabel: "Excluir", destructive: true }))) return;
                       excluir.mutate(c.id, { onError: (e) => toast.error(msgErro(e)) });
@@ -308,6 +314,7 @@ export function CertificadosPage() {
               aberto={historico === c.id}
               onHistorico={() => setHistorico(historico === c.id ? null : c.id)}
               onEditar={podeEditar ? () => setEditando(c) : undefined}
+              onRenovar={podeEditar && !c.renovadoPorId ? () => setRenovando(c) : undefined}
               onExcluir={async () => {
                 if (!(await confirmar({ titulo: "Excluir certificado?", descricao: "O histórico de avisos vai junto.", confirmLabel: "Excluir", destructive: true }))) return;
                 excluir.mutate(c.id, { onError: (e) => toast.error(msgErro(e)) });
@@ -330,18 +337,25 @@ export function CertificadosPage() {
         certificado={editando === "novo" ? null : editando}
         clienteIdFixo={editando === "novo" && novoPara !== "1" ? novoPara : null}
       />
+      <CertificadoDialog
+        open={renovando !== null}
+        onOpenChange={(o) => {
+          if (!o) setRenovando(null);
+        }}
+        renovarDe={renovando}
+      />
     </PageContainer>
   );
 }
 
 /** O mesmo registro da linha da tabela, em card (celular). */
-function CardCertificado({ c, aberto, onHistorico, onEditar, onExcluir }: Parameters<typeof FragmentLinha>[0]) {
+function CardCertificado({ c, aberto, onHistorico, onEditar, onRenovar, onExcluir }: Parameters<typeof FragmentLinha>[0]) {
   return (
     <>
       <ItemCard
         titulo={c.cliente ? nomeExibicao(c.cliente) : "-"}
         subtitulo={[c.tipo, c.titular, c.emissora].filter(Boolean).join(" · ")}
-        selo={<CertificadoStatusBadge validoAte={c.validoAte} />}
+        selo={c.renovadoPorId ? <Badge variant="secondary">Renovado</Badge> : <CertificadoStatusBadge validoAte={c.validoAte} />}
         meta={[
           { texto: `Válido até ${formatData(c.validoAte)}` },
           {
@@ -355,6 +369,12 @@ function CardCertificado({ c, aberto, onHistorico, onEditar, onExcluir }: Parame
               <History />
               Histórico
             </Button>
+            {onRenovar && (
+              <Button size="sm" variant="ghost" onClick={onRenovar} title="Cadastrar o certificado novo no lugar deste">
+                <RefreshCcw />
+                Renovar
+              </Button>
+            )}
             {onEditar && (
               <>
                 <Button size="icon" variant="ghost" onClick={onEditar} title="Editar" aria-label="Editar certificado">
@@ -382,13 +402,16 @@ function FragmentLinha({
   aberto,
   onHistorico,
   onEditar,
+  onRenovar,
   onExcluir,
 }: {
   c: Certificado;
   aberto: boolean;
   onHistorico: () => void;
-  /** Sem permissão de editar, editar e excluir somem. */
+  /** Sem permissão de editar, editar, renovar e excluir somem. */
   onEditar?: () => void;
+  /** Só para quem ainda não foi renovado. */
+  onRenovar?: () => void;
   onExcluir: () => void;
 }) {
   return (
@@ -417,7 +440,7 @@ function FragmentLinha({
         </TableCell>
         <TableCell className="text-sm whitespace-nowrap tabular-nums">{formatData(c.validoAte)}</TableCell>
         <TableCell>
-          <CertificadoStatusBadge validoAte={c.validoAte} />
+          {c.renovadoPorId ? <Badge variant="secondary">Renovado</Badge> : <CertificadoStatusBadge validoAte={c.validoAte} />}
         </TableCell>
         <TableCell className="text-xs text-muted-foreground">
           {c.avisarWhatsapp ? (
@@ -434,6 +457,11 @@ function FragmentLinha({
             <Button size="icon" variant="ghost" onClick={onHistorico} title="Histórico de avisos" aria-label="Histórico de avisos" aria-expanded={aberto}>
               <History />
             </Button>
+            {onRenovar && (
+              <Button size="icon" variant="ghost" onClick={onRenovar} title="Renovar (cadastrar o novo no lugar deste)" aria-label="Renovar certificado">
+                <RefreshCcw />
+              </Button>
+            )}
             {onEditar && (
               <>
                 <Button size="icon" variant="ghost" onClick={onEditar} title="Editar" aria-label="Editar certificado">

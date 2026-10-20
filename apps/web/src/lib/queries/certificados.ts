@@ -92,7 +92,8 @@ function limpar(input: CertificadoInput) {
     clienteId: input.clienteId,
     tipo: input.tipo,
     titular: input.titular?.trim() || null,
-    documento: input.documento ? input.documento.replace(/\D/g, "") || null : null,
+    // CNPJ pode ter letras desde 07/2026: guarda [0-9A-Z], sem pontuação.
+    documento: input.documento ? input.documento.toUpperCase().replace(/[^0-9A-Z]/g, "") || null : null,
     emissora: input.emissora?.trim() || null,
     emitidoEm: input.emitidoEm || null,
     validoAte: input.validoAte,
@@ -105,7 +106,8 @@ function limpar(input: CertificadoInput) {
 export function useSalvarCertificado() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { id?: string; input: CertificadoInput }) => {
+    /** `renovarDe`: o certificado novo substitui este (que sai dos avisos e dos vencidos). */
+    mutationFn: async (args: { id?: string; input: CertificadoInput; renovarDe?: string }) => {
       const payload = limpar(args.input);
       if (args.id) {
         const { error } = await supabase.from("CertificadoDigital").update(payload).eq("id", args.id);
@@ -118,11 +120,18 @@ export function useSalvarCertificado() {
         .select("id")
         .single();
       if (error) throw error;
+      if (args.renovarDe) {
+        const { error: e2 } = await supabase
+          .from("CertificadoDigital")
+          .update({ renovadoPorId: data.id })
+          .eq("id", args.renovarDe);
+        if (e2) throw new Error(`O certificado novo foi salvo, mas o antigo não foi marcado como renovado: ${e2.message}`);
+      }
       return data as { id: string };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["certificados"] });
-      qc.invalidateQueries({ queryKey: ["inicio"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
@@ -136,7 +145,7 @@ export function useExcluirCertificado() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["certificados"] });
-      qc.invalidateQueries({ queryKey: ["inicio"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }

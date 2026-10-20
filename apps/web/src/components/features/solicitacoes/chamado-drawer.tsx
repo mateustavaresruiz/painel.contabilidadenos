@@ -1,5 +1,5 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { CalendarDays, ClipboardList, Loader2, MessageSquare, Save, Send, X } from "lucide-react";
+import { CalendarDays, ClipboardList, Eye, Loader2, MessageSquare, Save, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -334,7 +334,16 @@ function DescricaoEditavel({ s }: { s: Solicitacao }) {
           onChange={(e) => setTexto(e.target.value.slice(0, 4000))}
           placeholder="O que o cliente pediu?"
           className="text-base fino:text-sm"
+          aria-describedby={s.origem === "portal" ? "ch-desc-portal" : undefined}
         />
+        {/* Chamado aberto pelo portal: o cliente vê esta descrição lá. Quem edita
+            precisa saber antes de escrever uma anotação interna aqui. */}
+        {s.origem === "portal" && (
+          <p id="ch-desc-portal" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Eye className="size-3.5 shrink-0" aria-hidden />
+            Visível para o cliente no portal
+          </p>
+        )}
         {mudou && (
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setTexto(s.descricao ?? "")}>

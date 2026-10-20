@@ -363,7 +363,10 @@ function CriarClienteForm({
           <Field label={tipo === "PF" ? "CPF" : "CNPJ"} htmlFor="c-doc">
             <Input
               id="c-doc"
-              inputMode="numeric"
+              inputMode="text"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
               value={cpfCnpj}
               onChange={(e) => setCpfCnpj(maskCpfCnpj(e.target.value))}
             />

@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDebounced } from "@/hooks/use-debounced";
 import { msgErro } from "@/lib/erro";
 import { cnpjNaoEncontrado, fetchCep, fetchCnpj, onlyDigits } from "@/lib/lookups";
-import { isValidCnpj, maskCep, maskCpfCnpj, maskTelefone } from "@/lib/masks";
+import { isValidCnpj, maskCep, maskCpfCnpj, maskTelefone, normalizarDoc } from "@/lib/masks";
 import {
   type Cliente,
   useClientePorDoc,
@@ -129,9 +129,9 @@ export function ClienteForm(props: Props) {
   // CNPJ completo (PJ): importa os dados da Receita via BrasilAPI.
   useEffect(() => {
     if (tipoAtual !== "PJ" || props.mode === "edit") return;
-    const sanit = onlyDigits(debouncedDoc);
+    const sanit = normalizarDoc(debouncedDoc);
     // Dígitos verificadores errados: nem chama a BrasilAPI (o campo já mostra "inválido").
-    if (sanit.length !== 14 || !isValidCnpj(sanit)) return;
+    if (!isValidCnpj(sanit)) return;
     let active = true;
     setCnpjLoading(true);
     void fetchCnpj(sanit).then((info) => {
@@ -172,7 +172,7 @@ export function ClienteForm(props: Props) {
 
   // Duplicados (CPF/CNPJ, e-mail, telefone) em OUTRO cliente.
   const ignorar = props.mode === "edit" ? props.clienteId : undefined;
-  const docSanit = onlyDigits(debouncedDoc);
+  const docSanit = normalizarDoc(debouncedDoc);
   const duplicado = useClientePorDoc(docSanit.length >= 11 ? docSanit : undefined, ignorar).data;
   const debouncedEmail = useDebounced(form.watch("email") ?? "", 600);
   const duplicadoEmail = useClientePorEmail(debouncedEmail, ignorar).data;
@@ -260,7 +260,8 @@ export function ClienteForm(props: Props) {
           help={tipoAtual === "PJ" && props.mode === "create" ? "Com o CNPJ completo, os dados vêm da Receita." : undefined}
         >
           <div className="relative">
-            <Input id="cpfCnpj" inputMode="numeric" {...masked("cpfCnpj", maskCpfCnpj)} />
+            {/* CNPJ alfanumérico (2026) tem letras: teclado de texto, maiúsculas. */}
+            <Input id="cpfCnpj" inputMode="text" autoCapitalize="characters" autoComplete="off" spellCheck={false} {...masked("cpfCnpj", maskCpfCnpj)} />
             {cnpjLoading ? (
               <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 size-3.5 animate-spin text-muted-foreground" />
             ) : null}

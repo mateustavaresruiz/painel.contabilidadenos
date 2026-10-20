@@ -10,7 +10,7 @@
 
 import { TIPOS_CERTIFICADO, type TipoCertificado } from "@/lib/queries/certificados";
 import { clienteSchema, REGIMES, type ClienteInput } from "@/lib/validations/cliente";
-import { isValidCpf, isValidTelefone } from "@/lib/masks";
+import { CNPJ_RE, CPF_RE, isValidCpf, isValidCpfCnpj, isValidTelefone, normalizarDoc } from "@/lib/masks";
 
 export type Campo = {
   campo: string;
@@ -75,13 +75,22 @@ export function normalizar(s: string): string {
   return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 export const soDigitos = (s: string) => s.replace(/\D/g, "");
-/** CPF/CNPJ que o Excel guardou como número perde os zeros à esquerda: devolve. */
+/**
+ * CPF/CNPJ normalizado (normalizarDoc: maiúsculas, sem pontuação; as letras do
+ * CNPJ alfanumérico ficam). Sem nenhum dígito ("N/A", "não tem") é célula
+ * vazia, como antes. Só número que o Excel guardou como número perde os zeros
+ * à esquerda: devolve.
+ */
 export const docDigitos = (s: string) => {
-  const d = soDigitos(s);
+  const d = normalizarDoc(s);
+  if (!/\d/.test(d)) return "";
+  if (!/^\d+$/.test(d)) return d;
   if (d.length === 9 || d.length === 10) return d.padStart(11, "0");
   if (d.length === 12 || d.length === 13) return d.padStart(14, "0");
   return d;
 };
+/** Tem forma de documento (CPF de 11 dígitos ou CNPJ de 14 caracteres)? Nome não passa. */
+const pareceDoc = (d: string) => CPF_RE.test(d) || CNPJ_RE.test(d);
 
 function celulaParaTexto(v: unknown): string {
   if (v == null) return "";
@@ -234,8 +243,7 @@ function resolverTipo(v: string, doc: string): "PF" | "PJ" | "" {
   if (["pf", "f", "fisica", "pessoa fisica"].includes(n)) return "PF";
   if (["pj", "j", "juridica", "pessoa juridica", "empresa"].includes(n)) return "PJ";
   if (n) return "";
-  const d = soDigitos(doc);
-  return d.length === 11 ? "PF" : "PJ";
+  return CPF_RE.test(normalizarDoc(doc)) ? "PF" : "PJ";
 }
 
 function resolverRegime(v: string): string {
@@ -248,7 +256,7 @@ function resolverRegime(v: string): string {
 }
 
 export function validarClientes(linhas: Array<{ linha: number; c: Record<string, string> }>, existentes: ClienteExistente[]): LinhaCliente[] {
-  const porDoc = new Map(existentes.filter((e) => e.cpfCnpj).map((e) => [soDigitos(e.cpfCnpj!), e]));
+  const porDoc = new Map(existentes.filter((e) => e.cpfCnpj).map((e) => [normalizarDoc(e.cpfCnpj!), e]));
   // Provisórios (criados pelo WhatsApp, sem CPF/CNPJ) pelo telefone
   // normalizado. Dois provisórios com o mesmo telefone = ambíguo, não casa.
   const provPorTel = new Map<string, ClienteExistente | null>();
@@ -332,7 +340,7 @@ export type LinhaSocio = {
 type Achador = (busca: string) => { id?: string; docNovo?: string; nome: string } | null;
 
 export function criarAchador(existentes: ClienteExistente[], novos: LinhaCliente[] = []): Achador {
-  const porDoc = new Map(existentes.filter((e) => e.cpfCnpj).map((e) => [soDigitos(e.cpfCnpj!), e]));
+  const porDoc = new Map(existentes.filter((e) => e.cpfCnpj).map((e) => [normalizarDoc(e.cpfCnpj!), e]));
   const porNome = new Map<string, ClienteExistente | null>();
   for (const e of existentes) {
     for (const n of [e.nome, e.nomeFantasia]) {
@@ -350,14 +358,16 @@ export function criarAchador(existentes: ClienteExistente[], novos: LinhaCliente
   const novosPorNome = new Map(novos.filter((n) => n.dados && n.acao === "criar").map((n) => [normalizar(n.nome), n]));
   return (busca) => {
     const d = docDigitos(busca);
-    if (d.length === 11 || d.length === 14) {
+    if (pareceDoc(d)) {
       const e = porDoc.get(d);
       if (e) return { id: e.id, nome: e.nomeFantasia || e.nome };
       const n = novosPorDoc.get(d);
       if (n) return { docNovo: d, nome: n.nome };
       const p = completadosPorDoc.get(d);
       if (p) return { id: p.existenteId!, nome: p.nome };
-      return null;
+      // Documento de verdade que não está em lugar nenhum: não achou. Sem DV
+      // válido pode ser nome com cara de CNPJ alfanumérico: tenta pelo nome.
+      if (isValidCpfCnpj(d)) return null;
     }
     const k = normalizar(busca);
     const e = porNome.get(k);
@@ -429,15 +439,16 @@ export type LinhaCertificado = {
 
 function resolverTipoCert(v: string, doc: string): TipoCertificado | null {
   const n = normalizar(v);
-  if (!n) return soDigitos(doc).length === 11 ? "e-CPF A1" : "e-CNPJ A1";
+  const pf = CPF_RE.test(normalizarDoc(doc));
+  if (!n) return pf ? "e-CPF A1" : "e-CNPJ A1";
   const exato = TIPOS_CERTIFICADO.find((t) => normalizar(t) === n);
   if (exato) return exato;
   const a3 = n.includes("a3");
   if (n.includes("cpf")) return a3 ? "e-CPF A3" : "e-CPF A1";
   if (n.includes("cnpj")) return a3 ? "e-CNPJ A3" : "e-CNPJ A1";
   if (n.includes("nf")) return "NF-e";
-  if (n === "a1") return soDigitos(doc).length === 11 ? "e-CPF A1" : "e-CNPJ A1";
-  if (n === "a3") return soDigitos(doc).length === 11 ? "e-CPF A3" : "e-CNPJ A3";
+  if (n === "a1") return pf ? "e-CPF A1" : "e-CNPJ A1";
+  if (n === "a3") return pf ? "e-CPF A3" : "e-CNPJ A3";
   return null;
 }
 
@@ -477,7 +488,7 @@ export function validarCertificados(
         tipo,
         validoAte,
         titular: c.titular?.trim() || null,
-        documento: soDigitos(c.documento ?? "") || null,
+        documento: normalizarDoc(c.documento ?? "") || null,
         emissora: c.emissora?.trim() || null,
         emitidoEm: emitidoEm || null,
         telefoneAviso: tel || null,

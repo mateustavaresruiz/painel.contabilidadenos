@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { QueryError } from "@/components/ui/query-error";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { normalizarDoc } from "@/lib/masks";
 import { useClientesList } from "@/lib/queries/helpers";
 import { normalizarBusca } from "@/lib/texto";
 import { cn } from "@/lib/utils";
@@ -40,13 +41,15 @@ export function ClienteSelect({
     const t = normalizarBusca(busca);
     if (!t) return lista.slice(0, 80);
     const dig = t.replace(/\D/g, "");
+    // CPF/CNPJ como o banco grava (o CNPJ alfanumérico tem letras).
+    const doc = normalizarDoc(busca);
     return lista
       .filter(
         (c) =>
           normalizarBusca(c.nome).includes(t) ||
           normalizarBusca(c.nomeFantasia).includes(t) ||
-          (dig.length >= 3 &&
-            ((c.telefone ?? "").replace(/\D/g, "").includes(dig) || (c.cpfCnpj ?? "").includes(dig))),
+          (dig.length >= 3 && (c.telefone ?? "").replace(/\D/g, "").includes(dig)) ||
+          (doc.length >= 3 && /\d/.test(doc) && (c.cpfCnpj ?? "").toUpperCase().includes(doc)),
       )
       .slice(0, 80);
   }, [lista, busca]);

@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { normalizarDoc } from "@/lib/masks";
 import { nullificarVazios } from "@/lib/queries/helpers";
 import { compararTexto } from "@/lib/texto";
 import { supabase } from "@/lib/supabase";
@@ -63,27 +64,42 @@ export type ClientesFilters = {
   incompletos?: boolean;
 };
 
+/** Teto da lista na tela: chegou nele, a tela avisa e pede para refinar a busca. */
+export const LIMITE_CLIENTES = 500;
+
+const COLUNAS_LISTA =
+  "id, tipo, nome, nomeFantasia, cpfCnpj, email, telefone, regimeTributario, cidade, estado, ativo, provisorio, criadoEm";
+
+/**
+ * Consulta da lista com os filtros da tela, sem ordem nem teto. A lista e o
+ * Exportar (lib/exportar-clientes.ts) usam a mesma: o arquivo traz exatamente
+ * os clientes que casam com o que está na tela.
+ */
+export function consultaClientes(filters: ClientesFilters) {
+  const q = filters.q?.trim();
+  // Com busca: RPC buscar_clientes (migration 018), sem acento, por
+  // CPF/CNPJ e telefone (dígitos) e por nome de sócio. Mesma RLS de um select.
+  let query = q
+    ? supabase.rpc("buscar_clientes", { p_q: q }).select(COLUNAS_LISTA)
+    : supabase.from(TABLE).select(COLUNAS_LISTA);
+  if (filters.tipo === "PF" || filters.tipo === "PJ") query = query.eq("tipo", filters.tipo);
+  if (filters.regime) query = query.eq("regimeTributario", filters.regime);
+  const situacao = filters.situacao ?? "ativos";
+  if (situacao === "ativos") query = query.eq("ativo", true);
+  if (situacao === "inativos") query = query.eq("ativo", false);
+  if (filters.incompletos) query = query.eq("provisorio", true);
+  return query;
+}
+
 export function useClientes(filters: ClientesFilters) {
   return useQuery({
     queryKey: ["clientes", "lista", filters],
     // Trocar filtro ou busca mantém a lista anterior até a nova chegar.
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      const q = filters.q?.trim();
-      const colunas =
-        "id, tipo, nome, nomeFantasia, cpfCnpj, email, telefone, regimeTributario, cidade, estado, ativo, provisorio, criadoEm";
-      // Com busca: RPC buscar_clientes (migration 018), sem acento, por
-      // CPF/CNPJ e telefone (dígitos) e por nome de sócio. Mesma RLS de um select.
-      let query = (q ? supabase.rpc("buscar_clientes", { p_q: q }).select(colunas) : supabase.from(TABLE).select(colunas))
+      const { data, error } = await consultaClientes(filters)
         .order("nome", { ascending: true })
-        .limit(500);
-      if (filters.tipo === "PF" || filters.tipo === "PJ") query = query.eq("tipo", filters.tipo);
-      if (filters.regime) query = query.eq("regimeTributario", filters.regime);
-      const situacao = filters.situacao ?? "ativos";
-      if (situacao === "ativos") query = query.eq("ativo", true);
-      if (situacao === "inativos") query = query.eq("ativo", false);
-      if (filters.incompletos) query = query.eq("provisorio", true);
-      const { data, error } = await query;
+        .limit(LIMITE_CLIENTES);
       if (error) throw error;
       // Ordem do nome que aparece (fantasia quando houver), não da razão social.
       return ((data ?? []) as unknown as ClienteResumo[]).sort((a, b) =>
@@ -138,10 +154,11 @@ export async function garantirClienteDaConversa(
 export function useClientePorDoc(doc: string | undefined, ignorarId?: string) {
   return useQuery({
     queryKey: ["cliente-por-doc", doc, ignorarId],
-    enabled: !!doc && doc.replace(/\D/g, "").length >= 11,
+    enabled: !!doc && normalizarDoc(doc).length >= 11,
     staleTime: 30_000,
     queryFn: async () => {
-      const sanit = doc!.replace(/\D/g, "");
+      // Mesma normalização do banco: o CNPJ alfanumérico guarda as letras.
+      const sanit = normalizarDoc(doc!);
       let q = supabase.from(TABLE).select("id, nome, tipo, cpfCnpj").eq("cpfCnpj", sanit).limit(1);
       if (ignorarId) q = q.neq("id", ignorarId);
       const { data, error } = await q.maybeSingle();
@@ -159,7 +176,12 @@ export function useClientePorEmail(email: string | undefined, ignorarId?: string
     enabled: !!normalizado && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizado),
     staleTime: 30_000,
     queryFn: async () => {
-      let q = supabase.from(TABLE).select("id, nome, email").ilike("email", normalizado!).limit(1);
+      // `_` e `%` são curingas do LIKE: "joao_silva@x.com" casava com
+      // "joaoXsilva@x.com" e acusava duplicado falso. Escapados (com a própria
+      // barra), viram o caractere literal. Uma barra só: fora do `.or()` o
+      // PostgREST não consome nenhuma (ver orIlike em helpers.ts).
+      const literal = normalizado!.replace(/[\\%_]/g, (c) => `\\${c}`);
+      let q = supabase.from(TABLE).select("id, nome, email").ilike("email", literal).limit(1);
       if (ignorarId) q = q.neq("id", ignorarId);
       const { data, error } = await q.maybeSingle();
       if (error) throw error;

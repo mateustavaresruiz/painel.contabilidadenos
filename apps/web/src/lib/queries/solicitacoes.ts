@@ -174,6 +174,9 @@ export type SolicitacoesFiltros = {
   ate?: string;
 };
 
+/** Teto da lista de chamados: chegou nele, a tela avisa que mostra só os mais recentes. */
+export const LIMITE_SOLICITACOES = 500;
+
 export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
   useRealtimeInvalidate("Solicitacao", [["solicitacoes"], ["contador", "chamados"]], undefined, enabled);
   return useQuery({
@@ -185,7 +188,7 @@ export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
         .from("Solicitacao")
         .select(SELECT_SOLICITACAO)
         .order("criadoEm", { ascending: false })
-        .limit(500);
+        .limit(LIMITE_SOLICITACOES);
       if (filtros.status === "abertas") q = q.in("status", ["aberta", "em_andamento"]);
       else if (filtros.status === "atrasadas")
         q = q.in("status", ["aberta", "em_andamento"]).lt("prazo", filtros.hoje ?? new Date().toISOString().slice(0, 10));

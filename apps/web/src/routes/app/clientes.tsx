@@ -1,5 +1,5 @@
 import { PageContainer } from "@/components/page-container";
-import { Building2, ChevronRight, MapPin, Pencil, Plus, Search, SearchX, User, Users } from "lucide-react";
+import { Building2, ChevronRight, Download, MapPin, Pencil, Plus, Search, SearchX, User, Users } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -39,16 +39,20 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { useSort } from "@/hooks/use-sort";
 import { formatDoc, formatTelefone } from "@/lib/format";
 import { usePermissao } from "@/lib/colaborador";
+import { msgErro } from "@/lib/erro";
 import {
+  LIMITE_CLIENTES,
   nomeCompleto,
   nomeExibicao,
   razaoSocialDeApoio,
   useClientes,
   useContagemIncompletos,
   type ClienteResumo,
+  type ClientesFilters,
 } from "@/lib/queries/clientes";
 import { REGIMES, type RegimeTributario } from "@/lib/validations/cliente";
 import { plural } from "@/lib/texto";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -57,6 +61,8 @@ const TODOS = "__todos__";
 export function ClientesPage() {
   usePageTitle("Clientes");
   const podeEditar = usePermissao("clientes.editar");
+  // Mesmo gate da rota (App.tsx): quem vê a lista pode baixá-la.
+  const podeVer = usePermissao("clientes.ver");
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const tipoParam = params.get("tipo") ?? "";
@@ -125,15 +131,20 @@ export function ClientesPage() {
         title="Clientes"
         description="Empresas e pessoas atendidas pelo escritório."
         actions={
-          podeEditar ? (
+          podeVer || podeEditar ? (
             <div className="flex flex-wrap gap-2">
-            <ImportarPlanilhaBotao alvo="clientes" />
-            <Button asChild>
-              <Link to="/clientes/novo">
-                <Plus />
-                Novo cliente
-              </Link>
-            </Button>
+              {podeVer && <ExportarClientesBotao filtros={{ q, tipo, regime, situacao, incompletos }} />}
+              {podeEditar && (
+                <>
+                  <ImportarPlanilhaBotao alvo="clientes" />
+                  <Button asChild>
+                    <Link to="/clientes/novo">
+                      <Plus />
+                      Novo cliente
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           ) : undefined
         }
@@ -377,10 +388,37 @@ export function ClientesPage() {
       {clientes.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {plural(clientes.length, "cliente", "clientes")}
-          {clientes.length >= 500 ? " (mostrando os 500 primeiros, refine a busca)" : ""}
+          {clientes.length >= LIMITE_CLIENTES ? ` (mostrando os ${LIMITE_CLIENTES} primeiros, refine a busca)` : ""}
         </p>
       )}
     </PageContainer>
+  );
+}
+
+/**
+ * Baixa um .xlsx com os clientes do filtro e da busca atuais (todos, não só
+ * os 500 da tela). A lógica e a lib `xlsx` só carregam no clique.
+ */
+function ExportarClientesBotao({ filtros }: { filtros: ClientesFilters }) {
+  const [exportando, setExportando] = useState(false);
+  async function exportar() {
+    setExportando(true);
+    try {
+      const { exportarClientes } = await import("@/lib/exportar-clientes");
+      const n = await exportarClientes(filtros);
+      if (n === 0) toast.info("Nenhum cliente com esses filtros");
+      else toast.success(`${plural(n, "cliente exportado", "clientes exportados")}`);
+    } catch (e) {
+      toast.error("Não foi possível exportar: " + msgErro(e));
+    } finally {
+      setExportando(false);
+    }
+  }
+  return (
+    <Button variant="outline" onClick={() => void exportar()} loading={exportando} disabled={exportando}>
+      <Download />
+      Exportar
+    </Button>
   );
 }
 

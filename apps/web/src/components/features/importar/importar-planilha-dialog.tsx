@@ -64,6 +64,36 @@ async function carregarClientes(): Promise<ClienteExistente[]> {
   }
 }
 
+/** Certificados já cadastrados, para pular repetidos (mesma paginação de 1000). */
+async function carregarCertificados(): Promise<Array<{ clienteId: string; tipo: string; validoAte: string }>> {
+  const out: Array<{ clienteId: string; tipo: string; validoAte: string }> = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase.from("CertificadoDigital").select("clienteId, tipo, validoAte").order("id").range(de, de + 999);
+    if (error) throw error;
+    out.push(...((data ?? []) as typeof out));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
+/**
+ * Sócios já cadastrados dos clientes dados. O `.in()` vai em fatias de 200 ids
+ * (URL curta) e cada fatia pagina de 1000 em 1000: sem isso a consulta parava
+ * em 1000 linhas e a importação duplicava os sócios que ficavam de fora.
+ */
+async function carregarSocios(clienteIds: string[]): Promise<Array<{ clienteId: string; nome: string; cpf: string | null }>> {
+  const out: Array<{ clienteId: string; nome: string; cpf: string | null }> = [];
+  for (let i = 0; i < clienteIds.length; i += 200) {
+    const fatia = clienteIds.slice(i, i + 200);
+    for (let de = 0; ; de += 1000) {
+      const { data, error } = await supabase.from("Socio").select("clienteId, nome, cpf").in("clienteId", fatia).order("id").range(de, de + 999);
+      if (error) throw error;
+      out.push(...((data ?? []) as typeof out));
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return out;
+}
+
 /** Seletor de coluna para um campo. */
 function SeletorColuna({ campo, aba, valor, onChange }: { campo: Campo; aba: Aba; valor: number; onChange: (v: number) => void }) {
   const amostra = valor >= 0 ? aba.linhas.find((l) => l[valor])?.[valor] : undefined;
@@ -303,9 +333,8 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
         const socios = abaSocios >= 0 ? validarSocios(aplicarMapa(abas[abaSocios]!, mapaSocios), criarAchador(existentes, clientes)) : [];
         setPrevia({ clientes, socios, certificados: [] });
       } else {
-        const { data, error } = await supabase.from("CertificadoDigital").select("clienteId, tipo, validoAte").limit(20000);
-        if (error) throw error;
-        setPrevia({ clientes: [], socios: [], certificados: validarCertificados(linhas, existentes, data ?? []) });
+        const jaCadastrados = await carregarCertificados();
+        setPrevia({ clientes: [], socios: [], certificados: validarCertificados(linhas, existentes, jaCadastrados) });
       }
       setEtapa("previa");
     } catch (e) {
@@ -357,9 +386,9 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
             const id = s.clienteId ?? (s.clienteDocNovo ? docParaId.get(s.clienteDocNovo) : undefined);
             if (id) ids.add(id);
           }
-          const { data: ja } = await supabase.from("Socio").select("clienteId, nome, cpf").in("clienteId", [...ids].slice(0, 1000));
+          const ja = await carregarSocios([...ids]);
           const chave = (cli: string, nome: string, cpf: string | null) => (cpf ? `${cli}|${cpf}` : `${cli}|n:${nome.toLowerCase()}`);
-          const existe = new Set((ja ?? []).map((s) => chave(s.clienteId as string, s.nome as string, s.cpf as string | null)));
+          const existe = new Set(ja.map((s) => chave(s.clienteId, s.nome, s.cpf)));
           const inserir = [];
           for (const s of sociosValidos) {
             const id = s.clienteId ?? (s.clienteDocNovo ? docParaId.get(s.clienteDocNovo) : undefined);
