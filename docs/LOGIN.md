@@ -9,7 +9,7 @@ público: só entra quem um administrador cadastrou em **Equipe**, e cada pessoa
 
 | Forma | Estado hoje (18/10/2026) | Quem decide se entra |
 |---|---|---|
-| **Entrar com Google** | Pronta, **desligada** até o dono criar as credenciais (`GOOGLE_ENABLED=false`). Ver [Login com Google](#login-com-google). | O Auth: conta Google com o mesmo e-mail (verificado) de alguém da Equipe. |
+| **Entrar com Google** | Pronta, mas **desligada por decisão do dono** (20/10/2026: o Google é só para o backup no Drive; `GOOGLE_ENABLED=false`, as credenciais ficam no env). Ver [Login com Google](#login-com-google). | O Auth: conta Google com o mesmo e-mail (verificado) de alguém da Equipe. |
 | **Link ou código por e-mail** | Pronta, **sem e-mail saindo** até configurar o SMTP do Google Workspace (`SMTP_HOST` vazio). Ver [E-mail pelo Google Workspace](#e-mail-pelo-google-workspace-smtp). | O Auth: o e-mail tem de existir; o link/código prova que a pessoa abriu a caixa. |
 | **Link de acesso** gerado em Equipe | Funciona hoje. O administrador gera e manda por WhatsApp. | Quem tem o link (uso único, 15 min). |
 | **Entrar só com o e-mail** (provisório) | **Ligada** (Configurações > Módulos). | Ninguém confere a caixa: quem souber o e-mail de alguém da equipe entra como ele. 🔴 Desligar assim que o Google ou o SMTP funcionar ([O que desligar e quando](#o-que-desligar-e-quando)). |

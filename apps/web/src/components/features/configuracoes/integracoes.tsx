@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora } from "@/lib/format";
-import { useLoginConfig } from "@/lib/login-google";
 import { useModulos } from "@/lib/modulos";
 import { RequisitosSerpro } from "@/components/features/serpro/serpro-ui";
 import { useSerproStatus, useTestarLoginSerpro } from "@/lib/queries/denos";
@@ -16,6 +15,7 @@ import {
   agendaEmPortugues,
   CRON_DESCRICAO,
   estadoSerpro,
+  useBackupStatus,
   usePainelSaude,
   useWhatsappStatus,
   type Estado,
@@ -40,7 +40,7 @@ export function ConfigIntegracoes() {
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <CardBanco />
       <CardEmail />
-      <CardGoogle />
+      <CardGoogleDrive />
       {ativo("whatsapp") && <CardWhatsapp />}
       {ativo("pendenciasFiscais") && <CardSerpro />}
       <CardCrons />
@@ -325,23 +325,41 @@ function CardEmail() {
 // ---------------------------------------------------------------------------
 
 /** Endereços que o OAuth client do Google precisa ter (mudam com o domínio próprio). */
-const GOOGLE_ORIGEM = "https://painel-web.at63vf.easypanel.host";
-const GOOGLE_REDIRECT = "https://painel-supabase.at63vf.easypanel.host/auth/v1/callback";
-
 function Codigo({ children }: { children: ReactNode }) {
   return <span className="font-mono text-foreground [overflow-wrap:anywhere]">{children}</span>;
 }
 
-/** "Entrar com Google": o estado vem do próprio Auth (function entrar, /entrar/config). */
-function CardGoogle() {
-  const q = useLoginConfig();
-  const ligado = q.data?.google === true;
-  const estado: Estado = q.isLoading ? "carregando" : q.error ? "erro" : ligado ? "ok" : "atencao";
+/**
+ * Google: usado SÓ para o backup diário no Drive (o login do painel não usa
+ * Google). Estado da conexão; conectar e trocar ficam em Sistema > Backup.
+ */
+function CardGoogleDrive() {
+  const q = useBackupStatus();
+  const d = q.data?.drive;
+  const ultimo = q.data?.ultimos.drive;
+  const estado: Estado = q.isLoading
+    ? "carregando"
+    : q.error
+      ? "erro"
+      : d?.conectado
+        ? ultimo && !ultimo.ok
+          ? "erro"
+          : "ok"
+        : "atencao";
+  const rotulo = q.isLoading || q.error
+    ? undefined
+    : d?.conectado
+      ? ultimo && !ultimo.ok
+        ? "Falhou"
+        : "Conectado"
+      : d?.clienteConfigurado
+        ? "Falta conectar"
+        : "Não configurado";
   return (
     <CardIntegracao
-      titulo="Login com Google"
+      titulo="Google Drive (backup)"
       estado={estado}
-      rotulo={q.isLoading || q.error ? undefined : ligado ? "Configurado" : "Não configurado"}
+      rotulo={rotulo}
       verificadoEm={q.dataUpdatedAt || q.errorUpdatedAt || undefined}
       onVerificar={() => void q.refetch()}
       verificando={q.isFetching}
@@ -349,45 +367,29 @@ function CardGoogle() {
       {q.isLoading ? (
         <Skeleton className="h-16 w-full" />
       ) : q.error ? (
-        <p className="text-sm text-destructive">A função entrar não respondeu: {msgErro(q.error)}</p>
-      ) : ligado ? (
-        <p className="text-sm text-muted-foreground">
-          O botão "Entrar com Google" aparece na tela de entrada. Só entra quem está cadastrado em Equipe, com o
-          mesmo e-mail da conta Google; desativar a pessoa bloqueia também o Google.
-        </p>
+        <p className="text-sm text-destructive">Não foi possível ler o status: {msgErro(q.error)}</p>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Desligado: o botão não aparece. Falta criar o acesso OAuth no Google Cloud e colocar as credenciais no
-          servidor (passos abaixo).
-        </p>
+        <>
+          <p className="text-sm text-muted-foreground">
+            O Google só é usado para guardar uma cópia cifrada do banco por dia no Drive do escritório (os últimos
+            30). O login do painel não usa Google.
+          </p>
+          {d?.conectado && (
+            <dl className="divide-y divide-divider">
+              <Linha rotulo="Conta">{d.conta ?? "-"}</Linha>
+              <Linha rotulo="Último envio">
+                {ultimo ? `${formatDataHora(ultimo.fim ?? ultimo.inicio)}${ultimo.ok ? "" : " (falhou)"}` : "aguardando as 03:00"}
+              </Linha>
+            </dl>
+          )}
+          <Button asChild variant="outline" size="sm">
+            <Link to="/configuracoes?tab=sistema">
+              {d?.conectado ? "Ver backup" : "Conectar Google Drive"}
+              <ArrowRight />
+            </Link>
+          </Button>
+        </>
       )}
-      <details className="text-sm" open={!q.isLoading && !ligado}>
-        <summary className="cursor-pointer text-primary text-xs">Como configurar</summary>
-        <ol className="mt-3 list-decimal pl-5 space-y-1.5 text-xs text-muted-foreground">
-          <li>
-            Entre em <Codigo>console.cloud.google.com</Codigo> com a conta Google do escritório e crie um projeto (ou
-            use o mesmo do backup).
-          </li>
-          <li>
-            APIs e serviços &gt; Tela de consentimento OAuth: tipo <Codigo>Externo</Codigo>, nome "Painel NÓS",
-            e-mail de suporte do escritório, só os escopos básicos (<Codigo>email</Codigo>, <Codigo>profile</Codigo>,{" "}
-            <Codigo>openid</Codigo>). Publique o app ("Em produção"): com só esses escopos o Google não pede
-            verificação. "Interno" só serve se todos da equipe tiverem conta no Workspace do escritório.
-          </li>
-          <li>
-            Credenciais &gt; Criar credenciais &gt; ID do cliente OAuth &gt; Aplicativo da Web. Origem JavaScript
-            autorizada: <Codigo>{GOOGLE_ORIGEM}</Codigo>. URI de redirecionamento autorizado:{" "}
-            <Codigo>{GOOGLE_REDIRECT}</Codigo>.
-          </li>
-          <li>Copie o ID do cliente e a chave secreta e passe para quem cuida do painel (nunca por grupo).</li>
-          <li>
-            No Easypanel, projeto <Codigo>painel</Codigo>, serviço <Codigo>supabase</Codigo>, Ambiente: preencher{" "}
-            <Codigo>GOOGLE_CLIENT_ID</Codigo>, <Codigo>GOOGLE_SECRET</Codigo> e <Codigo>GOOGLE_ENABLED=true</Codigo>, e
-            reimplantar. Depois clique em Verificar aqui.
-          </li>
-          <li>Quando o painel ganhar o domínio próprio, troque os dois endereços acima no Google Cloud.</li>
-        </ol>
-      </details>
     </CardIntegracao>
   );
 }
