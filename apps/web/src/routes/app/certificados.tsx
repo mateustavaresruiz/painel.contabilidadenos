@@ -19,6 +19,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
 import { ImportarPlanilhaBotao } from "@/components/features/importar/importar-planilha-dialog";
+import { BotaoExportar } from "@/components/features/configuracoes/importar-exportar";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -155,6 +156,7 @@ export function CertificadosPage() {
                   Configurar avisos
                 </Button>
               )}
+              <BotaoExportar incluir={["certificados"]} rotulo="Exportar" />
               {podeEditar && <ImportarPlanilhaBotao alvo="certificados" />}
               {podeEditar && (
               <Button onClick={() => setEditando("novo")}>

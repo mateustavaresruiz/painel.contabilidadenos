@@ -72,16 +72,17 @@ const COLUNAS_LISTA =
 
 /**
  * Consulta da lista com os filtros da tela, sem ordem nem teto. A lista e o
- * Exportar (lib/exportar-clientes.ts) usam a mesma: o arquivo traz exatamente
+ * Exportar (lib/exportar.ts) usam a mesma: o arquivo traz exatamente
  * os clientes que casam com o que está na tela.
  */
-export function consultaClientes(filters: ClientesFilters) {
+/** `colunas`: o Exportar (lib/exportar.ts) pede "*" para levar o cadastro inteiro. */
+export function consultaClientes(filters: ClientesFilters, colunas: string = COLUNAS_LISTA) {
   const q = filters.q?.trim();
   // Com busca: RPC buscar_clientes (migration 018), sem acento, por
   // CPF/CNPJ e telefone (dígitos) e por nome de sócio. Mesma RLS de um select.
   let query = q
-    ? supabase.rpc("buscar_clientes", { p_q: q }).select(COLUNAS_LISTA)
-    : supabase.from(TABLE).select(COLUNAS_LISTA);
+    ? supabase.rpc("buscar_clientes", { p_q: q }).select(colunas)
+    : supabase.from(TABLE).select(colunas);
   if (filters.tipo === "PF" || filters.tipo === "PJ") query = query.eq("tipo", filters.tipo);
   if (filters.regime) query = query.eq("regimeTributario", filters.regime);
   const situacao = filters.situacao ?? "ativos";

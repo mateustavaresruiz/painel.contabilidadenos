@@ -50,7 +50,16 @@ type Previa = {
   certificados: LinhaCertificado[];
 };
 
-type Resumo = { criados: number; atualizados: number; socios: number; certificados: number; pulados: number; falhas: string[] };
+type Resumo = {
+  criados: number;
+  atualizados: number;
+  socios: number;
+  sociosAtualizados: number;
+  certificados: number;
+  certificadosAtualizados: number;
+  pulados: number;
+  falhas: string[];
+};
 
 const NAO_USAR = -1;
 
@@ -65,10 +74,10 @@ async function carregarClientes(): Promise<ClienteExistente[]> {
 }
 
 /** Certificados já cadastrados, para pular repetidos (mesma paginação de 1000). */
-async function carregarCertificados(): Promise<Array<{ clienteId: string; tipo: string; validoAte: string }>> {
-  const out: Array<{ clienteId: string; tipo: string; validoAte: string }> = [];
+async function carregarCertificados(): Promise<Array<{ id: string; clienteId: string; tipo: string; validoAte: string }>> {
+  const out: Array<{ id: string; clienteId: string; tipo: string; validoAte: string }> = [];
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from("CertificadoDigital").select("clienteId, tipo, validoAte").order("id").range(de, de + 999);
+    const { data, error } = await supabase.from("CertificadoDigital").select("id, clienteId, tipo, validoAte").order("id").range(de, de + 999);
     if (error) throw error;
     out.push(...((data ?? []) as typeof out));
     if (!data || data.length < 1000) return out;
@@ -80,12 +89,12 @@ async function carregarCertificados(): Promise<Array<{ clienteId: string; tipo: 
  * (URL curta) e cada fatia pagina de 1000 em 1000: sem isso a consulta parava
  * em 1000 linhas e a importação duplicava os sócios que ficavam de fora.
  */
-async function carregarSocios(clienteIds: string[]): Promise<Array<{ clienteId: string; nome: string; cpf: string | null }>> {
-  const out: Array<{ clienteId: string; nome: string; cpf: string | null }> = [];
+async function carregarSocios(clienteIds: string[]): Promise<Array<{ id: string; clienteId: string; nome: string; cpf: string | null }>> {
+  const out: Array<{ id: string; clienteId: string; nome: string; cpf: string | null }> = [];
   for (let i = 0; i < clienteIds.length; i += 200) {
     const fatia = clienteIds.slice(i, i + 200);
     for (let de = 0; ; de += 1000) {
-      const { data, error } = await supabase.from("Socio").select("clienteId, nome, cpf").in("clienteId", fatia).order("id").range(de, de + 999);
+      const { data, error } = await supabase.from("Socio").select("id, clienteId, nome, cpf").in("clienteId", fatia).order("id").range(de, de + 999);
       if (error) throw error;
       out.push(...((data ?? []) as typeof out));
       if (!data || data.length < 1000) break;
@@ -382,7 +391,16 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
   async function importar() {
     if (!previa) return;
     setEtapa("importando");
-    const r: Resumo = { criados: 0, atualizados: 0, socios: 0, certificados: 0, pulados: 0, falhas: [] };
+    const r: Resumo = {
+      criados: 0,
+      atualizados: 0,
+      socios: 0,
+      sociosAtualizados: 0,
+      certificados: 0,
+      certificadosAtualizados: 0,
+      pulados: 0,
+      falhas: [],
+    };
     try {
       if (alvo === "clientes") {
         const validos = previa.clientes.filter((c) => c.dados && c.erros.length === 0);
@@ -416,7 +434,10 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
           }
           const ja = await carregarSocios([...ids]);
           const chave = (cli: string, nome: string, cpf: string | null) => (cpf ? `${cli}|${cpf}` : `${cli}|n:${nome.toLowerCase()}`);
-          const existe = new Set(ja.map((s) => chave(s.clienteId, s.nome, s.cpf)));
+          // Sócio já cadastrado (mesmo CPF, ou mesmo nome sem CPF) é ATUALIZADO
+          // com o que veio preenchido: a planilha exportada volta sem duplicar.
+          const existentes = new Map(ja.map((s) => [chave(s.clienteId, s.nome, s.cpf), s.id]));
+          const vistos = new Set<string>();
           const inserir = [];
           for (const s of sociosValidos) {
             const id = s.clienteId ?? (s.clienteDocNovo ? docParaId.get(s.clienteDocNovo) : undefined);
@@ -425,11 +446,22 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
               continue;
             }
             const k = chave(id, s.dados!.nome, s.dados!.cpf);
-            if (existe.has(k)) {
+            if (vistos.has(k)) {
               r.pulados++;
               continue;
             }
-            existe.add(k);
+            vistos.add(k);
+            const socioId = existentes.get(k);
+            if (socioId) {
+              const { administrador, ...resto } = s.dados!;
+              const { error } = await supabase
+                .from("Socio")
+                .update({ ...semVazios(resto), ...(s.adminInformado ? { administrador } : {}) })
+                .eq("id", socioId);
+              if (error) r.falhas.push(`Sócio na linha ${s.linha}: ${msgErro(error)}`);
+              else r.sociosAtualizados++;
+              continue;
+            }
             inserir.push({ linha: s.linha, dados: { ...s.dados!, clienteId: id } });
           }
           const gravados = await inserirEmLotes("Socio", inserir, (s) => s.dados, "id", "Sócio na linha", r.falhas, () => {});
@@ -443,9 +475,19 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
         const validos = previa.certificados.filter((c) => c.dados && !c.repetido);
         r.pulados = previa.certificados.length - validos.length;
         setProgresso({ feito: 0, total: validos.length });
+        for (const c of validos.filter((x) => x.existenteId)) {
+          // Já cadastrado: só os campos preenchidos (célula vazia não apaga).
+          const { tipo: _t, validoAte: _v, ...resto } = c.dados!;
+          void _t;
+          void _v;
+          const { error } = await supabase.from("CertificadoDigital").update(semVazios(resto)).eq("id", c.existenteId!);
+          if (error) r.falhas.push(`Linha ${c.linha}: ${msgErro(error)}`);
+          else r.certificadosAtualizados++;
+          setProgresso((p) => ({ ...p, feito: p.feito + 1 }));
+        }
         const gravados = await inserirEmLotes(
           "CertificadoDigital",
-          validos,
+          validos.filter((x) => !x.existenteId),
           (c) => ({ ...c.dados!, clienteId: c.clienteId!, avisarWhatsapp: true }),
           "id",
           "Linha",
@@ -474,7 +516,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
     return {
       ok: previa.certificados.filter((c) => c.dados && !c.repetido).length,
       erro: previa.certificados.filter((c) => c.erros.length).length,
-      texto: `${plural(previa.certificados.filter((c) => c.dados && !c.repetido).length, "certificado novo", "certificados novos")}, ${plural(previa.certificados.filter((c) => c.repetido).length, "já cadastrado", "já cadastrados")}`,
+      texto: `${plural(previa.certificados.filter((c) => c.dados && !c.repetido && !c.existenteId).length, "certificado novo", "certificados novos")}, ${previa.certificados.filter((c) => c.dados && !c.repetido && c.existenteId).length} a atualizar${previa.certificados.some((c) => c.repetido) ? `, ${plural(previa.certificados.filter((c) => c.repetido).length, "repetido", "repetidos")} na planilha` : ""}`,
     };
   }, [previa, alvo]);
 
@@ -588,7 +630,13 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                 linhas={previa.certificados}
                 colunas={[["Cliente", (l) => l.clienteNome ?? l.clienteBusca], ["Tipo", (l) => l.dados?.tipo ?? ""], ["Válido até", (l) => l.dados?.validoAte.split("-").reverse().join("/") ?? ""]]}
                 status={(l) =>
-                  l.erros.length ? { texto: "Erro", tom: "destructive" } : l.repetido ? { texto: "Já existe", tom: "secondary" } : { texto: "Novo", tom: "success" }
+                  l.erros.length
+                    ? { texto: "Erro", tom: "destructive" }
+                    : l.repetido
+                      ? { texto: "Repetido", tom: "secondary" }
+                      : l.existenteId
+                        ? { texto: "Atualizar", tom: "warning" }
+                        : { texto: "Novo", tom: "success" }
                 }
               />
             )}
@@ -611,8 +659,8 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
               <CheckCircle2 className="size-5" />
               <p className="text-sm font-medium">
                 {alvo === "clientes"
-                  ? `${plural(resumo.criados, "cliente criado", "clientes criados")}, ${plural(resumo.atualizados, "atualizado", "atualizados")}, ${plural(resumo.socios, "sócio", "sócios")}.`
-                  : `${plural(resumo.certificados, "certificado cadastrado", "certificados cadastrados")}.`}
+                  ? `${plural(resumo.criados, "cliente criado", "clientes criados")}, ${plural(resumo.atualizados, "atualizado", "atualizados")}, ${plural(resumo.socios, "sócio novo", "sócios novos")}${resumo.sociosAtualizados ? `, ${plural(resumo.sociosAtualizados, "sócio atualizado", "sócios atualizados")}` : ""}.`
+                  : `${plural(resumo.certificados, "certificado cadastrado", "certificados cadastrados")}, ${plural(resumo.certificadosAtualizados, "atualizado", "atualizados")}.`}
               </p>
             </div>
             {resumo.pulados > 0 && <p className="text-xs text-muted-foreground">{plural(resumo.pulados, "linha ficou", "linhas ficaram")} de fora (erro ou já cadastradas).</p>}

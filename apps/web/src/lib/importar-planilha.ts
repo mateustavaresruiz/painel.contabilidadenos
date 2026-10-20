@@ -439,6 +439,8 @@ export type LinhaSocio = {
   clienteDocNovo?: string;
   dados?: { nome: string; cpf: string | null; dataNascimento: string | null; telefone: string | null; email: string | null; participacao: number | null; administrador: boolean };
   erros: string[];
+  /** A célula Administrador veio preenchida (vazia não muda o sócio que já existe). */
+  adminInformado?: boolean;
 };
 
 type Achador = (busca: string) => { id?: string; docNovo?: string; nome: string } | null;
@@ -518,6 +520,7 @@ export function validarSocios(linhas: Array<{ linha: number; c: Record<string, s
         participacao: part,
         administrador: sim(c.administrador ?? ""),
       };
+      item.adminInformado = (c.administrador ?? "").trim() !== "";
     }
     return item;
   });
@@ -539,7 +542,10 @@ export type LinhaCertificado = {
     observacoes: string | null;
   };
   erros: string[];
+  /** Repetido DENTRO da planilha (mesmo cliente, tipo e validade): fica de fora. */
   repetido?: boolean;
+  /** Já cadastrado (mesmo cliente, tipo e validade): atualiza só o que veio preenchido. */
+  existenteId?: string;
 };
 
 function resolverTipoCert(v: string, doc: string): TipoCertificado | null {
@@ -560,12 +566,15 @@ function resolverTipoCert(v: string, doc: string): TipoCertificado | null {
 export function validarCertificados(
   linhas: Array<{ linha: number; c: Record<string, string> }>,
   existentes: ClienteExistente[],
-  jaCadastrados: Array<{ clienteId: string; tipo: string; validoAte: string }>,
+  jaCadastrados: Array<{ id: string; clienteId: string; tipo: string; validoAte: string }>,
 ): LinhaCertificado[] {
   const achar = criarAchador(existentes);
   const docDe = new Map(existentes.map((e) => [e.id, e.cpfCnpj ?? ""]));
   const chave = (c: string, t: string, v: string) => `${c}|${t}|${v}`;
-  const existe = new Set(jaCadastrados.map((j) => chave(j.clienteId, j.tipo, j.validoAte)));
+  // A planilha exportada pelo painel volta com os mesmos certificados: esses
+  // atualizam (titular, emissora, telefone...) em vez de ficarem de fora.
+  const noBanco = new Map(jaCadastrados.map((j) => [chave(j.clienteId, j.tipo, j.validoAte), j.id]));
+  const naPlanilha = new Set<string>();
   return linhas.map(({ linha, c }) => {
     const item: LinhaCertificado = { linha, clienteBusca: (c._cliente ?? "").trim(), erros: [] };
     if (!item.clienteBusca) item.erros.push("Informe o cliente (CPF/CNPJ ou nome)");
@@ -588,8 +597,10 @@ export function validarCertificados(
     const tel = telefoneSemDdi(c.telefoneAviso ?? "");
     if (tel && !isValidTelefone(tel)) item.erros.push("Telefone para aviso inválido");
     if (item.erros.length === 0 && tipo && item.clienteId) {
-      if (existe.has(chave(item.clienteId, tipo, validoAte))) item.repetido = true;
-      existe.add(chave(item.clienteId, tipo, validoAte));
+      const k = chave(item.clienteId, tipo, validoAte);
+      if (naPlanilha.has(k)) item.repetido = true;
+      else item.existenteId = noBanco.get(k);
+      naPlanilha.add(k);
       item.dados = {
         tipo,
         validoAte,

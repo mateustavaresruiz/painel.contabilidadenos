@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { AuditoriaPainel } from "@/components/features/auditoria/auditoria-painel";
 import { ConfigGeral } from "@/components/features/configuracoes/geral";
+import { ConfigImportarExportar } from "@/components/features/configuracoes/importar-exportar";
 import { ConfigIntegracoes } from "@/components/features/configuracoes/integracoes";
 import { ConfigModulos } from "@/components/features/configuracoes/modulos";
 import { ConfigSistema } from "@/components/features/configuracoes/sistema";
@@ -16,7 +17,7 @@ import { usePermissao } from "@/lib/colaborador";
 import { useModulos } from "@/lib/modulos";
 import { WhatsappInstanciasSection } from "@/routes/app/inbox-canais";
 
-const ABAS = ["geral", "modulos", "integracoes", "conexoes", "auditoria", "sistema"] as const;
+const ABAS = ["geral", "modulos", "integracoes", "dados", "conexoes", "auditoria", "sistema"] as const;
 type Aba = (typeof ABAS)[number];
 
 /**
@@ -59,7 +60,7 @@ export function ConfiguracoesPage() {
       <PageHeader
         icon={Settings}
         title="Configurações"
-        description="Escritório, módulos, integrações e informações para quem mantém o sistema."
+        description="Escritório, módulos, integrações, importar e exportar dados e informações para quem mantém o sistema."
       />
       <Tabs
         value={aba}
@@ -74,6 +75,7 @@ export function ConfiguracoesPage() {
             {ehAdmin && <TabsTrigger value="geral">Geral</TabsTrigger>}
             {ehAdmin && <TabsTrigger value="modulos">Módulos</TabsTrigger>}
             {ehAdmin && <TabsTrigger value="integracoes">Integrações</TabsTrigger>}
+            {ehAdmin && <TabsTrigger value="dados">Importar e exportar</TabsTrigger>}
             {conexoes && <TabsTrigger value="conexoes">Conexões WhatsApp</TabsTrigger>}
             {auditar && <TabsTrigger value="auditoria">Auditoria</TabsTrigger>}
             {ehAdmin && <TabsTrigger value="sistema">Sistema</TabsTrigger>}
@@ -87,6 +89,9 @@ export function ConfiguracoesPage() {
         </TabsContent>
         <TabsContent value="integracoes" className="mt-5">
           <ConfigIntegracoes />
+        </TabsContent>
+        <TabsContent value="dados" className="mt-5">
+          <ConfigImportarExportar />
         </TabsContent>
         {conexoes && (
           <TabsContent value="conexoes" className="mt-5">

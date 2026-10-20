@@ -404,8 +404,10 @@ function ExportarClientesBotao({ filtros }: { filtros: ClientesFilters }) {
   async function exportar() {
     setExportando(true);
     try {
-      const { exportarClientes } = await import("@/lib/exportar-clientes");
-      const n = await exportarClientes(filtros);
+      // Mesmo formato da planilha de importação (abas Clientes e Sócios): dá
+      // para corrigir no Excel e importar de volta.
+      const { exportar } = await import("@/lib/exportar");
+      const n = (await exportar({ incluir: ["clientes"], filtrosClientes: filtros })).Clientes ?? 0;
       if (n === 0) toast.info("Nenhum cliente com esses filtros");
       else toast.success(`${plural(n, "cliente exportado", "clientes exportados")}`);
     } catch (e) {
