@@ -29,6 +29,28 @@ export function chamadoAtrasado(s: Pick<Solicitacao, "prazo" | "status">, hoje: 
   return !!s.prazo && s.prazo < hoje && (s.status === "aberta" || s.status === "em_andamento");
 }
 
+/** Selo do prazo na lista e na gaveta. */
+export type SituacaoPrazo = "atrasado" | "hoje" | "amanha";
+
+/**
+ * Prazo vencido, vencendo hoje ou amanhã, só para chamado aberto ou em
+ * andamento (`hoje` = AAAA-MM-DD local). Fora disso (ou sem prazo), null.
+ */
+export function situacaoPrazo(s: Pick<Solicitacao, "prazo" | "status">, hoje: string): SituacaoPrazo | null {
+  if (!s.prazo || (s.status !== "aberta" && s.status !== "em_andamento")) return null;
+  if (s.prazo < hoje) return "atrasado";
+  if (s.prazo === hoje) return "hoje";
+  if (s.prazo === diaSeguinte(hoje)) return "amanha";
+  return null;
+}
+
+/** AAAA-MM-DD do dia seguinte, no calendário local (vira mês e ano sozinho). */
+function diaSeguinte(d: string): string {
+  const [a, m, dia] = d.split("-").map(Number);
+  const x = new Date(a!, m! - 1, dia! + 1);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+}
+
 export type SolicitacaoTipo = {
   id: string;
   nome: string;
@@ -172,9 +194,13 @@ export type SolicitacoesFiltros = {
   /** AAAA-MM-DD inclusive. */
   de?: string;
   ate?: string;
+  /** "recentes" (padrão): data de abertura, o mais novo primeiro. "prazo": o mais urgente primeiro. */
+  ordem?: OrdemSolicitacoes;
 };
 
-/** Teto da lista de chamados: chegou nele, a tela avisa que mostra só os mais recentes. */
+export type OrdemSolicitacoes = "recentes" | "prazo";
+
+/** Teto da lista de chamados: chegou nele, a tela avisa que mostra só os primeiros. */
 export const LIMITE_SOLICITACOES = 500;
 
 export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
@@ -184,11 +210,10 @@ export function useSolicitacoes(filtros: SolicitacoesFiltros, enabled = true) {
     placeholderData: keepPreviousData,
     enabled,
     queryFn: async () => {
-      let q = supabase
-        .from("Solicitacao")
-        .select(SELECT_SOLICITACAO)
-        .order("criadoEm", { ascending: false })
-        .limit(LIMITE_SOLICITACOES);
+      let q = supabase.from("Solicitacao").select(SELECT_SOLICITACAO);
+      // Por prazo: vence antes, aparece antes; sem prazo vai para o fim. Empate: o mais novo.
+      if (filtros.ordem === "prazo") q = q.order("prazo", { ascending: true, nullsFirst: false });
+      q = q.order("criadoEm", { ascending: false }).limit(LIMITE_SOLICITACOES);
       if (filtros.status === "abertas") q = q.in("status", ["aberta", "em_andamento"]);
       else if (filtros.status === "atrasadas")
         q = q.in("status", ["aberta", "em_andamento"]).lt("prazo", filtros.hoje ?? new Date().toISOString().slice(0, 10));

@@ -1,10 +1,11 @@
-import { Archive, Inbox, Users as UsersIcon, UserCheck, UserRound, UserX } from "lucide-react";
+import { Archive, Inbox, MessageSquareDot, Users as UsersIcon, UserCheck, UserRound, UserX } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
 // "minhas" / "sem" (responsável) são do painel Denos: vários colaboradores.
-export type FiltroChip = "todas" | "minhas" | "sem" | "clientes" | "grupos" | "arquivadas";
+// "naoLidas": só conversas com mensagem não lida (naoLidas > 0).
+export type FiltroChip = "todas" | "naoLidas" | "minhas" | "sem" | "clientes" | "grupos" | "arquivadas";
 
 type Props = {
   ativo: FiltroChip;
@@ -17,6 +18,7 @@ const CHIPS: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   { id: "todas", label: "Todas", icon: Inbox },
+  { id: "naoLidas", label: "Não lidas", icon: MessageSquareDot },
   { id: "minhas", label: "Minhas", icon: UserRound },
   { id: "sem", label: "Sem responsável", icon: UserX },
   { id: "clientes", label: "Clientes", icon: UserCheck },

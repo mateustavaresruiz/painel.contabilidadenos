@@ -2,6 +2,7 @@ import {
   ArrowRightLeft,
   BadgeCheck,
   ClipboardList,
+  Copy,
   History,
   ExternalLink,
   Loader2,
@@ -33,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useColaboradoresMap, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
-import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
+import { formatData, formatDataHora, formatDoc, formatTelefone } from "@/lib/format";
 import { useModulos } from "@/lib/modulos";
 import { ATENDIMENTO_LABEL, useTransferencias } from "@/lib/queries/atendimento";
 import { useCertificados } from "@/lib/queries/certificados";
@@ -353,6 +354,19 @@ function ClienteVinculado({
   }
 
   const nome = nomeExibicao(cliente);
+  const telefone = cliente.telefone?.trim() || null;
+
+  // Copia o telefone do cadastro (antes era um wa.me, que abria o WhatsApp
+  // pessoal de quem clicava, fora do painel).
+  async function copiarTelefone() {
+    if (!telefone) return;
+    try {
+      await navigator.clipboard.writeText(formatTelefone(telefone));
+      toast.success("Telefone copiado");
+    } catch {
+      toast.error("Não foi possível copiar. Selecione o número no cadastro e copie à mão.");
+    }
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -397,13 +411,12 @@ function ClienteVinculado({
           </div>
         </div>
 
-        {/* Ações rápidas — WhatsApp, cadastro e (painel Denos) abrir chamado */}
+        {/* Ações rápidas — copiar telefone, cadastro e (painel Denos) abrir chamado */}
         <div className={cn("grid gap-1.5", onNovoChamado ? "grid-cols-3" : "grid-cols-2")}>
           <QuickAction
-            icon={MessageCircle}
-            label="WhatsApp"
-            href={linkWaMe(cliente.telefone) ?? undefined}
-            external
+            icon={Copy}
+            label="Copiar telefone"
+            onClick={telefone ? () => void copiarTelefone() : undefined}
           />
           <QuickAction icon={ExternalLink} label="Cadastro" to={`/clientes/${cliente.id}`} />
           {onNovoChamado ? (
@@ -529,7 +542,7 @@ function CertificadosSection({ clienteId }: { clienteId: string }) {
         icon={BadgeCheck}
         titulo="Certificado digital"
         contagem={certs.length}
-        href="/certificados"
+        href={`/clientes/${clienteId}?aba=certificados`}
       />
       {isLoading ? (
         <Skeleton className="h-16 w-full" />
@@ -673,7 +686,7 @@ function QuickAction({
   external?: boolean;
 }) {
   const base =
-    "flex flex-col items-center justify-center gap-1 rounded-lg border bg-card px-1 py-2 text-2xs font-medium transition-colors";
+    "flex flex-col items-center justify-center gap-1 rounded-lg border bg-card px-1 py-2 text-center text-2xs font-medium leading-tight transition-colors";
   const enabled = "text-muted-foreground hover:text-foreground hover:border-foreground/40 hover:bg-foreground/5";
   const disabled = "text-muted-foreground/40 cursor-not-allowed";
 

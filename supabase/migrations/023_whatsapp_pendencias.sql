@@ -1,6 +1,6 @@
 -- 023 — Pendências do módulo WhatsApp (revisão de 20/10/2026)
 --
---  1. (O QR fora do alcance da tela foi para a 024: aplicada DEPOIS do front
+--  1. (O QR fora do alcance da tela foi para a 025: aplicada DEPOIS do front
 --     novo, senão a tela que ainda está no ar, com select("*") em
 --     WhatsappSessao, quebra.)
 --  2. Presença do contato (online, digitando, gravando, visto por último) numa

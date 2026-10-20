@@ -6,7 +6,7 @@
 //   - feed do administrador (Configurações > Auditoria): leitura direta da tabela,
 //     que só responde a quem tem `auditoria.ver` (RLS).
 // Nenhuma escrita sai daqui; só os gatilhos do banco gravam. Exceções: comentar
-// em chamado e "entrou no painel", que passam por RPC.
+// em chamado, anotar no cliente e "entrou no painel", que passam por RPC.
 
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -182,6 +182,20 @@ export function useComentarChamado() {
     },
     onSuccess: (_d, args) => {
       void qc.invalidateQueries({ queryKey: ["historico", "chamado", args.id] });
+    },
+  });
+}
+
+/** Anotação na ficha do cliente (vai para a aba Histórico e para a auditoria; migration 025). */
+export function useComentarCliente() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { clienteId: string; texto: string }) => {
+      const { error } = await supabase.rpc("comentar_cliente", { p_cliente: args.clienteId, p_texto: args.texto });
+      if (error) throw error;
+    },
+    onSuccess: (_d, args) => {
+      void qc.invalidateQueries({ queryKey: ["historico", "cliente", args.clienteId] });
     },
   });
 }

@@ -613,6 +613,8 @@ export function useWhatsappChats(
     /** Colaborador responsável (uuid) ou "sem" = conversas sem responsável. */
     responsavel?: string;
     atendimentoStatus?: AtendimentoStatus;
+    /** Só conversas com mensagem não lida (chip "Não lidas"). */
+    naoLidas?: boolean;
   },
   limite: number = PAGINA_CHATS,
 ) {
@@ -718,9 +720,19 @@ export function useWhatsappChats(
       if (filtros?.responsavel === "sem") q = q.is("responsavelId", null);
       else if (filtros?.responsavel) q = q.eq("responsavelId", filtros.responsavel);
       if (filtros?.atendimentoStatus) q = q.eq("atendimentoStatus", filtros.atendimentoStatus);
+      if (filtros?.naoLidas) q = q.gt("naoLidas", 0);
       if (filtros?.q?.trim()) {
         const term = filtros.q.trim();
-        q = q.or(orIlike(["nome", "chatId"], term));
+        // Telefone com máscara ("(11) 98888-7777") não casava com o chatId, que
+        // só tem dígitos: aí o chatId é procurado pelos dígitos, nas duas formas
+        // do 9º dígito (o WhatsApp guarda muitos números sem ele).
+        const digitos = term.replace(/\D/g, "");
+        const ehTelefone = /^[\d\s()+.-]+$/.test(term) && digitos.length >= 4;
+        q = q.or(
+          ehTelefone
+            ? [orIlike(["nome"], term), ...variantesTelefoneBusca(digitos).map((d) => orIlike(["chatId"], d))].join(",")
+            : orIlike(["nome", "chatId"], term),
+        );
       }
       const { data, error } = await q;
       if (error) throw error;
@@ -731,6 +743,18 @@ export function useWhatsappChats(
     placeholderData: keepPreviousData,
     staleTime: 5_000,
   });
+}
+
+/**
+ * Dígitos buscados → formas a procurar no chatId: os próprios dígitos e, para
+ * celular com DDD (com ou sem o 55), a forma com/sem o 9º dígito.
+ */
+function variantesTelefoneBusca(digitos: string): string[] {
+  const nacional = (digitos.length === 12 || digitos.length === 13) && digitos.startsWith("55") ? digitos.slice(2) : digitos;
+  const formas = [digitos];
+  if (nacional.length === 11 && nacional[2] === "9") formas.push(nacional.slice(0, 2) + nacional.slice(3));
+  if (nacional.length === 10) formas.push(nacional.slice(0, 2) + "9" + nacional.slice(2));
+  return formas;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { Loader2, Paperclip, Send, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,11 +8,19 @@ import { arquivosColados } from "@/lib/clipboard-arquivos";
 import { useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { ehConflitoAtendimento } from "@/lib/queries/atendimento";
+import { nomeExibicao, useCliente } from "@/lib/queries/clientes";
+import {
+  filtrarRespostas,
+  preencherVariaveis,
+  useRespostasRapidas,
+  type RespostaRapida,
+} from "@/lib/respostas-rapidas";
 import { toast } from "@/lib/toast";
 import { useEnviarMidia, useEnviarTexto } from "@/lib/queries/whatsapp";
 import { cn } from "@/lib/utils";
 
 import { EmojiPicker } from "./emoji-picker";
+import { MenuRespostasBarra, RespostasRapidasBotao } from "./respostas-rapidas";
 import { VoiceRecorder } from "./voice-recorder";
 
 type Props = {
@@ -25,6 +33,10 @@ type Props = {
   textoInicial?: string;
   /** Aviso discreto sob o campo (ex.: "Ao enviar, você assume esta conversa."). */
   dica?: string;
+  /** Nome do contato (individual) para {nome}/{primeiro_nome} das respostas rápidas. */
+  nomeContato?: string | null;
+  /** Cliente vinculado à conversa: o nome dele entra quando é PF ou quando o contato não tem nome. */
+  clienteId?: string | null;
 };
 
 /** Altura máxima do campo de mensagem (~8 linhas). */
@@ -61,6 +73,8 @@ export function Composer({
   onCancelReply,
   textoInicial,
   dica,
+  nomeContato,
+  clienteId,
 }: Props) {
   // 🔴 O Composer é montado com key={chatId} pelo pai: rascunho, anexo e
   // gravação NÃO passam para a próxima conversa (defeito 56 do adv3).
@@ -205,6 +219,61 @@ export function Composer({
     caretRef.current = pos + emoji.length;
   }
 
+  // --- Respostas rápidas ------------------------------------------------
+  // Só INSEREM o texto no campo; a pessoa revisa e envia (nunca envia sozinho).
+  const { respostas } = useRespostasRapidas();
+  // Nome para {nome}/{primeiro_nome}: cliente PF vinculado (nome de cadastro)
+  // > nome do contato no WhatsApp > cliente PJ. Contato sem nome salvo chega
+  // com o telefone no lugar: sem letra não conta. Sem nome, a variável some.
+  const nomeDoContato = nomeContato && /\p{L}/u.test(nomeContato) ? nomeContato : null;
+  const { data: cliente } = useCliente(clienteId ?? null);
+  const nomeVariaveis =
+    (cliente?.tipo === "PF" ? nomeExibicao(cliente) : null) ||
+    nomeDoContato ||
+    (cliente ? nomeExibicao(cliente) : null);
+
+  // Atalho "/": com o campo começando por "/termo" (uma linha só), abre o
+  // menu filtrando pelo termo. Esc fecha até a barra sair do começo.
+  const [barraFechada, setBarraFechada] = useState(false);
+  const [ativoBarra, setAtivoBarra] = useState(0);
+  const idMenuBarra = useId();
+  const termoBarra = /^\/([^\n]*)$/.exec(texto)?.[1];
+  const itensBarra =
+    termoBarra !== undefined && !barraFechada && !arquivo ? filtrarRespostas(respostas, termoBarra) : [];
+  const menuBarraAberto = itensBarra.length > 0;
+  const ativoBarraValido = Math.min(ativoBarra, Math.max(itensBarra.length - 1, 0));
+
+  /**
+   * Põe a resposta no campo, com as variáveis trocadas. Pelo atalho "/" ela
+   * substitui o "/termo"; pelo botão entra na posição do cursor (campo vazio:
+   * vira o texto todo). O foco volta ao campo com o cursor depois do texto.
+   */
+  function inserirResposta(r: RespostaRapida, viaBarra: boolean) {
+    const pronto = preencherVariaveis(r.texto, nomeVariaveis);
+    let novo: string;
+    let cursor: number;
+    if (viaBarra || !texto.trim()) {
+      novo = pronto;
+      cursor = pronto.length;
+    } else {
+      const pos = Math.min(caretRef.current, texto.length);
+      const antes = texto.slice(0, pos);
+      const espaco = antes && !/\s$/.test(antes) ? " " : "";
+      novo = antes + espaco + pronto + texto.slice(pos);
+      cursor = pos + espaco.length + pronto.length;
+    }
+    setTexto(novo);
+    caretRef.current = cursor;
+    setBarraFechada(false);
+    setAtivoBarra(0);
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(cursor, cursor);
+    });
+  }
+
   // O campo cresce com o texto até ~8 linhas (no adv3 ficava preso em 36 px,
   // defeito 40).
   useLayoutEffect(() => {
@@ -307,12 +376,28 @@ export function Composer({
           <span>{rotuloEnviando(enviandoMidia)}</span>
         </div>
       ) : (
-      <div className="flex items-end gap-2">
+      <div className="relative flex items-end gap-2">
+        {!gravando && menuBarraAberto && (
+          <MenuRespostasBarra
+            idBase={idMenuBarra}
+            itens={itensBarra}
+            ativo={ativoBarraValido}
+            nome={nomeVariaveis}
+            onEscolher={(r) => inserirResposta(r, true)}
+            onAtivar={setAtivoBarra}
+          />
+        )}
         {/* Durante a gravação o composer some — só a barra do gravador
             fica (timer + waveform + cancelar/enviar). Igual ao WhatsApp. */}
         {!gravando && (
           <>
             <EmojiPicker onPick={inserirEmoji} disabled={!!arquivo} />
+            <RespostasRapidasBotao
+              respostas={respostas}
+              nome={nomeVariaveis}
+              onEscolher={(r) => inserirResposta(r, false)}
+              disabled={!!arquivo}
+            />
             <Button
               type="button"
               variant="ghost"
@@ -332,6 +417,9 @@ export function Composer({
                 setTexto(e.target.value);
                 caretRef.current =
                   e.target.selectionStart ?? e.target.value.length;
+                setAtivoBarra(0);
+                // A barra saiu do começo: o próximo "/" volta a abrir o menu.
+                if (!e.target.value.startsWith("/")) setBarraFechada(false);
               }}
               onSelect={(e) => {
                 caretRef.current = e.currentTarget.selectionStart ?? 0;
@@ -342,10 +430,37 @@ export function Composer({
               }
               rows={1}
               enterKeyHint={toque ? "enter" : "send"}
+              aria-controls={menuBarraAberto ? idMenuBarra : undefined}
+              aria-activedescendant={menuBarraAberto ? `${idMenuBarra}-${ativoBarraValido}` : undefined}
               className={cn(
                 "flex-1 min-h-9 toque:min-h-11 max-h-[200px] resize-none text-base fino:text-sm transition-[height] duration-150 ease-out motion-reduce:transition-none",
               )}
               onKeyDown={(e) => {
+                // Menu do atalho "/" aberto: ↑↓ escolhem, Enter/Tab inserem
+                // (no lugar de enviar), Esc fecha.
+                if (menuBarraAberto && !e.nativeEvent.isComposing) {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const passo = e.key === "ArrowDown" ? 1 : -1;
+                    setAtivoBarra(
+                      (ativoBarraValido + passo + itensBarra.length) % itensBarra.length,
+                    );
+                    return;
+                  }
+                  if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                    e.preventDefault();
+                    const r = itensBarra[ativoBarraValido];
+                    if (r) inserirResposta(r, true);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    // Só fecha o menu: não deixa o Esc chegar a quem fecha a conversa.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setBarraFechada(true);
+                    return;
+                  }
+                }
                 // !isComposing: não envia no meio de uma composição de IME /
                 // autocorreção (o Enter que confirma o candidato disparava
                 // envio prematuro — daí o "Enter esquisito").

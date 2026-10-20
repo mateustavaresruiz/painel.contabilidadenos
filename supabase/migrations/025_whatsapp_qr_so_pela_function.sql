@@ -1,4 +1,4 @@
--- 024 — QR da conexão do WhatsApp fora do alcance da tela
+-- 025 — QR da conexão do WhatsApp fora do alcance da tela
 --
 -- A coluna WhatsappSessao."qrCodeBase64" deixa de ser legível por
 -- anon/authenticated (grant por coluna). Quem tinha só whatsapp.ver lia o QR

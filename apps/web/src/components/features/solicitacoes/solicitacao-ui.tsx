@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ColaboradorSelect } from "@/components/colaborador-select";
 import { ClienteSelect } from "@/components/features/clientes/cliente-select";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +28,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useEu } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
+import { formatData, hojeISO } from "@/lib/format";
 import { useModulos } from "@/lib/modulos";
 import { garantirClienteDaConversa } from "@/lib/queries/clientes";
 import {
@@ -35,6 +37,7 @@ import {
   useAtualizarSolicitacao,
   useCriarSolicitacao,
   useSolicitacaoTipos,
+  type SituacaoPrazo,
   type SolicitacaoStatus,
 } from "@/lib/queries/solicitacoes";
 import { toast } from "@/lib/toast";
@@ -74,6 +77,72 @@ export function StatusSolicitacaoBadge({
     >
       {STATUS_SOLICITACAO_LABEL[status]}
     </span>
+  );
+}
+
+const SELO_PRAZO: Record<SituacaoPrazo, { rotulo: string; variant: "destructive" | "warning" }> = {
+  atrasado: { rotulo: "atrasado", variant: "destructive" },
+  hoje: { rotulo: "vence hoje", variant: "warning" },
+  amanha: { rotulo: "vence amanhã", variant: "warning" },
+};
+
+/** Selo do prazo (atrasado, vence hoje, vence amanhã); nada quando o prazo está folgado. */
+export function SeloPrazo({ situacao, className }: { situacao: SituacaoPrazo | null; className?: string }) {
+  if (!situacao) return null;
+  const { rotulo, variant } = SELO_PRAZO[situacao];
+  return (
+    <Badge variant={variant} className={className}>
+      {rotulo}
+    </Badge>
+  );
+}
+
+const ATALHOS_PRAZO = [
+  { rotulo: "Hoje", dias: 0 },
+  { rotulo: "Amanhã", dias: 1 },
+  { rotulo: "+3 dias", dias: 3 },
+  { rotulo: "+7 dias", dias: 7 },
+] as const;
+
+/**
+ * Atalhos embaixo do campo de prazo: hoje, amanhã, daqui a 3 e a 7 dias
+ * (calendário local). Pequenos; no toque o alvo cresce por um ::after invisível.
+ */
+export function AtalhosPrazo({
+  valor,
+  onEscolher,
+  disabled,
+}: {
+  valor?: string | null;
+  onEscolher: (iso: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div role="group" aria-label="Prazo rápido" className="flex flex-wrap gap-1">
+      {ATALHOS_PRAZO.map((a) => {
+        const iso = hojeISO(a.dias);
+        const ativo = valor === iso;
+        return (
+          <button
+            key={a.dias}
+            type="button"
+            disabled={disabled}
+            aria-pressed={ativo}
+            title={formatData(iso)}
+            onClick={() => onEscolher(iso)}
+            className={cn(
+              "relative h-6 whitespace-nowrap rounded-full border px-2 text-2xs transition-[color,background-color,border-color,transform] duration-150 ease-brand active:scale-[.97] disabled:pointer-events-none disabled:opacity-50",
+              "toque:h-8 toque:after:absolute toque:after:inset-x-0 toque:after:-inset-y-1.5 toque:after:content-['']",
+              ativo
+                ? "border-primary/40 bg-primary/10 font-semibold text-primary"
+                : "border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+            )}
+          >
+            {a.rotulo}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -403,20 +472,20 @@ export function NovaSolicitacaoDialog({
               placeholder="O que o cliente pediu?"
             />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="sol-resp">Responsável</Label>
-              <ColaboradorSelect
-                id="sol-resp"
-                value={responsavel}
-                onChange={setResponsavel}
-                rotuloNenhum="Ninguém ainda"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sol-prazo">Prazo</Label>
-              <DatePicker id="sol-prazo" limpavel value={prazo} onChange={setPrazo} />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sol-resp">Responsável</Label>
+            <ColaboradorSelect
+              id="sol-resp"
+              value={responsavel}
+              onChange={setResponsavel}
+              rotuloNenhum="Ninguém ainda"
+            />
+          </div>
+          {/* Prazo na linha inteira: os quatro atalhos cabem numa fileira embaixo do campo. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="sol-prazo">Prazo</Label>
+            <DatePicker id="sol-prazo" limpavel value={prazo} onChange={setPrazo} />
+            <AtalhosPrazo valor={prazo} onEscolher={setPrazo} disabled={salvando} />
           </div>
         </div>
         <DialogFooter>

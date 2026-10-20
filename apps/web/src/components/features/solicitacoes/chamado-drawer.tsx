@@ -8,8 +8,12 @@ import { ColaboradorSelect } from "@/components/colaborador-select";
 import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import { HistoricoLista } from "@/components/features/auditoria/linha-do-tempo";
-import { StatusSolicitacaoSelect, useTrocarStatusChamado } from "@/components/features/solicitacoes/solicitacao-ui";
-import { Badge } from "@/components/ui/badge";
+import {
+  AtalhosPrazo,
+  SeloPrazo,
+  StatusSolicitacaoSelect,
+  useTrocarStatusChamado,
+} from "@/components/features/solicitacoes/solicitacao-ui";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -29,11 +33,12 @@ import { formatData, formatDataHora, formatTelefone, hojeISO } from "@/lib/forma
 import { useComentarChamado } from "@/lib/queries/auditoria";
 import { useClientesList } from "@/lib/queries/helpers";
 import {
-  chamadoAtrasado,
   contatoDoChamado,
+  situacaoPrazo,
   useAtualizarSolicitacao,
   useSolicitacao,
   useSolicitacaoTipos,
+  type SituacaoPrazo,
   type Solicitacao,
 } from "@/lib/queries/solicitacoes";
 import { toast } from "@/lib/toast";
@@ -74,7 +79,7 @@ function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
   const podeGerenciar = usePermissao("chamados.gerenciar");
 
   const criador = s?.criadoPorId ? mapa.get(s.criadoPorId) : undefined;
-  const atrasada = !!s && chamadoAtrasado(s, hojeISO());
+  const situacao = s ? situacaoPrazo(s, hojeISO()) : null;
 
   return (
     <>
@@ -115,9 +120,9 @@ function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
                 <StatusSolicitacaoSelect value={s.status} disabled={pendente} onChange={(status) => trocar(s.id, s.status, status)} />
               </Campo>
               {podeGerenciar ? (
-                <CamposEditaveis s={s} atrasada={atrasada} />
+                <CamposEditaveis s={s} situacao={situacao} />
               ) : (
-                <CamposLeitura s={s} atrasada={atrasada} />
+                <CamposLeitura s={s} situacao={situacao} />
               )}
               {s.chat && (
                 <Campo rotulo="Origem" className="sm:col-span-2">
@@ -160,16 +165,22 @@ function Conteudo({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 /** Prazo, cliente e responsável só para ler (quem não gerencia chamados). */
-function CamposLeitura({ s, atrasada }: { s: Solicitacao; atrasada: boolean }) {
+function CamposLeitura({ s, situacao }: { s: Solicitacao; situacao: SituacaoPrazo | null }) {
   const mapa = useColaboradoresMap();
   const resp = s.responsavelId ? mapa.get(s.responsavelId) : undefined;
   return (
     <>
       <Campo rotulo="Prazo">
-        <span className={cn("inline-flex items-center gap-1.5", atrasada && "font-medium text-destructive")}>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5",
+            situacao === "atrasado" && "font-medium text-destructive",
+            situacao === "hoje" && "font-medium text-warning",
+          )}
+        >
           <CalendarDays className="size-4 text-muted-foreground" aria-hidden />
           {s.prazo ? formatData(s.prazo) : "Sem prazo"}
-          {atrasada && <Badge variant="destructive">atrasado</Badge>}
+          <SeloPrazo situacao={situacao} />
         </span>
       </Campo>
       <Campo rotulo="Cliente">
@@ -209,7 +220,7 @@ function ClienteLeitura({ s }: { s: Solicitacao }) {
 }
 
 /** Tipo, prazo, cliente e responsável editáveis (chamados.gerenciar). Cada troca grava na hora. */
-function CamposEditaveis({ s, atrasada }: { s: Solicitacao; atrasada: boolean }) {
+function CamposEditaveis({ s, situacao }: { s: Solicitacao; situacao: SituacaoPrazo | null }) {
   const atualizar = useAtualizarSolicitacao();
   const { data: tipos = [] } = useSolicitacaoTipos();
   const { data: clientes = [] } = useClientesList();
@@ -223,10 +234,7 @@ function CamposEditaveis({ s, atrasada }: { s: Solicitacao; atrasada: boolean })
   return (
     <>
       <Campo rotulo="Prazo" htmlFor="ch-prazo">
-        <div className="space-y-1">
-          <PrazoEditavel prazo={s.prazo} onSalvar={(p) => gravar({ prazo: p })} />
-          {atrasada && <Badge variant="destructive">atrasado</Badge>}
-        </div>
+        <PrazoEditavel prazo={s.prazo} situacao={situacao} onSalvar={(p) => gravar({ prazo: p })} />
       </Campo>
       <Campo rotulo="Tipo" htmlFor="ch-tipo">
         <Select
@@ -291,9 +299,18 @@ function CamposEditaveis({ s, atrasada }: { s: Solicitacao; atrasada: boolean })
 /**
  * Prazo que grava sozinho. O DatePicker emite "" também no meio da digitação
  * ("12/1"), então espera um instante e só limpa o prazo se o campo estiver
- * vazio de verdade; data completa grava assim que fica válida.
+ * vazio de verdade; data completa grava assim que fica válida. Os atalhos
+ * (Hoje, Amanhã, +3, +7) gravam na hora.
  */
-function PrazoEditavel({ prazo, onSalvar }: { prazo: string | null; onSalvar: (p: string | null) => void }) {
+function PrazoEditavel({
+  prazo,
+  situacao,
+  onSalvar,
+}: {
+  prazo: string | null;
+  situacao: SituacaoPrazo | null;
+  onSalvar: (p: string | null) => void;
+}) {
   const ref = useRef<HTMLInputElement>(null);
   const [local, setLocal] = useState(prazo ?? "");
   useEffect(() => setLocal(prazo ?? ""), [prazo]);
@@ -306,7 +323,19 @@ function PrazoEditavel({ prazo, onSalvar }: { prazo: string | null; onSalvar: (p
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [local, prazo]);
-  return <DatePicker ref={ref} id="ch-prazo" limpavel value={local} onChange={setLocal} placeholder="Sem prazo" />;
+  return (
+    <div className="space-y-1.5">
+      <DatePicker ref={ref} id="ch-prazo" limpavel value={local} onChange={setLocal} placeholder="Sem prazo" />
+      <SeloPrazo situacao={situacao} className="flex w-fit" />
+      <AtalhosPrazo
+        valor={local}
+        onEscolher={(iso) => {
+          setLocal(iso);
+          if (iso !== prazo) onSalvar(iso);
+        }}
+      />
+    </div>
+  );
 }
 
 /** Descrição com botão Salvar (só aparece quando o texto mudou). */

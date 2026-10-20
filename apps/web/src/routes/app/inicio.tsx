@@ -29,7 +29,6 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { useEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
 import { corModulo, type CorModulo } from "@/lib/cores-modulo";
-import { msgErro } from "@/lib/erro";
 import { useModulos, type ModuloChave } from "@/lib/modulos";
 import { useDashboard, type Dashboard } from "@/lib/queries/dashboard";
 import { plural as pluralTexto } from "@/lib/texto";
@@ -157,7 +156,8 @@ function useInicio() {
       titulo: plural(nivers, "aniversariante hoje", "aniversariantes hoje"),
       frase: pluralTexto(nivers, "aniversariante hoje", "aniversariantes hoje"),
       vazio: "Nenhum aniversário hoje",
-      to: "/clientes/aniversarios",
+      // Com aniversariante, Aniversários já abre no "Hoje".
+      to: nivers > 0 ? "/clientes/aniversarios?periodo=hoje" : "/clientes/aniversarios",
       acao: "Dar parabéns",
     },
   ];
@@ -201,11 +201,6 @@ export function InicioPage() {
   const dados = useInicio();
   return (
     <div className={"relative min-h-full"}>
-      {dados.q.isError && !dados.d && (
-        <div className="px-4 pt-4 sm:px-6 lg:px-8">
-          <QueryError oque="o resumo do dia" error={dados.q.error} onRetry={dados.q.refetch} />
-        </div>
-      )}
       {estilo === "A" ? <InicioMarinho {...dados} /> : <InicioColorido {...dados} />}
     </div>
   );
@@ -254,7 +249,7 @@ function InicioMarinho(p: Inicio) {
                 {p.nome ? `, ${p.nome}` : ""}!
               </h1>
               <p className="text-sm sm:text-base text-white/85 max-w-xl [text-wrap:pretty] min-h-6">
-                {p.resumoFrase || <Skeleton className="h-4 w-64 bg-white/20" />}
+                {p.resumoFrase || (p.q.isLoading ? <Skeleton className="h-4 w-64 bg-white/20" /> : null)}
               </p>
             </div>
             <Logo branca className="h-14 sm:h-[72px] shrink-0 hidden sm:inline-flex opacity-95" />
@@ -329,7 +324,8 @@ function InicioMarinho(p: Inicio) {
 // ---------------------------------------------------------------------------
 
 function InicioColorido(p: Inicio) {
-  const tudoEmDia = !p.q.isLoading && !p.q.isError && p.atencao.every((a) => a.valor === 0) && p.certVencidos === 0;
+  // Pelos dados na tela: uma atualização em segundo plano que falha não troca a vista.
+  const tudoEmDia = !p.q.isLoading && !!p.d && p.atencao.every((a) => a.valor === 0) && p.certVencidos === 0;
   return (
     <PageContainer className="lg:space-y-8">
       <header className="relative flex flex-col gap-1.5 animate-rise">
@@ -343,7 +339,7 @@ function InicioColorido(p: Inicio) {
           </span>
         </h1>
         <p className="text-sm sm:text-base text-muted-foreground max-w-2xl min-h-6">
-          {p.resumoFrase || <Skeleton className="h-4 w-64" />}
+          {p.resumoFrase || (p.q.isLoading ? <Skeleton className="h-4 w-64" /> : null)}
         </p>
       </header>
 
@@ -453,13 +449,12 @@ function Ilustracao({
 // Peças comuns
 // ---------------------------------------------------------------------------
 
+/**
+ * Erro só quando não há dados: uma atualização em segundo plano que falha
+ * mantém os cartões que já estão na tela (o react-query guarda os últimos).
+ */
 function Conteudo({ p, children }: { p: Inicio; children: ReactNode }) {
-  if (p.q.error)
-    return (
-      <div className="rounded-card border bg-card p-6 text-sm text-destructive">
-        Não foi possível carregar o resumo: {msgErro(p.q.error)}
-      </div>
-    );
+  if (p.q.isError && !p.d) return <QueryError oque="o resumo do dia" error={p.q.error} onRetry={p.q.refetch} />;
   return <>{children}</>;
 }
 

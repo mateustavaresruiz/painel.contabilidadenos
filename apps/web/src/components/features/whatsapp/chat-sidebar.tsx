@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   Inbox,
   Loader2,
+  MessageSquarePlus,
   Mic,
   MoreVertical,
   PinIcon,
@@ -39,12 +40,13 @@ import { useDebounced } from "@/hooks/use-debounced";
 import { useColaboradoresMap, useEu, type Colaborador } from "@/lib/colaborador";
 import { TagsDaConversa } from "@/components/features/whatsapp/conversa-tags";
 import { msgErro } from "@/lib/erro";
-import { parsePgTimestamp } from "@/lib/format";
+import { formatTelefone, parsePgTimestamp } from "@/lib/format";
 import { AvatarIniciais } from "@/components/avatar-iniciais";
 import { avatarFicticio } from "@/lib/avatar-ficticio";
 import { iniciaisDeContato } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import {
+  abrirConversaPorTelefone,
   mediaSignedUrl,
   useApagarChat,
   useApagarChatsEmLote,
@@ -121,6 +123,7 @@ export function ChatSidebar({
       // A aba "Arquivadas" mostra só as arquivadas; as outras abas
       // mostram só as não-arquivadas (comportamento estilo WhatsApp).
       arquivados: filtro === "arquivadas",
+      naoLidas: filtro === "naoLidas",
     };
   }, [buscaDebounced, filtro, euId]);
 
@@ -148,6 +151,53 @@ export function ChatSidebar({
     () => setLimite((n) => n + PAGINA_CHATS),
     [],
   );
+
+  // Começar conversa pelo número: a busca é um telefone (só dígitos e
+  // máscara, 10 a 13 dígitos) e não achou nada. Abre no primeiro número
+  // conectado entre as instâncias da lista, só para quem pode responder, e
+  // sempre depois de confirmar. Não envia nada: a pessoa escreve e envia.
+  const qc = useQueryClient();
+  const [abrindoNova, setAbrindoNova] = useState(false);
+  const digitosBusca = buscaDebounced.replace(/\D/g, "");
+  const buscaEhTelefone =
+    /^[\d\s()+.-]+$/.test(buscaDebounced.trim()) &&
+    digitosBusca.length >= 10 &&
+    digitosBusca.length <= 13;
+  const sessaoParaNova =
+    sessoes.find((s) => sessoesIds.includes(s.id) && s.status === "WORKING") ?? null;
+  const podeComecarConversa =
+    buscaEhTelefone &&
+    busca === buscaDebounced &&
+    !isFetching &&
+    !!sessaoParaNova &&
+    tem("whatsapp.responder") &&
+    filtro !== "grupos" &&
+    filtro !== "arquivadas";
+
+  async function comecarConversa() {
+    if (!sessaoParaNova || abrindoNova) return;
+    const telefone = digitosBusca;
+    const numeroConectado = sessaoParaNova.apelido ?? formatPhone(sessaoParaNova.numero ?? "");
+    if (
+      !(await confirmar({
+        titulo: `Começar conversa com ${formatTelefone(telefone)}?`,
+        descricao: `A conversa abre ${numeroConectado ? `pelo número ${numeroConectado}` : "pelo número conectado"}. Nada é enviado agora: você escreve e envia quando quiser.`,
+        confirmLabel: "Começar conversa",
+      }))
+    )
+      return;
+    setAbrindoNova(true);
+    try {
+      const nova = await abrirConversaPorTelefone(sessaoParaNova.id, telefone);
+      void qc.invalidateQueries({ queryKey: ["whatsapp-chats"] });
+      setBusca("");
+      onSelecionar(sessaoParaNova.id, nova.chatId);
+    } catch (err) {
+      toast.error(msgErro(err));
+    } finally {
+      setAbrindoNova(false);
+    }
+  }
 
   // Modo seleção: selecionar várias conversas e apagar de uma vez. A chave é
   // composta (sessaoId:chatId) porque a mesma conversa pode existir em
@@ -332,6 +382,15 @@ export function ChatSidebar({
         onApagado={onApagado}
         busca={busca}
         filtro={filtro}
+        novaConversa={
+          podeComecarConversa
+            ? {
+                rotulo: formatTelefone(digitosBusca),
+                abrindo: abrindoNova,
+                onComecar: () => void comecarConversa(),
+              }
+            : null
+        }
         modoSelecao={modoSelecao}
         selecionados={selecionados}
         onToggleSelecao={toggleSelecao}
@@ -358,6 +417,7 @@ function ListaConversas({
   onApagado,
   busca,
   filtro,
+  novaConversa,
   modoSelecao,
   selecionados,
   onToggleSelecao,
@@ -379,6 +439,7 @@ function ListaConversas({
   onApagado?: (chatId: string) => void;
   busca: string;
   filtro: FiltroChip;
+  novaConversa: NovaConversaOferta | null;
   modoSelecao: boolean;
   selecionados: Set<string>;
   onToggleSelecao: (chave: string) => void;
@@ -419,7 +480,7 @@ function ListaConversas({
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       ) : chats.length === 0 ? (
-        <EmptyState busca={busca} filtro={filtro} />
+        <EmptyState busca={busca} filtro={filtro} novaConversa={novaConversa} />
       ) : (
         <div className="pb-2">
           {fixadas.length > 0 && (
@@ -515,12 +576,31 @@ function ListaConversas({
   );
 }
 
-function EmptyState({ busca, filtro }: { busca: string; filtro: FiltroChip }) {
+/** Oferta do estado vazio quando a busca é um telefone sem conversa. */
+type NovaConversaOferta = { rotulo: string; abrindo: boolean; onComecar: () => void };
+
+function EmptyState({
+  busca,
+  filtro,
+  novaConversa,
+}: {
+  busca: string;
+  filtro: FiltroChip;
+  novaConversa: NovaConversaOferta | null;
+}) {
   let titulo: string;
   let descricao: string;
-  if (busca) {
+  if (busca && novaConversa) {
+    // Fora de "Todas" o número pode ter conversa em outro filtro: aí o botão
+    // só a abre (a rota devolve a conversa que já existe).
+    titulo = filtro === "todas" ? "Nenhuma conversa com esse número" : "Nada bate com a busca neste filtro";
+    descricao = "Dá para abrir a conversa com esse número agora. Nada é enviado até você escrever.";
+  } else if (busca) {
     titulo = "Nada bate com a busca";
     descricao = "Tente outro nome ou número.";
+  } else if (filtro === "naoLidas") {
+    titulo = "Tudo lido";
+    descricao = "Nenhuma conversa com mensagem não lida.";
   } else if (filtro === "grupos") {
     titulo = "Nenhum grupo";
     descricao = "Grupos do WhatsApp aparecem aqui quando recebem mensagens.";
@@ -547,6 +627,8 @@ function EmptyState({ busca, filtro }: { busca: string; filtro: FiltroChip }) {
         <div className="size-14 rounded-full bg-bronze/10 grid place-items-center">
           {filtro === "arquivadas" ? (
             <Archive className="size-6 text-bronze/60" />
+          ) : filtro === "naoLidas" && !busca ? (
+            <CheckCheck className="size-6 text-bronze/60" />
           ) : (
             <Inbox className="size-6 text-bronze/60" />
           )}
@@ -560,6 +642,18 @@ function EmptyState({ busca, filtro }: { busca: string; filtro: FiltroChip }) {
       <p className="text-xs mt-1 max-w-[220px] leading-relaxed">
         {descricao}
       </p>
+      {busca && novaConversa && (
+        <Button
+          size="sm"
+          // Quebra linha na coluna estreita em vez de vazar.
+          className="mt-4 h-auto min-h-9 whitespace-normal py-2 toque:min-h-11"
+          onClick={novaConversa.onComecar}
+          disabled={novaConversa.abrindo}
+        >
+          {novaConversa.abrindo ? <Loader2 className="animate-spin" /> : <MessageSquarePlus />}
+          Começar conversa com {novaConversa.rotulo}
+        </Button>
+      )}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
@@ -23,6 +23,7 @@ import { ChamadoDrawer } from "@/components/features/solicitacoes/chamado-drawer
 import { ClienteSelect } from "@/components/features/clientes/cliente-select";
 import {
   NovaSolicitacaoDialog,
+  SeloPrazo,
   StatusSolicitacaoSelect,
   useTrocarStatusChamado,
 } from "@/components/features/solicitacoes/solicitacao-ui";
@@ -64,14 +65,15 @@ import {
 import { ListaSkeleton, Skeleton, SkeletonTableRow } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useTelaCompacta } from "@/hooks/use-media-query";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useColaboradores, usePermissao } from "@/lib/colaborador";
+import { useColaboradores, useEu, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatTelefone, hojeISO } from "@/lib/format";
 import {
-  chamadoAtrasado,
   contatoDoChamado,
   LIMITE_SOLICITACOES,
+  situacaoPrazo,
   STATUS_SOLICITACAO,
   useExcluirSolicitacao,
   useExcluirSolicitacaoTipo,
@@ -79,6 +81,7 @@ import {
   useSalvarSolicitacaoTipo,
   useSolicitacaoTipos,
   useSolicitacoes,
+  type OrdemSolicitacoes,
   type Solicitacao,
   type SolicitacaoStatus,
   type SolicitacaoTipo,
@@ -155,7 +158,7 @@ export function ChamadosPage() {
           )}
         </TabsList>
         <TabsContent value="lista" className="mt-5">
-          <ListaAba />
+          <ListaAba onNovo={podeCriar ? () => setNova(true) : undefined} />
         </TabsContent>
         <TabsContent value="relatorio" className="mt-5">
           <RelatorioAba />
@@ -188,28 +191,126 @@ export function ChamadosPage() {
 
 type FiltroStatus = SolicitacaoStatus | "abertas" | "atrasadas" | "";
 
-function ListaAba() {
+/**
+ * Filtros que a lista lembra (cliente e datas não: são de uma consulta só).
+ * `responsavel`: id do colaborador, "sem" (sem responsável) ou "eu" (os meus,
+ * vale para quem estiver logado; na URL, `?meus=1`).
+ */
+type FiltrosLembrados = {
+  status: FiltroStatus;
+  tipoId: string;
+  responsavel: string;
+  ordem: OrdemSolicitacoes;
+};
+
+const FILTROS_PADRAO: FiltrosLembrados = { status: "abertas", tipoId: "", responsavel: "", ordem: "recentes" };
+/** Chaves da URL que falam de filtro (`filtro=atrasados` é o link do Início). */
+const CHAVES_FILTRO = ["status", "filtro", "tipo", "resp", "meus", "ordem"] as const;
+const CHAVE_LEMBRADOS = "chamados:filtros";
+const STATUS_FILTRO = new Set<string>(["abertas", "atrasadas", ...STATUS_SOLICITACAO.map((s) => s.value)]);
+// Id vindo de fora (URL ou navegador) só passa se tiver cara de id: valor velho não quebra a consulta.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Lê os filtros das chaves da URL (o navegador guarda no mesmo formato). Valor estranho vira o padrão. */
+function lerFiltros(p: URLSearchParams): FiltrosLembrados {
+  const st = p.get("status");
+  const tipo = p.get("tipo") ?? "";
+  const resp = p.get("resp") ?? "";
+  return {
+    status:
+      st === "todos"
+        ? ""
+        : st && STATUS_FILTRO.has(st)
+          ? (st as FiltroStatus)
+          : p.get("filtro") === "atrasados"
+            ? "atrasadas"
+            : "abertas",
+    tipoId: UUID.test(tipo) ? tipo : "",
+    responsavel: p.get("meus") === "1" ? "eu" : resp === "sem" || UUID.test(resp) ? resp : "",
+    ordem: p.get("ordem") === "prazo" ? "prazo" : "recentes",
+  };
+}
+
+/** Só o que foge do padrão, nas chaves da URL ("" = tudo no padrão). */
+function textoFiltros(f: FiltrosLembrados): string {
+  const p = new URLSearchParams();
+  if (f.status !== "abertas") p.set("status", f.status || "todos");
+  if (f.tipoId) p.set("tipo", f.tipoId);
+  if (f.responsavel === "eu") p.set("meus", "1");
+  else if (f.responsavel) p.set("resp", f.responsavel);
+  if (f.ordem !== "recentes") p.set("ordem", f.ordem);
+  return p.toString();
+}
+
+/** Troca as chaves de filtro da URL e mantém o resto (aba, chamado aberto na gaveta). */
+function comFiltros(atual: URLSearchParams, texto: string): URLSearchParams {
+  const n = new URLSearchParams(atual);
+  for (const k of CHAVES_FILTRO) n.delete(k);
+  new URLSearchParams(texto).forEach((v, k) => n.set(k, v));
+  return n;
+}
+
+// O navegador pode recusar (aba anônima, armazenamento cheio ou bloqueado): aí só não lembra.
+function filtrosGuardados(): string {
+  try {
+    return localStorage.getItem(CHAVE_LEMBRADOS) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function guardarFiltros(texto: string) {
+  try {
+    if (texto) localStorage.setItem(CHAVE_LEMBRADOS, texto);
+    else localStorage.removeItem(CHAVE_LEMBRADOS);
+  } catch {
+    /* sem armazenamento: segue sem lembrar */
+  }
+}
+
+function ListaAba({ onNovo }: { onNovo?: () => void }) {
   const [params, setParams] = useSearchParams();
-  // ?filtro=atrasados (Início) já abre nos atrasados.
-  const [status, setStatus] = useState<FiltroStatus>(() => (params.get("filtro") === "atrasados" ? "atrasadas" : "abertas"));
+  const { euId } = useEu();
+  const compacta = useTelaCompacta();
+  // Filtro na URL (link do Início, contador do menu com ?meus=1, troca aqui
+  // mesmo) manda; sem nenhum, abre como estava da última vez.
+  const naUrl = CHAVES_FILTRO.some((k) => params.has(k));
+  const filtros = useMemo(() => lerFiltros(naUrl ? params : new URLSearchParams(filtrosGuardados())), [params, naUrl]);
+  const { status, tipoId, responsavel, ordem } = filtros;
+  const meus = responsavel === "eu";
+  const textoAtual = textoFiltros(filtros);
+  useEffect(() => {
+    // Veio pela URL: passa a ser o lembrado. Veio do navegador: sobe para a URL
+    // (o link copiado mostra a mesma lista).
+    if (naUrl) guardarFiltros(textoAtual);
+    else if (textoAtual) setParams((c) => comFiltros(c, textoAtual), { replace: true });
+  }, [naUrl, textoAtual, setParams]);
+  function mudar(patch: Partial<FiltrosLembrados>) {
+    const texto = textoFiltros({ ...filtros, ...patch });
+    guardarFiltros(texto);
+    setParams((c) => comFiltros(c, texto), { replace: true });
+  }
   const hoje = hojeISO();
   const podeGerenciar = usePermissao("chamados.gerenciar");
-  const [tipoId, setTipoId] = useState("");
-  const [responsavel, setResponsavel] = useState<string>("");
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const tiposQ = useSolicitacaoTipos();
   const tipos = tiposQ.data ?? [];
-  const { data = [], isLoading, isError, error, refetch, isPlaceholderData } = useSolicitacoes({
-    status,
-    hoje,
-    tipoId: tipoId || undefined,
-    responsavelId: responsavel || undefined,
-    clienteId: clienteId ?? undefined,
-    de: de || undefined,
-    ate: ate || undefined,
-  });
+  const { data = [], isLoading, isError, error, refetch, isPlaceholderData } = useSolicitacoes(
+    {
+      status,
+      hoje,
+      tipoId: tipoId || undefined,
+      responsavelId: meus ? (euId ?? undefined) : responsavel || undefined,
+      clienteId: clienteId ?? undefined,
+      de: de || undefined,
+      ate: ate || undefined,
+      ordem,
+    },
+    // "Meus" espera saber quem está logado (senão a lista de todos piscaria antes).
+    !meus || !!euId,
+  );
   const { trocar } = useTrocarStatusChamado();
   const excluir = useExcluirSolicitacao();
   const colabsQ = useColaboradores();
@@ -258,14 +359,14 @@ function ListaAba() {
     </>
   );
   function limparFiltros() {
-    setStatus("abertas");
-    setTipoId("");
-    setResponsavel("");
+    mudar(FILTROS_PADRAO);
     setClienteId(null);
     setDe("");
     setAte("");
   }
-  // Chips do celular: um por filtro fora do padrão ("Em aberto").
+  // Escolher o próprio nome é o mesmo que "Meus" (o botão acende junto).
+  const escolherResponsavel = (v: string) => mudar({ responsavel: v && v === euId ? "eu" : v });
+  // Chips do celular: um por filtro fora do padrão ("Em aberto", mais recentes).
   const ativos: FiltroAtivo[] = [];
   if (status !== "abertas")
     ativos.push({
@@ -276,82 +377,119 @@ function ListaAba() {
           : status
             ? STATUS_SOLICITACAO.find((x) => x.value === status)?.label ?? "Status"
             : "Todos os status",
-      onRemover: () => setStatus("abertas"),
+      onRemover: () => mudar({ status: "abertas" }),
     });
-  if (tipoId) ativos.push({ id: "tipo", rotulo: tipos.find((t) => t.id === tipoId)?.nome ?? "Tipo", onRemover: () => setTipoId("") });
-  if (responsavel)
+  if (tipoId) ativos.push({ id: "tipo", rotulo: tipos.find((t) => t.id === tipoId)?.nome ?? "Tipo", onRemover: () => mudar({ tipoId: "" }) });
+  // "Meus" tem botão próprio sempre à vista; chip só para os outros responsáveis.
+  if (responsavel && !meus)
     ativos.push({
       id: "resp",
       rotulo: responsavel === "sem" ? "Sem responsável" : mapa.get(responsavel)?.nome ?? "Responsável",
-      onRemover: () => setResponsavel(""),
+      onRemover: () => mudar({ responsavel: "" }),
     });
   if (clienteId) ativos.push({ id: "cliente", rotulo: "Cliente escolhido", onRemover: () => setClienteId(null) });
   if (de) ativos.push({ id: "de", rotulo: `De ${formatData(de)}`, onRemover: () => setDe("") });
   if (ate) ativos.push({ id: "ate", rotulo: `Até ${formatData(ate)}`, onRemover: () => setAte("") });
+  if (ordem === "prazo") ativos.push({ id: "ordem", rotulo: "Ordem: prazo", onRemover: () => mudar({ ordem: "recentes" }) });
+
+  const botaoMeus = (
+    <BotaoMeus
+      ativo={meus}
+      onClick={() => mudar({ responsavel: meus ? "" : "eu" })}
+      className={compacta ? "mt-0.5 h-11 shrink-0" : "w-full"}
+    >
+      {compacta ? "Meus" : "Meus chamados"}
+    </BotaoMeus>
+  );
+
+  const barraFiltros = (
+    <FiltrosResponsivos
+      ativos={ativos}
+      onLimpar={limparFiltros}
+      className="grid grid-cols-1 gap-2 rounded-card border bg-card p-3 min-[480px]:grid-cols-2 lg:grid-cols-4"
+    >
+      <Select value={status || TODOS} onValueChange={(v) => mudar({ status: v === TODOS ? "" : (v as FiltroStatus) })}>
+        <SelectTrigger aria-label="Status">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="abertas">Em aberto</SelectItem>
+          <SelectItem value="atrasadas">Atrasados</SelectItem>
+          {STATUS_SOLICITACAO.map((s) => (
+            <SelectItem key={s.value} value={s.value}>
+              {s.label}
+            </SelectItem>
+          ))}
+          <SelectItem value={TODOS}>Todos os status</SelectItem>
+        </SelectContent>
+      </Select>
+      {/* No celular o "Meus" fica fora da folha, na linha do botão Filtros (um toque). */}
+      {!compacta && botaoMeus}
+      {colabsQ.isError ? (
+        <QueryError compacto oque="a equipe" error={colabsQ.error} onRetry={colabsQ.refetch} />
+      ) : (
+      <Select
+        value={(meus ? euId : responsavel) || TODOS}
+        onValueChange={(v) => escolherResponsavel(v === TODOS ? "" : v)}
+      >
+        <SelectTrigger aria-label="Responsável">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODOS}>Qualquer responsável</SelectItem>
+          <SelectItem value="sem">Sem responsável</SelectItem>
+          {[...mapa.values()]
+            .filter((c) => c.ativo)
+            .map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+      )}
+      {tiposQ.isError ? (
+        <QueryError compacto oque="os tipos" error={tiposQ.error} onRetry={tiposQ.refetch} />
+      ) : (
+      <Select value={tipoId || TODOS} onValueChange={(v) => mudar({ tipoId: v === TODOS ? "" : v })}>
+        <SelectTrigger aria-label="Tipo">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODOS}>Todos os tipos</SelectItem>
+          {tipos.map((t) => (
+            <SelectItem key={t.id} value={t.id}>
+              {t.nome}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      )}
+      <ClienteSelect value={clienteId} onChange={setClienteId} permitirTodos />
+      <CampoData rotulo="De" value={de} onChange={setDe} title="Criadas a partir de" />
+      <CampoData rotulo="Até" value={ate} onChange={setAte} title="Criadas até" />
+      <Select value={ordem} onValueChange={(v) => mudar({ ordem: v === "prazo" ? "prazo" : "recentes" })}>
+        <SelectTrigger aria-label="Ordem">
+          <SelectValue>{ordem === "prazo" ? "Ordem: prazo" : "Ordem: mais recentes"}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="recentes">Data de abertura (mais recentes primeiro)</SelectItem>
+          <SelectItem value="prazo">Prazo (mais urgente primeiro)</SelectItem>
+        </SelectContent>
+      </Select>
+    </FiltrosResponsivos>
+  );
 
   return (
     <div className="space-y-4">
-      <FiltrosResponsivos
-        ativos={ativos}
-        onLimpar={limparFiltros}
-        className="grid grid-cols-1 gap-2 rounded-card border bg-card p-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
-      >
-        <Select value={status || TODOS} onValueChange={(v) => setStatus(v === TODOS ? "" : (v as FiltroStatus))}>
-          <SelectTrigger aria-label="Status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="abertas">Em aberto</SelectItem>
-            <SelectItem value="atrasadas">Atrasados</SelectItem>
-            {STATUS_SOLICITACAO.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-            <SelectItem value={TODOS}>Todos os status</SelectItem>
-          </SelectContent>
-        </Select>
-        {tiposQ.isError ? (
-          <QueryError compacto oque="os tipos" error={tiposQ.error} onRetry={tiposQ.refetch} />
-        ) : (
-        <Select value={tipoId || TODOS} onValueChange={(v) => setTipoId(v === TODOS ? "" : v)}>
-          <SelectTrigger aria-label="Tipo">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODOS}>Todos os tipos</SelectItem>
-            {tipos.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        )}
-        {colabsQ.isError ? (
-          <QueryError compacto oque="a equipe" error={colabsQ.error} onRetry={colabsQ.refetch} />
-        ) : (
-        <Select value={responsavel || TODOS} onValueChange={(v) => setResponsavel(v === TODOS ? "" : v)}>
-          <SelectTrigger aria-label="Responsável">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODOS}>Qualquer responsável</SelectItem>
-            <SelectItem value="sem">Sem responsável</SelectItem>
-            {[...mapa.values()]
-              .filter((c) => c.ativo)
-              .map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.nome}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-        )}
-        <ClienteSelect value={clienteId} onChange={setClienteId} permitirTodos />
-        <CampoData rotulo="De" value={de} onChange={setDe} title="Criadas a partir de" />
-        <CampoData rotulo="Até" value={ate} onChange={setAte} title="Criadas até" />
-      </FiltrosResponsivos>
+      {compacta ? (
+        <div className="flex items-start gap-2">
+          {botaoMeus}
+          <div className="min-w-0 flex-1">{barraFiltros}</div>
+        </div>
+      ) : (
+        barraFiltros
+      )}
 
       {isLoading ? (
         <Card aria-busy="true">
@@ -381,7 +519,19 @@ function ListaAba() {
           <EmptyState
             icon={ClipboardList}
             title="Nenhum chamado em aberto"
-            description="Abra pelo botão Abrir chamado no topo de uma conversa, ou pelo menu de uma mensagem."
+            description={
+              onNovo
+                ? "Abra por aqui, pelo botão Abrir chamado no topo de uma conversa ou pelo menu de uma mensagem."
+                : "Os chamados abertos pela equipe e pelo portal do cliente aparecem aqui."
+            }
+            action={
+              onNovo ? (
+                <Button onClick={onNovo}>
+                  <Plus />
+                  Abrir chamado
+                </Button>
+              ) : undefined
+            }
           />
         )
       ) : (
@@ -404,7 +554,7 @@ function ListaAba() {
                 {data.map((s) => {
                   const resp = s.responsavelId ? mapa.get(s.responsavelId) : undefined;
                   const criador = s.criadoPorId ? mapa.get(s.criadoPorId) : undefined;
-                  const atrasada = chamadoAtrasado(s, hoje);
+                  const prazo = situacaoPrazo(s, hoje);
                   return (
                     <TableRow
                       key={s.id}
@@ -443,9 +593,15 @@ function ListaAba() {
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell className={cn("text-sm whitespace-nowrap", atrasada && "text-destructive font-medium")}>
+                      <TableCell
+                        className={cn(
+                          "text-sm whitespace-nowrap",
+                          prazo === "atrasado" && "text-destructive font-medium",
+                          prazo === "hoje" && "text-warning font-medium",
+                        )}
+                      >
                         {s.prazo ? formatData(s.prazo) : "-"}
-                        {atrasada && <Badge variant="destructive" className="ml-1.5">atrasado</Badge>}
+                        <SeloPrazo situacao={prazo} className="ml-1.5" />
                       </TableCell>
                       <TableCell>
                         <StatusSolicitacaoSelect value={s.status} onChange={(st) => trocar(s.id, s.status, st)} />
@@ -464,7 +620,7 @@ function ListaAba() {
         >
           {data.map((s) => {
             const resp = s.responsavelId ? mapa.get(s.responsavelId) : undefined;
-            const atrasada = chamadoAtrasado(s, hoje);
+            const prazo = situacaoPrazo(s, hoje);
             return (
               <ItemCard
                 key={s.id}
@@ -472,8 +628,8 @@ function ListaAba() {
                 titulo={s.tipo?.nome ?? "-"}
                 subtitulo={subtituloContato(s)}
                 selo={
-                  atrasada ? (
-                    <Badge variant="destructive">atrasado</Badge>
+                  prazo ? (
+                    <SeloPrazo situacao={prazo} />
                   ) : s.cliente?.provisorio ? (
                     <CadastroIncompletoBadge />
                   ) : s.origem === "portal" ? (
@@ -482,7 +638,11 @@ function ListaAba() {
                 }
                 meta={[
                   s.descricao ? { texto: s.descricao } : null,
-                  { icone: CalendarDays, texto: s.prazo ? `Prazo ${formatData(s.prazo)}` : "Sem prazo", alerta: atrasada },
+                  {
+                    icone: CalendarDays,
+                    texto: s.prazo ? `Prazo ${formatData(s.prazo)}` : "Sem prazo",
+                    alerta: prazo === "atrasado" || prazo === "hoje",
+                  },
                   resp ? { icone: UserRound, texto: resp.nome.split(" ")[0] } : null,
                   { texto: formatDataHora(s.criadoEm) },
                 ]}
@@ -502,7 +662,9 @@ function ListaAba() {
       {data.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {plural(data.length, "chamado", "chamados")}
-          {data.length >= LIMITE_SOLICITACOES ? ` (mostrando os ${LIMITE_SOLICITACOES} mais recentes, refine os filtros)` : ""}
+          {data.length >= LIMITE_SOLICITACOES
+            ? ` (mostrando os ${LIMITE_SOLICITACOES} ${ordem === "prazo" ? "primeiros pelo prazo" : "mais recentes"}, refine os filtros)`
+            : ""}
         </p>
       )}
     </div>
@@ -852,5 +1014,42 @@ function CampoData({
     <span title={title} className="block">
       <DatePicker value={value} onChange={onChange} limpavel placeholder={rotulo} aria-label={title} />
     </span>
+  );
+}
+
+/**
+ * "Meus": liga e desliga o filtro de responsável = quem está logado. Visual de
+ * chip de filtro (DESIGN.md): pílula com borda fina; ligado, anel de 2px no
+ * azul de foco (anel interno, a largura não muda).
+ */
+function BotaoMeus({
+  ativo,
+  onClick,
+  className,
+  children,
+}: {
+  ativo: boolean;
+  onClick: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={ativo}
+      onClick={onClick}
+      title="Só os chamados com você como responsável"
+      className={cn(
+        "inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border bg-card px-3.5 text-sm",
+        "transition-[color,box-shadow,border-color,transform] duration-150 ease-brand active:scale-[.97]",
+        ativo
+          ? "border-transparent font-semibold text-foreground shadow-[inset_0_0_0_2px_var(--primary-focus)]"
+          : "border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+        className,
+      )}
+    >
+      <UserRound className={cn("size-4 shrink-0", ativo && "text-primary")} aria-hidden />
+      {children}
+    </button>
   );
 }

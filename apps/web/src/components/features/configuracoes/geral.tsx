@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Logo } from "@/components/logo";
+import { RespostasRapidasEditor } from "@/components/features/whatsapp/respostas-rapidas-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,9 @@ export function ConfigGeral() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Só aparece com o módulo WhatsApp ligado; a aba Geral já é de configuracoes.gerenciar. */}
+      {ativo("whatsapp") && <RespostasRapidasEditor />}
 
       <Card>
         <CardContent className="p-4 sm:p-6 space-y-3">

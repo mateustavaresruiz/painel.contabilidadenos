@@ -5,6 +5,7 @@ import {
   FlaskConical,
   History,
   Loader2,
+  MessageCircle,
   Pencil,
   RefreshCcw,
   Plus,
@@ -18,6 +19,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
+import { useAbrirConversaDoCliente } from "@/components/features/clientes/use-abrir-conversa";
 import { ImportarPlanilhaBotao } from "@/components/features/importar/importar-planilha-dialog";
 import { BotaoExportar } from "@/components/features/configuracoes/importar-exportar";
 import { PageHeader } from "@/components/page-header";
@@ -86,6 +88,7 @@ import { useWhatsappSessoes } from "@/lib/queries/whatsapp";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { usePermissao } from "@/lib/colaborador";
+import { useModulos } from "@/lib/modulos";
 
 const TODOS = "__todos__";
 
@@ -96,6 +99,10 @@ export function CertificadosPage() {
   const excluir = useExcluirCertificado();
   const podeEditar = usePermissao("certificados.editar");
   const podeAvisos = usePermissao("certificados.configurar_avisos");
+  const { ativo } = useModulos();
+  const podeResponderWhats = usePermissao("whatsapp.responder") && ativo("whatsapp");
+  // "Avisar no WhatsApp" da linha: vencido ou vencendo em 30 dias, ainda não renovado.
+  const podeAvisar = (c: Certificado) => podeResponderWhats && !!c.cliente && !c.renovadoPorId && statusCertificado(c.validoAte) !== "ok";
   const [busca, setBusca] = useState("");
   // ?status=vencido|vencendo|ok ou ?vence=30 (links do Início) já abre filtrado.
   const [status, setStatus] = useState<string>(() => {
@@ -273,6 +280,25 @@ export function CertificadosPage() {
               ? "Cadastre os certificados dos clientes para acompanhar a validade e avisar antes de vencer."
               : undefined
           }
+          action={
+            data.length > 0 ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBusca("");
+                  setStatus(TODOS);
+                  setTipo(TODOS);
+                }}
+              >
+                Limpar filtros
+              </Button>
+            ) : podeEditar ? (
+              <Button onClick={() => setEditando("novo")}>
+                <Plus />
+                Novo certificado
+              </Button>
+            ) : undefined
+          }
         />
       ) : (
         <ListaResponsiva
@@ -287,7 +313,7 @@ export function CertificadosPage() {
                   <TableHead>Válido até</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead>Aviso</TableHead>
-                  <TableHead className="w-36" />
+                  <TableHead className="w-44" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -296,6 +322,7 @@ export function CertificadosPage() {
                     key={c.id}
                     c={c}
                     aberto={historico === c.id}
+                    podeAvisar={podeAvisar(c)}
                     onHistorico={() => setHistorico(historico === c.id ? null : c.id)}
                     onEditar={podeEditar ? () => setEditando(c) : undefined}
                     onRenovar={podeEditar && !c.renovadoPorId ? () => setRenovando(c) : undefined}
@@ -314,6 +341,7 @@ export function CertificadosPage() {
               key={c.id}
               c={c}
               aberto={historico === c.id}
+              podeAvisar={podeAvisar(c)}
               onHistorico={() => setHistorico(historico === c.id ? null : c.id)}
               onEditar={podeEditar ? () => setEditando(c) : undefined}
               onRenovar={podeEditar && !c.renovadoPorId ? () => setRenovando(c) : undefined}
@@ -351,7 +379,7 @@ export function CertificadosPage() {
 }
 
 /** O mesmo registro da linha da tabela, em card (celular). */
-function CardCertificado({ c, aberto, onHistorico, onEditar, onRenovar, onExcluir }: Parameters<typeof FragmentLinha>[0]) {
+function CardCertificado({ c, aberto, podeAvisar, onHistorico, onEditar, onRenovar, onExcluir }: Parameters<typeof FragmentLinha>[0]) {
   return (
     <>
       <ItemCard
@@ -366,11 +394,13 @@ function CardCertificado({ c, aberto, onHistorico, onEditar, onRenovar, onExclui
           },
         ]}
         acoes={
-          <>
+          // Com o "Avisar" a barra pode não caber no card estreito: quebra a linha.
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1">
             <Button size="sm" variant="ghost" onClick={onHistorico} aria-expanded={aberto} className="mr-auto">
               <History />
               Histórico
             </Button>
+            {podeAvisar && <AvisarWhatsappBotao c={c} comRotulo />}
             {onRenovar && (
               <Button size="sm" variant="ghost" onClick={onRenovar} title="Cadastrar o certificado novo no lugar deste">
                 <RefreshCcw />
@@ -387,7 +417,7 @@ function CardCertificado({ c, aberto, onHistorico, onEditar, onRenovar, onExclui
                 </Button>
               </>
             )}
-          </>
+          </div>
         }
       />
       {aberto && (
@@ -402,6 +432,7 @@ function CardCertificado({ c, aberto, onHistorico, onEditar, onRenovar, onExclui
 function FragmentLinha({
   c,
   aberto,
+  podeAvisar,
   onHistorico,
   onEditar,
   onRenovar,
@@ -409,6 +440,8 @@ function FragmentLinha({
 }: {
   c: Certificado;
   aberto: boolean;
+  /** Botão "Avisar no WhatsApp" (vencido ou vencendo, com whatsapp.responder). */
+  podeAvisar?: boolean;
   onHistorico: () => void;
   /** Sem permissão de editar, editar, renovar e excluir somem. */
   onEditar?: () => void;
@@ -456,6 +489,7 @@ function FragmentLinha({
         </TableCell>
         <TableCell>
           <div className="flex justify-end gap-0.5">
+            {podeAvisar && <AvisarWhatsappBotao c={c} />}
             <Button size="icon" variant="ghost" onClick={onHistorico} title="Histórico de avisos" aria-label="Histórico de avisos" aria-expanded={aberto}>
               <History />
             </Button>
@@ -485,6 +519,51 @@ function FragmentLinha({
         </TableRow>
       )}
     </>
+  );
+}
+
+/**
+ * Abre a conversa do cliente no Atendimento com o aviso de vencimento já
+ * escrito no campo, pelo mesmo modelo da rotina automática. NÃO envia: quem
+ * envia é a pessoa, depois de revisar. Só acha conversa que já existe (a
+ * vinculada ao cliente ou a do número de aviso); sem ela, avisa com um toast.
+ */
+function AvisarWhatsappBotao({ c, comRotulo }: { c: Certificado; comRotulo?: boolean }) {
+  const salvoQ = useConfig<string | null>(CONFIG_MODELO, null);
+  const padraoQ = useModeloPadraoAviso();
+  const { abrir, abrindo } = useAbrirConversaDoCliente();
+  const carregando = salvoQ.isLoading || padraoQ.isLoading;
+
+  function avisar() {
+    const modelo = modeloEfetivo(salvoQ.data, padraoQ.data);
+    // Já vencido: o {dias} do modelo diria "vence hoje".
+    const texto = aplicarModelo(diasRestantes(c.validoAte) < 0 ? modelo.replaceAll("{dias}", "já venceu") : modelo, {
+      cliente: nomeExibicao(c.cliente),
+      tipo: c.tipo,
+      validoAte: c.validoAte,
+    });
+    // Com telefone de aviso próprio, a conversa é a desse número (como na rotina).
+    void abrir({
+      clienteId: c.clienteId,
+      telefone: c.telefoneAviso || c.cliente?.telefone,
+      porCliente: !c.telefoneAviso,
+      texto,
+    });
+  }
+
+  const dica = "Avisar no WhatsApp: abre a conversa com o aviso escrito, sem enviar";
+  if (comRotulo) {
+    return (
+      <Button size="sm" variant="ghost" onClick={avisar} disabled={carregando} loading={abrindo} title={dica}>
+        <MessageCircle />
+        Avisar
+      </Button>
+    );
+  }
+  return (
+    <Button size="icon" variant="ghost" onClick={avisar} disabled={carregando} loading={abrindo} title={dica} aria-label="Avisar no WhatsApp">
+      <MessageCircle />
+    </Button>
   );
 }
 

@@ -1,7 +1,7 @@
 import { PageContainer } from "@/components/page-container";
 import { Building2, Cake, Loader2, MessageCircle, PartyPopper, User, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { ABAS_CLIENTES, ModuloAbas } from "@/components/modulo-abas";
 import { PageHeader } from "@/components/page-header";
@@ -30,6 +30,7 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 type Periodo = "hoje" | "7" | "30" | "mes";
+const PERIODOS: readonly Periodo[] = ["hoje", "7", "30", "mes"];
 type Origem = "todos" | "empresa" | "pessoa" | "socio";
 
 const MESES = [
@@ -46,7 +47,12 @@ const ORIGEM_LABEL: Record<AniversarioCalculado["origem"], string> = {
 export function AniversariosPage() {
   usePageTitle("Aniversários");
   const { data = [], isLoading, isError, error, refetch } = useAniversarios();
-  const [periodo, setPeriodo] = useState<Periodo>("7");
+  const [params] = useSearchParams();
+  // ?periodo=hoje (o "Dar parabéns" do Início) já abre no período.
+  const [periodo, setPeriodo] = useState<Periodo>(() => {
+    const p = params.get("periodo") as Periodo | null;
+    return p && PERIODOS.includes(p) ? p : "7";
+  });
   const [mes, setMes] = useState(new Date().getMonth());
   const [origem, setOrigem] = useState<Origem>("todos");
 
@@ -211,7 +217,14 @@ function AniversarioCard({ a }: { a: AniversarioCalculado }) {
 
 function mensagemParabens(a: AniversarioCalculado): string {
   if (a.origem === "empresa") {
-    return `Olá! Hoje a ${a.nome} completa ${a.anos} ${a.anos === 1 ? "ano" : "anos"} de história. Parabéns pela trajetória, é um prazer caminhar junto com vocês. Equipe NÓS Contabilidade 🎉`;
+    // "Hoje" só no dia; antes dele, a data (a mensagem pode sair adiantada).
+    const quando =
+      a.diasAte === 0
+        ? "Hoje"
+        : a.diasAte === 1
+          ? "Amanhã"
+          : `No dia ${a.proxima.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
+    return `Olá! ${quando} a ${a.nome} completa ${a.anos} ${a.anos === 1 ? "ano" : "anos"} de história. Parabéns pela trajetória, é um prazer caminhar junto com vocês. Equipe NÓS Contabilidade 🎉`;
   }
   const primeiro = a.nome.split(" ")[0] ?? a.nome;
   return `Feliz aniversário, ${primeiro}! 🎂 Desejamos um novo ano cheio de saúde, conquistas e alegrias. Um abraço da equipe NÓS Contabilidade.`;

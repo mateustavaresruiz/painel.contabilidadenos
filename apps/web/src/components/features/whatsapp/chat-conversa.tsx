@@ -1034,6 +1034,9 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
               replyTo={replyTo ?? undefined}
               onCancelReply={() => setReplyTo(null)}
               textoInicial={textoInicial}
+              // Respostas rápidas: em grupo o nome da conversa é o do grupo, não de uma pessoa.
+              nomeContato={grupo ? null : chat?.nome ?? null}
+              clienteId={chat?.clienteId ?? null}
               dica={
                 grupo
                   ? undefined

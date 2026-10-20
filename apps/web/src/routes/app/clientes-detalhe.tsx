@@ -3,6 +3,7 @@ import {
   BadgeCheck,
   ChevronLeft,
   ClipboardList,
+  ClipboardPlus,
   Loader2,
   MessageSquare,
   Pencil,
@@ -23,9 +24,11 @@ import { corModulo } from "@/lib/cores-modulo";
 import { cn } from "@/lib/utils";
 import { CertificadoDialog } from "@/components/features/certificados/certificado-dialog";
 import { CertificadoStatusBadge } from "@/components/features/certificados/certificado-status";
+import { AnotarCliente } from "@/components/features/clientes/anotar-cliente";
 import { CadastroIncompletoBadge } from "@/components/features/clientes/cadastro-incompleto-badge";
 import { DeleteClienteButton } from "@/components/features/clientes/delete-cliente-button";
 import { PortalClienteAba } from "@/components/features/clientes/portal-cliente";
+import { ConversarWhatsappBotao } from "@/components/features/clientes/whatsapp-cliente";
 import { ResumoFiscalCliente } from "@/components/features/serpro/serpro-painel";
 import { ConsultarSituacaoBotao, ConsultasFiscaisLista } from "@/components/features/serpro/serpro-ui";
 import {
@@ -52,7 +55,7 @@ import { QueryError } from "@/components/ui/query-error";
 import { DetalheSkeleton, ListaSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useColaboradores, usePermissao } from "@/lib/colaborador";
+import { useAlgumaPermissao, useColaboradores, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { formatData, formatDataHora, formatDoc, formatTelefone, linkWaMe } from "@/lib/format";
 import { isValidCpf, isValidTelefone, maskCpf, maskTelefone } from "@/lib/masks";
@@ -87,9 +90,19 @@ export function ClienteDetalhePage() {
   const { ativo: moduloAtivo } = useModulos();
   const mostraPortal = usePermissao("portal.gerenciar") && moduloAtivo("portalCliente");
   const mostraFiscal = usePermissao("serpro.consultar");
+  const mostraCertificados = usePermissao("certificados.ver") && moduloAtivo("certificados");
+  // Mesma regra do menu e da rota de Chamados: quem só abre chamado também vê os seus.
+  const mostraChamados = useAlgumaPermissao(["chamados.ver", "chamados.criar", "chamados.gerenciar"]) && moduloAtivo("chamados");
+  const podeAbrirChamado = usePermissao("chamados.criar") && moduloAtivo("chamados");
+  const [novoChamado, setNovoChamado] = useState(false);
   const [params, setParams] = useSearchParams();
   const abaParam = params.get("aba") as Aba | null;
-  const aba: Aba = abaParam && ABAS.includes(abaParam) && (abaParam !== "portal" || mostraPortal) && (abaParam !== "fiscal" || mostraFiscal) ? abaParam : "dados";
+  const abaVisivel = (a: Aba) =>
+    (a !== "portal" || mostraPortal) &&
+    (a !== "fiscal" || mostraFiscal) &&
+    (a !== "certificados" || mostraCertificados) &&
+    (a !== "solicitacoes" || mostraChamados);
+  const aba: Aba = abaParam && ABAS.includes(abaParam) && abaVisivel(abaParam) ? abaParam : "dados";
   usePageTitle(cliente ? nomeExibicao(cliente) : "Cliente");
 
   if (!id) return <Navigate to="/clientes" replace />;
@@ -143,6 +156,13 @@ export function ClienteDetalhePage() {
           </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <ConversarWhatsappBotao clienteId={cliente.id} telefone={cliente.telefone} />
+            {podeAbrirChamado && (
+              <Button variant="outline" onClick={() => setNovoChamado(true)}>
+                <ClipboardPlus />
+                Abrir chamado
+              </Button>
+            )}
             {podeEditar && cliente.provisorio && (
               <Link to={`/clientes/${cliente.id}/editar`} className={buttonVariants()}>
                 <UserCheck />
@@ -159,6 +179,9 @@ export function ClienteDetalhePage() {
           </div>
         </div>
       </header>
+      {podeAbrirChamado && (
+        <NovaSolicitacaoDialog open={novoChamado} onOpenChange={setNovoChamado} origem={{ clienteId: cliente.id }} />
+      )}
 
       <Tabs
         value={aba}
@@ -178,8 +201,8 @@ export function ClienteDetalhePage() {
           <TabsList>
             <TabsTrigger value="dados">Dados</TabsTrigger>
             {cliente.tipo === "PJ" && <TabsTrigger value="socios">Sócios</TabsTrigger>}
-            <TabsTrigger value="certificados">Certificados</TabsTrigger>
-            <TabsTrigger value="solicitacoes">Chamados</TabsTrigger>
+            {mostraCertificados && <TabsTrigger value="certificados">Certificados</TabsTrigger>}
+            {mostraChamados && <TabsTrigger value="solicitacoes">Chamados</TabsTrigger>}
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
             {mostraFiscal && <TabsTrigger value="fiscal">Pendências fiscais</TabsTrigger>}
             {mostraPortal && <TabsTrigger value="portal">Portal do cliente</TabsTrigger>}
@@ -192,12 +215,16 @@ export function ClienteDetalhePage() {
         <TabsContent value="socios" className="mt-5">
           <SociosAba clienteId={cliente.id} />
         </TabsContent>
-        <TabsContent value="certificados" className="mt-5">
-          <CertificadosAba clienteId={cliente.id} />
-        </TabsContent>
-        <TabsContent value="solicitacoes" className="mt-5">
-          <SolicitacoesAba clienteId={cliente.id} />
-        </TabsContent>
+        {mostraCertificados && (
+          <TabsContent value="certificados" className="mt-5">
+            <CertificadosAba clienteId={cliente.id} />
+          </TabsContent>
+        )}
+        {mostraChamados && (
+          <TabsContent value="solicitacoes" className="mt-5">
+            <SolicitacoesAba clienteId={cliente.id} />
+          </TabsContent>
+        )}
         <TabsContent value="conversas" className="mt-5">
           <ConversasAba clienteId={cliente.id} telefone={cliente.telefone} />
         </TabsContent>
@@ -208,13 +235,15 @@ export function ClienteDetalhePage() {
         )}
         <TabsContent value="historico" className="mt-5">
           <p className="mb-3 text-sm text-muted-foreground">
-            Edições do cadastro, chamados, certificados, consultas fiscais e conversas deste cliente, do mais novo para o mais antigo.
+            Anotações da equipe, edições do cadastro, chamados, certificados, consultas fiscais e conversas deste cliente, do mais novo para o mais antigo.
           </p>
-          <div className="max-w-3xl rounded-card border bg-card p-4">
+          <div className="max-w-3xl space-y-3 rounded-card border bg-card p-4">
+            <AnotarCliente clienteId={cliente.id} />
             <HistoricoLista
               entidade="cliente"
               id={cliente.id}
-              vazio="Ainda não há eventos deste cliente. Edições, chamados, certificados e consultas passam a aparecer aqui."
+              className="border-t pt-3"
+              vazio="Ainda não há eventos deste cliente. Anotações, edições, chamados, certificados e consultas passam a aparecer aqui."
             />
           </div>
         </TabsContent>
@@ -314,18 +343,21 @@ function DadosAba({ cliente }: { cliente: Cliente }) {
 function SociosAba({ clienteId }: { clienteId: string }) {
   const { data: socios = [], isLoading, isError, error, refetch } = useSocios(clienteId);
   const excluir = useExcluirSocio(clienteId);
+  const podeEditar = usePermissao("clientes.editar");
   const [editando, setEditando] = useState<Socio | null | "novo">(null);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          A data de nascimento entra nos Aniversários (aba "Sócios").
+          A data de nascimento entra nos Aniversários (filtro "Só sócios").
         </p>
-        <Button size="sm" onClick={() => setEditando("novo")}>
-          <Plus />
-          Sócio
-        </Button>
+        {podeEditar && (
+          <Button size="sm" onClick={() => setEditando("novo")}>
+            <Plus />
+            Sócio
+          </Button>
+        )}
       </div>
       {isLoading ? (
         <ListaSkeleton linhas={3} />
@@ -357,30 +389,36 @@ function SociosAba({ clienteId }: { clienteId: string }) {
                     .join(" · ") || "-"}
                 </p>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => setEditando(s)} aria-label={`Editar sócio ${s.nome}`}>
-                <Pencil />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={`Excluir sócio ${s.nome}`}
-                onClick={async () => {
-                  if (!(await confirmar({ titulo: `Excluir ${s.nome}?`, confirmLabel: "Excluir", destructive: true }))) return;
-                  excluir.mutate(s.id, { onError: (e) => toast.error(msgErro(e)) });
-                }}
-              >
-                <Trash2 />
-              </Button>
+              {podeEditar && (
+                <>
+                  <Button size="icon" variant="ghost" onClick={() => setEditando(s)} aria-label={`Editar sócio ${s.nome}`}>
+                    <Pencil />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Excluir sócio ${s.nome}`}
+                    onClick={async () => {
+                      if (!(await confirmar({ titulo: `Excluir ${s.nome}?`, confirmLabel: "Excluir", destructive: true }))) return;
+                      excluir.mutate(s.id, { onError: (e) => toast.error(msgErro(e)) });
+                    }}
+                  >
+                    <Trash2 />
+                  </Button>
+                </>
+              )}
             </li>
           ))}
         </ul>
       )}
-      <SocioDialog
-        clienteId={clienteId}
-        socio={editando === "novo" ? null : editando}
-        open={editando !== null}
-        onOpenChange={(o) => !o && setEditando(null)}
-      />
+      {podeEditar && (
+        <SocioDialog
+          clienteId={clienteId}
+          socio={editando === "novo" ? null : editando}
+          open={editando !== null}
+          onOpenChange={(o) => !o && setEditando(null)}
+        />
+      )}
     </div>
   );
 }
@@ -532,15 +570,18 @@ function SocioDialog({
 function CertificadosAba({ clienteId }: { clienteId: string }) {
   const { data = [], isLoading, isError, error, refetch } = useCertificados({ clienteId });
   const excluir = useExcluirCertificado();
+  const podeEditar = usePermissao("certificados.editar");
   const [editando, setEditando] = useState<Certificado | null | "novo">(null);
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => setEditando("novo")}>
-          <Plus />
-          Certificado
-        </Button>
-      </div>
+      {podeEditar && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setEditando("novo")}>
+            <Plus />
+            Certificado
+          </Button>
+        </div>
+      )}
       {isLoading ? (
         <ListaSkeleton linhas={3} />
       ) : isError && data.length === 0 ? (
@@ -566,30 +607,36 @@ function CertificadosAba({ clienteId }: { clienteId: string }) {
                 </p>
               </div>
               <CertificadoStatusBadge validoAte={c.validoAte} />
-              <Button size="icon" variant="ghost" onClick={() => setEditando(c)} aria-label={`Editar certificado ${c.tipo}`}>
-                <Pencil />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={`Excluir certificado ${c.tipo}`}
-                onClick={async () => {
-                  if (!(await confirmar({ titulo: "Excluir certificado?", confirmLabel: "Excluir", destructive: true }))) return;
-                  excluir.mutate(c.id, { onError: (e) => toast.error(msgErro(e)) });
-                }}
-              >
-                <Trash2 />
-              </Button>
+              {podeEditar && (
+                <>
+                  <Button size="icon" variant="ghost" onClick={() => setEditando(c)} aria-label={`Editar certificado ${c.tipo}`}>
+                    <Pencil />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Excluir certificado ${c.tipo}`}
+                    onClick={async () => {
+                      if (!(await confirmar({ titulo: "Excluir certificado?", confirmLabel: "Excluir", destructive: true }))) return;
+                      excluir.mutate(c.id, { onError: (e) => toast.error(msgErro(e)) });
+                    }}
+                  >
+                    <Trash2 />
+                  </Button>
+                </>
+              )}
             </li>
           ))}
         </ul>
       )}
-      <CertificadoDialog
-        open={editando !== null}
-        onOpenChange={(o) => !o && setEditando(null)}
-        certificado={editando === "novo" ? null : editando}
-        clienteIdFixo={clienteId}
-      />
+      {podeEditar && (
+        <CertificadoDialog
+          open={editando !== null}
+          onOpenChange={(o) => !o && setEditando(null)}
+          certificado={editando === "novo" ? null : editando}
+          clienteIdFixo={clienteId}
+        />
+      )}
     </div>
   );
 }
@@ -603,15 +650,18 @@ function SolicitacoesAba({ clienteId }: { clienteId: string }) {
   const { trocar } = useTrocarStatusChamado();
   const { data: colabs = [] } = useColaboradores();
   const mapa = new Map(colabs.map((c) => [c.id, c]));
+  const podeCriar = usePermissao("chamados.criar");
   const [nova, setNova] = useState(false);
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => setNova(true)}>
-          <Plus />
-          Chamado
-        </Button>
-      </div>
+      {podeCriar && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setNova(true)}>
+            <Plus />
+            Chamado
+          </Button>
+        </div>
+      )}
       {isLoading ? (
         <ListaSkeleton linhas={3} />
       ) : isError && data.length === 0 ? (
@@ -645,7 +695,7 @@ function SolicitacoesAba({ clienteId }: { clienteId: string }) {
           })}
         </ul>
       )}
-      <NovaSolicitacaoDialog open={nova} onOpenChange={setNova} origem={{ clienteId }} />
+      {podeCriar && <NovaSolicitacaoDialog open={nova} onOpenChange={setNova} origem={{ clienteId }} />}
     </div>
   );
 }
