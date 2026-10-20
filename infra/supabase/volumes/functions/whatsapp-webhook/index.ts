@@ -965,18 +965,14 @@ async function handlePollVote(ev: WahaWebhookEvent, ctx: Ctx) {
   }
   if (!msg) return;
 
-  const p = (msg.payload ?? {}) as { voters?: Record<string, string[]>; [k: string]: unknown };
-  const voters: Record<string, string[]> = { ...(p.voters ?? {}) };
-  if (selected.length === 0) delete voters[voter];
-  else voters[voter] = selected;
-  const votes: Record<string, number> = {};
-  for (const sel of Object.values(voters)) {
-    for (const opt of sel) votes[opt] = (votes[opt] ?? 0) + 1;
-  }
-  const { error } = await supabaseAdmin
-    .from("WhatsappMensagem")
-    .update({ payload: { ...p, voters, votes } })
-    .eq("id", msg.id);
+  // Ler, alterar e regravar o json aqui perdia um dos votos quando dois
+  // chegavam juntos (os dois liam o mesmo estado). A RPC trava a linha e
+  // recalcula `votes` a partir de `voters` (migração 023).
+  const { error } = await supabaseAdmin.rpc("whatsapp_registrar_voto", {
+    p_mensagem: msg.id,
+    p_votante: voter,
+    p_opcoes: selected,
+  });
   if (error) throw new Error(`poll.vote: ${error.message}`);
 }
 
@@ -1005,17 +1001,20 @@ async function handleReaction(ev: WahaWebhookEvent, ctx: Ctx) {
 
   const { data: msg } = await supabaseAdmin
     .from("WhatsappMensagem")
-    .select("id, reactions")
+    .select("id")
     .eq("tenantId", ctx.tenantId)
     .eq("sessaoId", ctx.sessaoId)
     .eq("wamId", alvo)
     .maybeSingle();
   if (!msg) return;
 
-  const current = (msg.reactions as Array<{ emoji: string; from: string }>) ?? [];
-  const filtered = current.filter((r) => r.from !== autor);
-  if (emoji) filtered.push({ emoji, from: autor ?? "" });
-  const { error } = await supabaseAdmin.from("WhatsappMensagem").update({ reactions: filtered }).eq("id", msg.id);
+  // Atômico no banco (migração 023): duas reações juntas na mesma mensagem
+  // liam a mesma lista e a segunda regravação apagava a primeira.
+  const { error } = await supabaseAdmin.rpc("whatsapp_registrar_reacao", {
+    p_mensagem: msg.id,
+    p_autor: autor ?? "",
+    p_emoji: emoji,
+  });
   if (error) throw new Error(`reaction: ${error.message}`);
 }
 
@@ -1073,24 +1072,42 @@ async function handlePresence(ev: WahaWebhookEvent, ctx: Ctx) {
 
   const { data: chat } = await supabaseAdmin
     .from("WhatsappChat")
-    .select("id, presenceEstado")
+    .select("id")
     .eq("tenantId", ctx.tenantId)
     .eq("sessaoId", ctx.sessaoId)
     .eq("chatId", chatId)
     .maybeSingle();
   if (!chat) return;
 
-  const patch: Record<string, unknown> = { presenceEstado: estado, presenceEm: new Date().toISOString() };
+  // 🔴 Presença vai para WhatsappPresenca, NUNCA para WhatsappChat: cada
+  // "digitando" é uma escrita, e na WhatsappChat (assinada pela lista de
+  // conversas) isso fazia todas as abas abertas buscarem a lista de novo.
+  // Na tabela própria só o cabeçalho da conversa aberta escuta (migração 023).
+  const { data: atual } = await supabaseAdmin
+    .from("WhatsappPresenca")
+    .select("estado")
+    .eq("conversaId", chat.id)
+    .maybeSingle();
+
+  const linha: Record<string, unknown> = {
+    conversaId: chat.id,
+    tenantId: ctx.tenantId,
+    estado,
+    estadoEm: new Date().toISOString(),
+  };
   // "visto por último" só quando o WhatsApp expõe. Sem lastSeen, não
-  // inventamos um horário.
+  // inventamos um horário (e o upsert não apaga o que já havia).
   if (estado === "offline" && p?.lastSeen) {
-    patch.ultimoVistoEm = new Date(p.lastSeen * 1000).toISOString();
+    linha.ultimoVistoEm = new Date(p.lastSeen * 1000).toISOString();
   }
   // Anti-churn: estados estáveis repetidos não escrevem; os efêmeros
-  // (typing/recording) sempre escrevem pra renovar presenceEm.
+  // (typing/recording) sempre escrevem pra renovar estadoEm.
   const efemero = estado === "typing" || estado === "recording";
-  if (!efemero && chat.presenceEstado === estado && !patch.ultimoVistoEm) return;
-  await supabaseAdmin.from("WhatsappChat").update(patch).eq("id", chat.id);
+  if (!efemero && atual?.estado === estado && !linha.ultimoVistoEm) return;
+  const { error } = await supabaseAdmin
+    .from("WhatsappPresenca")
+    .upsert(linha, { onConflict: "conversaId" });
+  if (error) console.warn("[presence]", error.message);
 }
 
 /**

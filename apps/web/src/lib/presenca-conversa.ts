@@ -8,6 +8,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
 
+/**
+ * Saída em curso por tópico. O tópico da presença PRECISA ser o mesmo para
+ * todos (é por ele que um vê o outro), e o supabase-js devolve o canal
+ * existente para o mesmo tópico, inclusive um que ainda está saindo: voltar
+ * para a conversa antes de a saída terminar reassinava um canal morto, sem
+ * erro e sem presença. A entrada nova espera a saída anterior acabar.
+ */
+const saindo = new Map<string, Promise<void>>();
+
 export type PresencaConversa = {
   colaboradorId: string;
   nome: string;
@@ -48,16 +57,20 @@ export function usePresencaConversa(
       return;
     }
     desdeRef.current = new Date().toISOString();
-    const channel = supabase.channel(`chat:${chatRowId}`, {
-      config: { presence: { key: `${euId}:${crypto.randomUUID()}` } },
-    });
-    const sync = () =>
-      setEstado(channel.presenceState<PresencaConversa>() as unknown as Record<string, PresencaConversa[]>);
-    channel
-      .on("presence", { event: "sync" }, sync)
-      .subscribe((status) => {
+    const topico = `chat:${chatRowId}`;
+    let cancelado = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    void (saindo.get(topico) ?? Promise.resolve()).then(() => {
+      if (cancelado) return;
+      const c = supabase.channel(topico, {
+        config: { presence: { key: `${euId}:${crypto.randomUUID()}` } },
+      });
+      channel = c;
+      const sync = () =>
+        setEstado(c.presenceState<PresencaConversa>() as unknown as Record<string, PresencaConversa[]>);
+      c.on("presence", { event: "sync" }, sync).subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          void channel.track({
+          void c.track({
             colaboradorId: euId,
             nome: euNome ?? "Alguém",
             cor: euCor ?? "#64748b",
@@ -65,9 +78,24 @@ export function usePresencaConversa(
           } satisfies PresencaConversa);
         }
       });
+    });
     return () => {
+      cancelado = true;
       setEstado({});
-      void channel.untrack().finally(() => void supabase.removeChannel(channel));
+      const c = channel;
+      if (!c) return;
+      const saida: Promise<void> = c
+        .untrack()
+        .catch(() => undefined)
+        .then(() => supabase.removeChannel(c))
+        .then(
+          () => undefined,
+          () => undefined,
+        )
+        .finally(() => {
+          if (saindo.get(topico) === saida) saindo.delete(topico);
+        });
+      saindo.set(topico, saida);
     };
   }, [chatRowId, euId, euNome, euCor]);
 

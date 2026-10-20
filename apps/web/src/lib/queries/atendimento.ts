@@ -15,7 +15,7 @@ const CHAT_SELECT = [
   "id", "sessaoId", "chatId", "tipo", "nome", "sobre", "fotoPath", "clienteId",
   "ultimaMensagemTexto", "ultimaMensagemEm", "ultimaMensagemFromMe", "naoLidas",
   "arquivado", "fixado", "podeEnviar", "motivoBloqueio",
-  "presenceEstado", "presenceEm", "ultimoVistoEm", "responsavelId", "atendimentoStatus",
+  "responsavelId", "atendimentoStatus",
   "atendimentoEm", "apagadoEm", "atualizadoEm",
 ].join(",");
 
@@ -26,10 +26,12 @@ const CHAT_SELECT = [
  */
 export function useWhatsappChatAberto(sessaoId: string | undefined, chatId: string | undefined) {
   const ligado = !!sessaoId && !!chatId;
+  // Filtro pelo chatId do WhatsApp: só a linha desta conversa (o mesmo
+  // contato em outra instância também dispara, o que é raro e barato).
   useRealtimeInvalidate(
     "WhatsappChat",
     [["whatsapp-chat", sessaoId ?? "", chatId ?? ""]],
-    { column: "tenantId", value: "denos" },
+    { column: "chatId", value: chatId ?? "__none__" },
     ligado,
   );
   return useQuery({
@@ -209,7 +211,7 @@ export function useTransferencias(chatRowId: string | undefined) {
   useRealtimeInvalidate(
     "WhatsappChat",
     [["atendimento-transferencias", chatRowId ?? ""]],
-    { column: "tenantId", value: "denos" },
+    { column: "id", value: chatRowId ?? "__none__" },
     !!chatRowId,
   );
   return useQuery({

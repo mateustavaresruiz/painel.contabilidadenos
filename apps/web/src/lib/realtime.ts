@@ -19,6 +19,15 @@ type AssinaturaCompartilhada = {
 };
 
 const assinaturas = new Map<string, AssinaturaCompartilhada>();
+/**
+ * Sufixo do tópico: cada canal criado aqui tem tópico próprio. O supabase-js
+ * devolve o canal EXISTENTE quando o tópico se repete, inclusive um que ainda
+ * está saindo (`removeChannel` é assíncrono). Reassinar a mesma tabela logo
+ * depois de soltar (trocar de conversa e voltar) recebia esse canal morto, e
+ * a assinatura nova não disparava nunca, sem erro. postgres_changes não
+ * depende do nome do tópico, então ser único não custa nada.
+ */
+let sequencia = 0;
 
 function assinarMudancas(
   chave: string,
@@ -31,7 +40,7 @@ function assinarMudancas(
   if (!entrada) {
     const listeners = new Map<string, () => void>();
     const nova: AssinaturaCompartilhada = {
-      channel: supabase.channel(`rt:${chave}`).on(
+      channel: supabase.channel(`rt:${chave}:${++sequencia}`).on(
         "postgres_changes" as never,
         { event: "*", schema: "public", table, ...(filter ? { filter: `${filter.column}=eq.${filter.value}` } : {}) },
         () => {

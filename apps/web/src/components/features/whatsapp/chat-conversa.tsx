@@ -234,8 +234,13 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
   // msg recém-enviada ordenar ~3h "no passado", aparecendo acima das
   // recebidas — parsePgTimestamp normaliza ambos pro epoch UTC real.
   const mensagens = useMemo(() => {
-    const flat = (data?.pages ?? []).flat() as WhatsappMensagem[];
-    return [...flat].sort((a, b) => {
+    // Sem repetidos por id: a mesma mensagem pode estar em duas páginas
+    // (refetch de uma página enquanto chegam novas). Fica a da página mais nova.
+    const porId = new Map<string, WhatsappMensagem>();
+    for (const m of (data?.pages ?? []).flat() as WhatsappMensagem[]) {
+      if (!porId.has(m.id)) porId.set(m.id, m);
+    }
+    return [...porId.values()].sort((a, b) => {
       // Mensagens otimistas (recém-enviadas, ainda sem eco do servidor) ficam
       // SEMPRE no fim, na ordem de envio. Sem isso, o timestamp do relógio do
       // CLIENTE da fantasma competia com o do SERVIDOR das já confirmadas e,

@@ -221,6 +221,15 @@ async function exigirAtendimento(
   return r.ok ? null : json(r.conflito, { status: statusDoConflito(r.conflito) });
 }
 
+/**
+ * Colunas da sessão que vão para a tela. O QR (`qrCodeBase64`) fica de fora:
+ * ele vincula um aparelho à conta, e só quem gerencia conexões o recebe, pela
+ * rota /qr. A leitura direta da coluna também é negada (migração 023).
+ */
+const SESSAO_COLUNAS_TELA =
+  'id, "tenantId", nome, apelido, numero, status, "pushName", "ultimoErro", "fotoPath", ' +
+  '"fotoPersonalizada", "conectadoEm", "criadoEm", "atualizadoEm"';
+
 async function getSessaoOrFail(sessaoId: string): Promise<Sessao | null> {
   const { data, error } = await supabaseAdmin
     .from("WhatsappSessao")
@@ -594,10 +603,10 @@ serve(async (req) => {
         );
       }
 
-      // Re-fetch após o sync pra devolver as colunas completas.
+      // Re-fetch após o sync pra devolver as colunas completas (sem o QR).
       const { data } = await supabaseAdmin
         .from("WhatsappSessao")
-        .select("*")
+        .select(SESSAO_COLUNAS_TELA)
         .eq("tenantId", tenantId)
         .order("criadoEm", { ascending: true });
       return json({ sessoes: data ?? [], wahaConfigurado: waha.wahaIsConfigured() });
@@ -725,7 +734,7 @@ serve(async (req) => {
       await syncSessaoComWaha(sessao);
       const { data } = await supabaseAdmin
         .from("WhatsappSessao")
-        .select("*")
+        .select(SESSAO_COLUNAS_TELA)
         .eq("id", sessao.id)
         .single();
       return json({ sessao: data });
@@ -1062,6 +1071,10 @@ serve(async (req) => {
         if (r?.chatId) chatId = r.chatId;
       } catch (err) {
         return wahaErrorResponse(err, "chats/novo");
+      }
+      // O chatId só se conhece depois do WAHA: a regra de dono vale aqui.
+      if (!(await podeMexerNaConversa(colaborador, sessao.id, chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
       }
       const chat = await garantirChat({ tenantId, sessaoId: sessao.id, chatId });
       if (!chat) return badRequest("Conversa inválida.");
@@ -1794,7 +1807,7 @@ serve(async (req) => {
           });
           return { chatId: toChatId, ok: true, id };
         } catch (err) {
-          await marcarFalha(provisoriaId);
+          await marcarFalha(provisoriaId, err);
           return { chatId: toChatId, ok: false, erro: err instanceof Error ? err.message : String(err) };
         }
       };
@@ -1951,7 +1964,7 @@ serve(async (req) => {
         });
         return json({ id });
       } catch (err) {
-        await marcarFalha(provisoriaId);
+        await marcarFalha(provisoriaId, err);
         const msg = err instanceof Error ? err.message : String(err);
         return json({ error: `Falha ao enviar mídia: ${msg}`, id: provisoriaId }, { status: 424 });
       }
@@ -1974,10 +1987,14 @@ serve(async (req) => {
         .eq("sessaoId", sessaoMsg.id)
         .eq("wamId", messageId)
         .maybeSingle();
-      if (alvo?.chatId) {
-        const emAtendimento = await exigirAtendimento(colaborador, sessaoMsg.id, alvo.chatId as string);
-        if (emAtendimento) return emAtendimento;
+      // Sem a mensagem no banco não há como saber de quem é a conversa: recusa
+      // em vez de reagir às cegas numa conversa de outra pessoa.
+      if (!alvo?.chatId) return notFound("Mensagem não encontrada");
+      if (!(await podeMexerNaConversa(colaborador, sessaoMsg.id, alvo.chatId as string))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
       }
+      const emAtendimento = await exigirAtendimento(colaborador, sessaoMsg.id, alvo.chatId as string);
+      if (emAtendimento) return emAtendimento;
       try {
         await waha.reactToMessage({ session: sessaoMsg.nome, messageId, reaction });
       } catch (err) {
@@ -1999,6 +2016,9 @@ serve(async (req) => {
         .eq("id", mensagemId)
         .maybeSingle();
       if (!msgRow) return notFound("Mensagem não encontrada");
+      if (!(await podeMexerNaConversa(colaborador, msgRow.sessaoId, msgRow.chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
+      }
       if (msgRow.mediaPath) return json({ ok: true, mediaPath: msgRow.mediaPath, alreadyPresent: true });
       if (!msgRow.wamId) return badRequest("Mensagem sem wamId — não dá pra re-buscar");
       const sessaoMsg = await getSessaoOrFail(msgRow.sessaoId);
@@ -2127,6 +2147,9 @@ serve(async (req) => {
       const chatId = body?.chatId as string | undefined;
       const state = body?.state === "paused" ? "paused" : "typing";
       if (!sessaoIdBody || !chatId) return badRequest("sessaoId e chatId obrigatórios");
+      if (!(await podeMexerNaConversa(colaborador, sessaoIdBody, chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
+      }
       const sessaoMsg = await getSessaoOrFail(sessaoIdBody);
       if (!sessaoMsg) return notFound("Sessão não encontrada");
       try {

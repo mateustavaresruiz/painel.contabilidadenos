@@ -642,6 +642,10 @@ function ConectarWhatsappDialog({
   const start = useStartWhatsappSessao(sessao.id);
   const stop = useStopWhatsappSessao(sessao.id);
   const fetchQr = useFetchQrCode(sessao.id);
+  // O QR vem só da rota /qr (a coluna não é legível pela tela). Guarda o
+  // último para a imagem não sumir enquanto a renovação de 25s está no ar.
+  const [qr, setQr] = useState<string | null>(null);
+  const buscarQr = () => fetchQr.mutate(undefined, { onSuccess: (r) => setQr(r.qr) });
   const startCalledRef = useRef(false);
   // Alternativa ao QR: código de pareamento pelo número de telefone.
   const [modo, setModo] = useState<"qr" | "codigo">("qr");
@@ -653,6 +657,7 @@ function ConectarWhatsappDialog({
   useEffect(() => {
     if (!open) {
       setModo("qr");
+      setQr(null);
       pedirCodigo.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -685,8 +690,8 @@ function ConectarWhatsappDialog({
   // Pausa no modo código: o QR não é usado e não precisa ser renovado.
   useEffect(() => {
     if (!open || sessao.status !== "SCAN_QR_CODE" || modo !== "qr") return;
-    fetchQr.mutate();
-    const id = setInterval(() => fetchQr.mutate(), 25_000);
+    buscarQr();
+    const id = setInterval(buscarQr, 25_000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sessao.status, modo]);
@@ -799,9 +804,9 @@ function ConectarWhatsappDialog({
         ) : (
         <div className="flex flex-col items-center gap-4 py-2">
           <div className="size-64 grid place-items-center bg-card rounded-md border">
-            {aguardandoQr && sessao.qrCodeBase64 ? (
+            {aguardandoQr && qr ? (
               <img
-                src={sessao.qrCodeBase64}
+                src={qr}
                 alt="QR code WhatsApp"
                 className="size-60 object-contain"
               />
@@ -851,7 +856,7 @@ function ConectarWhatsappDialog({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchQr.mutate()}
+              onClick={buscarQr}
               disabled={fetchQr.isPending}
             >
               <RefreshCw className="size-3.5 mr-1" />

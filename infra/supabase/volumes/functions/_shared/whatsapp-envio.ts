@@ -226,11 +226,31 @@ export async function reconciliarEnvio(args: {
   return eco.id as string;
 }
 
-/** Envio falhou: marca ack -1 (a tela mostra "não enviada" e deixa reenviar). */
-export async function marcarFalha(provisoriaId: string): Promise<void> {
+/**
+ * Falha AMBÍGUA: timeout ou rede caiu no meio. O WAHA pode ter recebido e
+ * entregado — não dá para afirmar que a mensagem não saiu. Resposta HTTP do
+ * WAHA (4xx/5xx) é definitiva.
+ */
+export function falhaAmbigua(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.message.startsWith("WAHA timeout")) return true;
+  // fetch do Deno: erro de rede chega como TypeError; conexão derrubada,
+  // como Deno.errors.Connection*.
+  return err instanceof TypeError || err.name.startsWith("Connection");
+}
+
+/**
+ * Envio falhou: marca ack -1 (a tela mostra "não enviada" e deixa reenviar).
+ *
+ * Em falha ambígua (`falhaAmbigua`) a linha continua `pendenteEco`: se a
+ * mensagem saiu, o eco do webhook casa com ela (`consumir_eco_fromme`) e o
+ * ack sobe. Zerar o `pendenteEco` aqui fazia o eco virar OUTRA linha, como se
+ * enviada pelo celular — a mesma mensagem aparecia duas vezes.
+ */
+export async function marcarFalha(provisoriaId: string, err?: unknown): Promise<void> {
   await supabaseAdmin
     .from("WhatsappMensagem")
-    .update({ ack: -1, pendenteEco: false })
+    .update({ ack: -1, pendenteEco: falhaAmbigua(err) })
     .eq("id", provisoriaId);
 }
 
@@ -294,7 +314,7 @@ export async function enviarTexto(args: {
     });
     return { ok: true, mensagemId, wamId: wamIdDe(sent) };
   } catch (err) {
-    await marcarFalha(provisoriaId);
+    await marcarFalha(provisoriaId, err);
     return {
       ok: false,
       mensagemId: provisoriaId,

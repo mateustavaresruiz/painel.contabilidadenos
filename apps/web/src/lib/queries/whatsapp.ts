@@ -42,7 +42,6 @@ export type WhatsappSessao = {
   fotoPath: string | null;
   /** true = imagem que o dono subiu, visível SÓ no adv3 (o WhatsApp não muda). */
   fotoPersonalizada: boolean;
-  qrCodeBase64: string | null;
   ultimoErro: string | null;
   conectadoEm: string | null;
   criadoEm: string;
@@ -72,12 +71,6 @@ export type WhatsappChat = {
   podeEnviar: boolean;
   /** Motivo do bloqueio quando podeEnviar=false: 'so_admins' | 'removido'. */
   motivoBloqueio: string | null;
-  /** Presença do contato (só individual): última observada via presence.update. */
-  presenceEstado: "online" | "offline" | "typing" | "recording" | null;
-  /** Quando presenceEstado foi observado — usado para expirar typing/online. */
-  presenceEm: string | null;
-  /** "Visto por último" que o WhatsApp expôs (null quando privacidade oculta). */
-  ultimoVistoEm: string | null;
   /** Atendimento (painel Denos): quem cuida da conversa agora. */
   responsavelId: string | null;
   atendimentoStatus: AtendimentoStatus;
@@ -93,7 +86,7 @@ const CHAT_LIST_SELECT = [
   "id", "sessaoId", "chatId", "tipo", "nome", "sobre", "fotoPath", "clienteId",
   "ultimaMensagemTexto", "ultimaMensagemEm", "ultimaMensagemFromMe", "naoLidas",
   "arquivado", "fixado", "podeEnviar", "motivoBloqueio",
-  "presenceEstado", "presenceEm", "ultimoVistoEm", "responsavelId", "atendimentoStatus",
+  "responsavelId", "atendimentoStatus",
   "atendimentoEm", "apagadoEm", "atualizadoEm",
 ].join(",");
 
@@ -215,9 +208,13 @@ export function useWhatsappSessoes() {
   return useQuery({
     queryKey: ["whatsapp-sessoes"],
     queryFn: async () => {
+      // Colunas explícitas: o QR (`qrCodeBase64`) não é legível pela tela
+      // (grant por coluna, migração 023) e vem só pela rota /qr.
       const { data, error } = await supabase
         .from("WhatsappSessao")
-        .select("*")
+        .select(
+          'id, tenantId, nome, apelido, numero, status, pushName, ultimoErro, fotoPath, fotoPersonalizada, conectadoEm, criadoEm, atualizadoEm',
+        )
         .order("criadoEm", { ascending: true });
       if (error) throw error;
       return (data ?? []) as WhatsappSessao[];
@@ -978,7 +975,7 @@ export function useLimparChat(sessaoId: string | undefined) {
       const prev = qc.getQueryData(["whatsapp-mensagens", sessaoId ?? "", chatId]);
       qc.setQueryData(["whatsapp-mensagens", sessaoId ?? "", chatId], {
         pages: [[]],
-        pageParams: [0],
+        pageParams: [null],
       });
       return { prev };
     },
@@ -1151,11 +1148,21 @@ export async function abrirConversaPorTelefone(sessaoId: string, telefone: strin
 
 const PAGE_SIZE = 50;
 
+/**
+ * Cursor da página seguinte: a última mensagem da página anterior (a mais
+ * antiga dela). `null` = primeira página.
+ *
+ * Por offset (`range`), uma mensagem nova chegando entre uma página e outra
+ * empurrava tudo uma posição: a página seguinte repetia a última mensagem já
+ * vista, e apagar uma fazia pular outra. Com cursor a página seguinte começa
+ * exatamente depois da última vista. O `id` desempata mensagens com o mesmo
+ * timestamp (o WhatsApp dá precisão de segundos).
+ */
+export type CursorMensagens = { ts: string; id: string } | null;
+
 /** Uma página de mensagens (mais nova primeiro). Serve à query e à pré-carga. */
-async function buscarPaginaMensagens(sessaoId: string, chatId: string, pageParam: number) {
-  const from = pageParam * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-  const { data, error } = await supabase
+async function buscarPaginaMensagens(sessaoId: string, chatId: string, cursor: CursorMensagens) {
+  let q = supabase
     .from("WhatsappMensagem")
     // Join no User para exibir avatar+nome do membro que enviou
     // ("enviadoPor" só vem preenchido em mensagens fromMe
@@ -1164,11 +1171,29 @@ async function buscarPaginaMensagens(sessaoId: string, chatId: string, pageParam
       "*, enviadoPor:Colaborador!WhatsappMensagem_enviadoPorUserId_fkey(id, nome, cor)",
     )
     .eq("sessaoId", sessaoId)
-    .eq("chatId", chatId)
+    .eq("chatId", chatId);
+  if (cursor) {
+    // Aspas: o timestamp tem ":" e "+", que o filtro `or` trataria como sintaxe.
+    q = q.or(
+      `timestamp.lt."${cursor.ts}",and(timestamp.eq."${cursor.ts}",id.lt."${cursor.id}")`,
+    );
+  }
+  const { data, error } = await q
     .order("timestamp", { ascending: false })
-    .range(from, to);
+    .order("id", { ascending: false })
+    .limit(PAGE_SIZE);
   if (error) throw error;
   return (data ?? []) as WhatsappMensagem[];
+}
+
+function proximoCursor(pagina: WhatsappMensagem[]): CursorMensagens | undefined {
+  if (pagina.length < PAGE_SIZE) return undefined;
+  // A mais antiga que veio do BANCO (fantasma não tem posição no banco).
+  for (let i = pagina.length - 1; i >= 0; i--) {
+    const m = pagina[i];
+    if (!m._pendente && !m.id.startsWith("temp-")) return { ts: m.timestamp, id: m.id };
+  }
+  return undefined;
 }
 
 /**
@@ -1178,8 +1203,9 @@ async function buscarPaginaMensagens(sessaoId: string, chatId: string, pageParam
 export function preCarregarMensagens(qc: QueryClient, sessaoId: string, chatId: string) {
   return qc.prefetchInfiniteQuery({
     queryKey: ["whatsapp-mensagens", sessaoId, chatId],
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) => buscarPaginaMensagens(sessaoId, chatId, pageParam as number),
+    initialPageParam: null as CursorMensagens,
+    queryFn: ({ pageParam }) => buscarPaginaMensagens(sessaoId, chatId, pageParam),
+    getNextPageParam: proximoCursor,
     staleTime: 30_000,
   });
 }
@@ -1206,12 +1232,9 @@ export function useMensagens(
   return useInfiniteQuery({
     queryKey: ["whatsapp-mensagens", sessaoId ?? "", chatId ?? ""],
     enabled: !!sessaoId && !!chatId,
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) => buscarPaginaMensagens(sessaoId!, chatId!, pageParam as number),
-    getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.length < PAGE_SIZE) return undefined;
-      return allPages.length;
-    },
+    initialPageParam: null as CursorMensagens,
+    queryFn: ({ pageParam }) => buscarPaginaMensagens(sessaoId!, chatId!, pageParam),
+    getNextPageParam: proximoCursor,
     staleTime: 5_000,
   });
 }
@@ -1297,7 +1320,7 @@ function fantasmaTexto(args: {
   };
 }
 
-type MensagensCache = { pages: WhatsappMensagem[][]; pageParams: number[] };
+type MensagensCache = { pages: WhatsappMensagem[][]; pageParams: CursorMensagens[] };
 
 function prependFantasma(
   qc: ReturnType<typeof useQueryClient>,
@@ -1308,7 +1331,7 @@ function prependFantasma(
   qc.setQueryData<MensagensCache>(
     ["whatsapp-mensagens", sessaoId, chatId],
     (old) => {
-      if (!old) return { pages: [[msg]], pageParams: [0] };
+      if (!old) return { pages: [[msg]], pageParams: [null] };
       // primeira page é a mais recente (order desc); prepend no início
       const [first = [], ...rest] = old.pages;
       return { ...old, pages: [[msg, ...first], ...rest] };
@@ -1619,7 +1642,7 @@ export function useSendTyping() {
  * Assina a presença do contato (individual) no WAHA para receber
  * "online/digitando/gravando". Auto-disparado ao abrir a conversa; sem isso
  * a engine GOWS não emite presence.update pro contato. O resultado aparece
- * no header via realtime do WhatsappChat (presenceEstado/presenceEm).
+ * no header por `usePresencaContato` (tabela WhatsappPresenca).
  */
 export function useSubscribePresence() {
   return useMutation({
@@ -1628,6 +1651,45 @@ export function useSubscribePresence() {
         `/whatsapp/sessoes/${encodeURIComponent(args.sessaoId)}/chats/${encodeURIComponent(args.chatId)}/presence-subscribe`,
         { method: "POST", body: {} },
       ),
+  });
+}
+
+export type PresencaContato = {
+  estado: "online" | "offline" | "typing" | "recording";
+  /** Quando o estado foi observado — usado para expirar typing/online. */
+  estadoEm: string;
+  /** "Visto por último", quando o WhatsApp do contato expõe. */
+  ultimoVistoEm: string | null;
+};
+
+/**
+ * Presença do contato (online, digitando, gravando, visto por último) da
+ * conversa ABERTA. Fica numa tabela própria, e não em WhatsappChat: cada
+ * "digitando" do contato é uma escrita, e na WhatsappChat isso fazia a lista
+ * de conversas de todas as abas abertas buscar tudo de novo. Aqui a
+ * assinatura é só da linha desta conversa.
+ */
+export function usePresencaContato(chatRowId: string | undefined, enabled = true) {
+  const ligado = enabled && !!chatRowId;
+  useRealtimeInvalidate(
+    "WhatsappPresenca",
+    [["whatsapp-presenca", chatRowId ?? ""]],
+    { column: "conversaId", value: chatRowId ?? "__none__" },
+    ligado,
+  );
+  return useQuery({
+    queryKey: ["whatsapp-presenca", chatRowId ?? ""],
+    enabled: ligado,
+    staleTime: 5_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("WhatsappPresenca")
+        .select("estado, estadoEm, ultimoVistoEm")
+        .eq("conversaId", chatRowId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as PresencaContato | null;
+    },
   });
 }
 

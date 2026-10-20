@@ -50,7 +50,13 @@ import { formatTelefone, parsePgTimestamp } from "@/lib/format";
 import { iniciaisDeContato } from "@/lib/iniciais";
 import { useModulos } from "@/lib/modulos";
 import { usePresencaConversa, type PresencaConversa } from "@/lib/presenca-conversa";
-import { mediaSignedUrl, type WhatsappChat, type WhatsappSessao } from "@/lib/queries/whatsapp";
+import {
+  mediaSignedUrl,
+  usePresencaContato,
+  type PresencaContato,
+  type WhatsappChat,
+  type WhatsappSessao,
+} from "@/lib/queries/whatsapp";
 import { cn } from "@/lib/utils";
 
 import { ConversaTagsBotao } from "./conversa-tags";
@@ -423,16 +429,19 @@ function TambemAqui({ outros }: { outros: PresencaConversa[] }) {
 const PRESENCA_TYPING_TTL_MS = 18_000;
 const PRESENCA_ONLINE_TTL_MS = 90_000;
 
-function presencaTexto(chat: WhatsappChat | undefined): { texto: string; ativo: boolean } | null {
-  if (!chat || chat.tipo !== "individual" || !chat.presenceEstado) return null;
-  const em = chat.presenceEm ? parsePgTimestamp(chat.presenceEm)?.getTime() ?? 0 : 0;
+function presencaTexto(
+  chat: WhatsappChat | undefined,
+  presenca: PresencaContato | null | undefined,
+): { texto: string; ativo: boolean } | null {
+  if (!chat || chat.tipo !== "individual" || !presenca) return null;
+  const em = parsePgTimestamp(presenca.estadoEm)?.getTime() ?? 0;
   const idade = Date.now() - em;
-  const est = chat.presenceEstado;
+  const est = presenca.estado;
   if ((est === "typing" || est === "recording") && idade < PRESENCA_TYPING_TTL_MS) {
     return { texto: est === "recording" ? "gravando áudio…" : "digitando…", ativo: true };
   }
   if (est === "online" && idade < PRESENCA_ONLINE_TTL_MS) return { texto: "online", ativo: true };
-  const visto = chat.ultimoVistoEm ? parsePgTimestamp(chat.ultimoVistoEm) : null;
+  const visto = presenca.ultimoVistoEm ? parsePgTimestamp(presenca.ultimoVistoEm) : null;
   if (visto) {
     const quando = isSameDay(visto, new Date())
       ? `às ${format(visto, "HH:mm")}`
@@ -470,7 +479,8 @@ function Sublinha({
     return () => clearInterval(id);
   }, []);
 
-  const pres = presencaTexto(chat);
+  const { data: presenca } = usePresencaContato(chat?.id, chat?.tipo === "individual");
+  const pres = presencaTexto(chat, presenca);
   const telefone = !grupo && numero && formatTelefone(numero) !== nome ? formatTelefone(numero) : null;
   const via = sessao ? sessao.apelido ?? formatHeaderNumero(sessao.numero) ?? "WhatsApp" : null;
 
@@ -534,7 +544,8 @@ function SublinhaCompacta({
     const id = setInterval(() => setTick((n) => n + 1), 8_000);
     return () => clearInterval(id);
   }, []);
-  const pres = presencaTexto(chat);
+  const { data: presenca } = usePresencaContato(chat?.id, chat?.tipo === "individual");
+  const pres = presencaTexto(chat, presenca);
   const tom = estado ? TOM[estado.fase] : null;
   const quem = !estado
     ? null
