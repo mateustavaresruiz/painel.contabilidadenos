@@ -251,7 +251,10 @@ export async function marcarFalha(provisoriaId: string, err?: unknown): Promise<
   await supabaseAdmin
     .from("WhatsappMensagem")
     .update({ ack: -1, pendenteEco: falhaAmbigua(err) })
-    .eq("id", provisoriaId);
+    .eq("id", provisoriaId)
+    // O eco já casou (a mensagem saiu e tem wamId): não marca "não enviada",
+    // senão a tela oferece Reenviar e o cliente recebe duas vezes.
+    .is("wamId", null);
 }
 
 export type ResultadoEnvio =

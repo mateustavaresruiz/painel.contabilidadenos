@@ -4,6 +4,8 @@
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/migrar.mjs
 //   node scripts/migrar.mjs --sql "select 1"     (consulta avulsa)
 //   node scripts/migrar.mjs --file teste.sql     (idem, lendo o SQL de um arquivo)
+//   node scripts/migrar.mjs --ate 023            (aplica as pendentes só até a que começa com 023:
+//                                                 migração que depende do front publicado fica para depois)
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -42,7 +44,12 @@ await query(`create table if not exists public._migracao (
 const feitas = new Set((await query('select nome from public._migracao')).map((r) => r.nome));
 
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), '..', 'supabase', 'migrations');
-const arquivos = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+const ate = process.argv.indexOf('--ate') !== -1 ? process.argv[process.argv.indexOf('--ate') + 1] : null;
+const arquivos = fs
+  .readdirSync(dir)
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
+  .filter((f) => !ate || f.slice(0, ate.length) <= ate);
 
 for (const f of arquivos) {
   if (feitas.has(f)) continue;

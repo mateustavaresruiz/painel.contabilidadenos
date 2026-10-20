@@ -10,12 +10,14 @@ import { nomeExibicao, useCliente } from "@/lib/queries/clientes";
 
 export function EditarClientePage() {
   const { id } = useParams<{ id: string }>();
-  const { data: cliente, isLoading, error, refetch } = useCliente(id);
+  // Relê ao abrir: o formulário guarda o "atualizadoEm" desta leitura para a
+  // trava otimista, e o que está em memória pode estar velho.
+  const { data: cliente, isLoading, isFetchedAfterMount, error, refetch } = useCliente(id, { sempreFresco: true });
   usePageTitle(cliente ? `Editar ${nomeExibicao(cliente)}` : "Editar cliente");
 
   if (!id) return <Navigate to="/clientes" replace />;
 
-  if (isLoading) {
+  if (isLoading || (!isFetchedAfterMount && !error)) {
     return (
       <PageContainer className="text-sm text-muted-foreground">Carregando…</PageContainer>
     );

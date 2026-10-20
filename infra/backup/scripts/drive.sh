@@ -63,8 +63,8 @@ etapa_drive() {
   jq -j '.clientSecret' "$DRV_TMP/cred.json" >"$DRV_TMP/client_secret"
   rm -f "$DRV_TMP/cred.json"
 
-  if [ ! -s "$WORK/db/postgres.dump" ] || [ ! -s "$WORK/db/roles.sql" ]; then
-    drv_falha "$inicio" "$dest" "o dump do banco de hoje não está disponível (a etapa do banco falhou)"; return
+  if [ ! -f "$WORK/db.ok" ] || [ ! -s "$WORK/db/postgres.dump" ] || [ ! -s "$WORK/db/roles.sql" ]; then
+    drv_falha "$inicio" "$dest" "o dump do banco de hoje não está disponível ou não passou na conferência (a etapa do banco falhou)"; return
   fi
 
   # 1. Token de acesso.
@@ -78,9 +78,15 @@ etapa_drive() {
       drv_falha "$inicio" "$dest" "sem resposta do Google: $(tail -c 300 "$ERR")"
     else
       msg=$(drv_erro "$DRV_TMP/token.json")
-      reconectar=false
-      case "$msg" in *invalid_grant*|*unauthorized_client*|*invalid_client*|*expired*|*revoked*) reconectar=true ;; esac
-      drv_falha "$inicio" "$dest" "o Google recusou o acesso ($msg). Conecte o Drive de novo em Configurações > Sistema." "$reconectar"
+      case "$msg" in
+        # Client ID/Secret errados ou apagados no Google Cloud: reconectar não resolve.
+        *invalid_client*|*unauthorized_client*)
+          drv_falha "$inicio" "$dest" "o Google recusou o Client ID/Secret ($msg). Confira as credenciais em Configurações > Sistema > Acesso OAuth do Google Cloud." ;;
+        *invalid_grant*|*expired*|*revoked*)
+          drv_falha "$inicio" "$dest" "o Google não aceita mais o acesso ($msg). Conecte o Drive de novo em Configurações > Sistema." true ;;
+        *)
+          drv_falha "$inicio" "$dest" "o Google recusou o acesso ($code: $msg). Tenta de novo na próxima execução." ;;
+      esac
     fi
     return
   fi
@@ -89,8 +95,15 @@ etapa_drive() {
 
   # 2. A pasta ainda existe?
   code=$(drv_curl -o "$DRV_TMP/pasta.json" -w '%{http_code}' "$DRV_API/files/$pasta?fields=id,trashed" 2>"$ERR") || code=000
-  if [ "$code" != 200 ] || [ "$(jq -r '.trashed' "$DRV_TMP/pasta.json")" = true ]; then
+  # Só 404 ou lixeira é "pasta sumiu" (reconectar recria). Rede, 5xx, 429...
+  # são passageiros: pedir reconexão aí criaria outra pasta e deixaria os
+  # backups antigos fora da retenção.
+  if [ "$code" = 404 ] || { [ "$code" = 200 ] && [ "$(jq -r '.trashed' "$DRV_TMP/pasta.json")" = true ]; }; then
     drv_falha "$inicio" "$dest" "a pasta do backup não existe mais no Drive (apagada ou na lixeira). Conecte o Drive de novo para recriar." true
+    return
+  fi
+  if [ "$code" != 200 ]; then
+    drv_falha "$inicio" "$dest" "o Drive não respondeu à conferência da pasta ($code): $(drv_erro "$DRV_TMP/pasta.json" 2>/dev/null) $(tail -c 200 "$ERR")"
     return
   fi
 
@@ -132,15 +145,23 @@ EOF
   export GNUPGHOME="$DRV_TMP/gnupg"
   mkdir -p "$GNUPGHOME"
   arq="$WORK/drive/$nome"
-  if ! tar -chf - -C "$pac" . 2>"$ERR.tar" | gpg --batch --yes --quiet --pinentry-mode loopback \
+  # O sh não tem pipefail: o código do tar vai para um arquivo. GNU tar: 1 =
+  # algum arquivo mudou durante a leitura (serviço no ar, só aviso); 2+ = falhou.
+  { tar -chf - -C "$pac" . 2>"$ERR.tar"; echo $? >"$DRV_TMP/rc.tar"; } | gpg --batch --yes --quiet --pinentry-mode loopback \
         --passphrase-file "$DRV_TMP/senha" --symmetric --cipher-algo AES256 \
-        --s2k-digest-algo SHA512 --s2k-count 65011712 --compress-algo zlib -o "$arq" 2>"$ERR"; then
-    drv_falha "$inicio" "$dest" "não consegui montar o arquivo: $(tail -c 300 "$ERR") $(tail -c 200 "$ERR.tar")"; return
-  fi
+        --s2k-digest-algo SHA512 --s2k-count 65011712 --compress-algo zlib -o "$arq" 2>"$ERR"
+  rc_gpg=$?
+  rc_tar=$(cat "$DRV_TMP/rc.tar" 2>/dev/null || echo 99)
   rm -f "$DRV_TMP/senha"
+  if [ "$rc_gpg" -ne 0 ] || [ "$rc_tar" -ge 2 ]; then
+    drv_falha "$inicio" "$dest" "não consegui montar o arquivo (tar $rc_tar, gpg $rc_gpg): $(tail -c 300 "$ERR") $(tail -c 200 "$ERR.tar")"; return
+  fi
+  [ "$rc_tar" -eq 1 ] && log "drive: aviso: arquivos mudaram durante a cópia: $(tail -c 300 "$ERR.tar")"
   # O arquivo tem que abrir com a senha (confere a cifra antes de mandar).
-  if ! printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 \
-        --decrypt "$arq" 2>"$ERR" | tar -tf - >"$DRV_TMP/lista" 2>>"$ERR"; then
+  { printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 \
+        --decrypt "$arq" 2>"$ERR"; echo $? >"$DRV_TMP/rc.dec"; } | tar -tf - >"$DRV_TMP/lista" 2>>"$ERR"
+  rc_lista=$?
+  if [ "$(cat "$DRV_TMP/rc.dec" 2>/dev/null || echo 99)" -ne 0 ] || [ "$rc_lista" -ne 0 ]; then
     drv_falha "$inicio" "$dest" "o arquivo cifrado não abriu na conferência: $(tail -c 300 "$ERR")"; return
   fi
   grep -q 'banco/postgres.dump' "$DRV_TMP/lista" || { drv_falha "$inicio" "$dest" "o arquivo saiu sem o dump do banco"; return; }

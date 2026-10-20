@@ -225,10 +225,17 @@ export function useClientesPorTelefone(telefone: string | undefined, ignorarId?:
   });
 }
 
-export function useCliente(id: string | undefined | null) {
+/**
+ * `sempreFresco`: relê do banco ao abrir mesmo com o cliente guardado na
+ * memória. A edição precisa disso: a trava otimista compara com o
+ * "atualizadoEm" que o formulário abriu, e o cache pode estar velho (o Portal e
+ * a importação mudam o Cliente sem renovar a ficha).
+ */
+export function useCliente(id: string | undefined | null, opts: { sempreFresco?: boolean } = {}) {
   return useQuery({
     queryKey: ["cliente", id],
     enabled: !!id,
+    refetchOnMount: opts.sempreFresco ? "always" : true,
     queryFn: async () => {
       const { data, error } = await supabase.from(TABLE).select("*").eq("id", id!).maybeSingle();
       if (error) throw error;
@@ -275,7 +282,13 @@ export function useUpdateCliente(id: string) {
         .eq("atualizadoEm", atualizadoEm)
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error(MSG_CLIENTE_ALTERADO);
+      if (!data?.length) {
+        // Nenhuma linha: ou outra pessoa salvou no meio, ou o cliente sumiu /
+        // o cargo não pode editar. Só a primeira é "outra pessoa alterou".
+        const { data: atual } = await supabase.from(TABLE).select("atualizadoEm").eq("id", id).maybeSingle();
+        if (atual && atual.atualizadoEm !== atualizadoEm) throw new Error(MSG_CLIENTE_ALTERADO);
+        throw new Error(atual ? "Seu cargo não pode editar este cliente." : "Este cliente não existe mais.");
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clientes"] });

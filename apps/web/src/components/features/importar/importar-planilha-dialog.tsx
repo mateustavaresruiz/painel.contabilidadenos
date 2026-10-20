@@ -35,6 +35,7 @@ import {
   validarCertificados,
   validarClientes,
   validarSocios,
+  casarSocios,
 } from "@/lib/importar-planilha";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
@@ -375,6 +376,10 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
       if (alvo === "clientes") {
         const clientes = validarClientes(linhas, existentes);
         const socios = abaSocios >= 0 ? validarSocios(aplicarMapa(abas[abaSocios]!, mapaSocios), criarAchador(existentes, clientes)) : [];
+        // Sócios já cadastrados das empresas que existem: a prévia já mostra
+        // quem atualiza e quem é novo.
+        const idsEmpresas = [...new Set(socios.map((s) => s.clienteId).filter((x): x is string => !!x))];
+        if (idsEmpresas.length) casarSocios(socios, await carregarSocios(idsEmpresas));
         setPrevia({ clientes, socios, certificados: [] });
       } else {
         const jaCadastrados = await carregarCertificados();
@@ -420,7 +425,12 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
           // planilha; com e-mail ou CPF/CNPJ, o gatilho tira o "provisório".
           const { tipo, ativo: _a, ...resto } = c.dados!;
           void _a;
-          const patch = c.completaProvisorio ? { ...semVazios(resto), tipo } : semVazios(resto);
+          const base = c.completaProvisorio ? { ...semVazios(resto), tipo } : semVazios(resto);
+          // Casou só pelo nome: não troca a razão social pelo que veio na planilha.
+          const { nome: _n, nomeFantasia: _f, ...semNome } = base;
+          void _n;
+          void _f;
+          const patch = c.manterNome ? semNome : base;
           const { error } = await supabase.from("Cliente").update(patch).eq("id", c.existenteId!);
           if (error) r.falhas.push(`Linha ${c.linha}: ${msgErro(error)}`);
           else r.atualizados++;
@@ -432,11 +442,10 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
             const id = s.clienteId ?? (s.clienteDocNovo ? docParaId.get(s.clienteDocNovo) : undefined);
             if (id) ids.add(id);
           }
-          const ja = await carregarSocios([...ids]);
           const chave = (cli: string, nome: string, cpf: string | null) => (cpf ? `${cli}|${cpf}` : `${cli}|n:${nome.toLowerCase()}`);
-          // Sócio já cadastrado (mesmo CPF, ou mesmo nome sem CPF) é ATUALIZADO
-          // com o que veio preenchido: a planilha exportada volta sem duplicar.
-          const existentes = new Map(ja.map((s) => [chave(s.clienteId, s.nome, s.cpf), s.id]));
+          // Sócio já cadastrado (achado na prévia por ID, CPF ou nome: casarSocios)
+          // é ATUALIZADO com o que veio preenchido; o resto é criado, sem repetir
+          // a mesma pessoa duas vezes na planilha.
           const vistos = new Set<string>();
           const inserir = [];
           for (const s of sociosValidos) {
@@ -445,13 +454,15 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
               r.falhas.push(`Sócio na linha ${s.linha}: o cliente não foi criado`);
               continue;
             }
-            const k = chave(id, s.dados!.nome, s.dados!.cpf);
-            if (vistos.has(k)) {
-              r.pulados++;
-              continue;
+            const socioId = s.existenteId;
+            if (!socioId) {
+              const k = chave(id, s.dados!.nome, s.dados!.cpf);
+              if (vistos.has(k)) {
+                r.pulados++;
+                continue;
+              }
+              vistos.add(k);
             }
-            vistos.add(k);
-            const socioId = existentes.get(k);
             if (socioId) {
               const { administrador, ...resto } = s.dados!;
               const { error } = await supabase
@@ -469,6 +480,7 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
           setProgresso((p) => ({ ...p, feito: p.total }));
         }
         qc.invalidateQueries({ queryKey: ["clientes"] });
+        qc.invalidateQueries({ queryKey: ["cliente"] });
         qc.invalidateQueries({ queryKey: ["socios"] });
         qc.invalidateQueries({ queryKey: ["aniversarios"] });
       } else {
@@ -477,10 +489,10 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
         setProgresso({ feito: 0, total: validos.length });
         for (const c of validos.filter((x) => x.existenteId)) {
           // Já cadastrado: só os campos preenchidos (célula vazia não apaga).
-          const { tipo: _t, validoAte: _v, ...resto } = c.dados!;
-          void _t;
-          void _v;
-          const { error } = await supabase.from("CertificadoDigital").update(semVazios(resto)).eq("id", c.existenteId!);
+          // Achado pelo ID, tipo e validade também valem (correção de digitação).
+          const { tipo, validoAte, ...resto } = c.dados!;
+          const patch = c.porId ? { ...semVazios(resto), tipo, validoAte } : semVazios(resto);
+          const { error } = await supabase.from("CertificadoDigital").update(patch).eq("id", c.existenteId!);
           if (error) r.falhas.push(`Linha ${c.linha}: ${msgErro(error)}`);
           else r.certificadosAtualizados++;
           setProgresso((p) => ({ ...p, feito: p.feito + 1 }));
@@ -620,7 +632,13 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                     titulo="Sócios"
                     linhas={previa.socios}
                     colunas={[["Sócio", (l) => l.nome], ["Empresa", (l) => l.clienteNome ?? l.clienteBusca]]}
-                    status={(l) => (l.erros.length ? { texto: "Erro", tom: "destructive" } : { texto: "Novo", tom: "success" })}
+                    status={(l) =>
+                      l.erros.length
+                        ? { texto: "Erro", tom: "destructive" }
+                        : l.existenteId
+                          ? { texto: "Atualizar", tom: "warning" }
+                          : { texto: "Novo", tom: "success" }
+                    }
                   />
                 )}
               </>

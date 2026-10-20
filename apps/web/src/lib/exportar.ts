@@ -93,6 +93,7 @@ type ClienteCompleto = {
 };
 
 type SocioLinha = {
+  id: string;
   clienteId: string;
   nome: string;
   cpf: string | null;
@@ -123,7 +124,7 @@ async function abasClientes(filters: ClientesFilters): Promise<Aba[]> {
       ...(await paginar<SocioLinha>((de, ate) =>
         supabase
           .from("Socio")
-          .select("clienteId, nome, cpf, dataNascimento, telefone, email, participacao, administrador")
+          .select("id, clienteId, nome, cpf, dataNascimento, telefone, email, participacao, administrador")
           .in("clienteId", fatia)
           .order("id", { ascending: true })
           .range(de, ate),
@@ -152,6 +153,7 @@ async function abasClientes(filters: ClientesFilters): Promise<Aba[]> {
     cidade: (c) => c.cidade,
     estado: (c) => c.estado,
     observacoes: (c) => c.observacoes,
+    _id: (c) => c.id,
   };
   const valorSocio: Record<string, (s: SocioLinha) => Celula> = {
     _cliente: (s) => refCliente(porId.get(s.clienteId)),
@@ -162,6 +164,7 @@ async function abasClientes(filters: ClientesFilters): Promise<Aba[]> {
     email: (s) => s.email,
     participacao: (s) => (s.participacao != null ? Number(s.participacao) : null),
     administrador: (s) => sn(s.administrador),
+    _id: (s) => s.id,
   };
 
   return [
@@ -192,6 +195,7 @@ async function abasClientes(filters: ClientesFilters): Promise<Aba[]> {
 // ---------------------------------------------------------------------------
 
 type CertLinha = {
+  id: string;
   tipo: string;
   validoAte: string;
   titular: string | null;
@@ -218,7 +222,7 @@ async function abaCertificados(): Promise<Aba> {
     supabase
       .from("CertificadoDigital")
       .select(
-        "tipo, validoAte, titular, documento, emissora, emitidoEm, telefoneAviso, observacoes, avisarWhatsapp, renovadoPorId, cliente:Cliente(nome, nomeFantasia, cpfCnpj)",
+        "id, tipo, validoAte, titular, documento, emissora, emitidoEm, telefoneAviso, observacoes, avisarWhatsapp, renovadoPorId, cliente:Cliente(nome, nomeFantasia, cpfCnpj)",
       )
       .order("validoAte", { ascending: true })
       .order("id", { ascending: true })
@@ -234,6 +238,7 @@ async function abaCertificados(): Promise<Aba> {
     emitidoEm: (c) => dataBr(c.emitidoEm),
     telefoneAviso: (c) => (c.telefoneAviso ? formatTelefone(c.telefoneAviso) : ""),
     observacoes: (c) => c.observacoes,
+    _id: (c) => c.id,
   };
   return {
     nome: "Certificados",
@@ -304,16 +309,17 @@ function leiaMe(abas: string[]): Aba {
   const texto: string[] = [
     `Exportado do Painel NÓS em ${new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}.`,
     "",
-    "Para corrigir em lote: edite as abas e importe este mesmo arquivo de volta (Configurações > Importar e exportar).",
+    "Para corrigir em lote: edite as abas e importe este mesmo arquivo de volta (Configurações > Importar e exportar, ou o botão Importar planilha nas telas de Clientes e de Certificados).",
+    "• A coluna \"ID (não altere)\" é como o painel acha cada registro na volta. Não mude nem apague. Para incluir alguém novo, use uma linha nova com o ID em branco.",
   ];
   if (abas.includes("Clientes"))
     texto.push(
-      "• Clientes: achados pelo CPF/CNPJ. Só as células preenchidas mudam o cadastro (apagar uma célula NÃO apaga o dado).",
-      "• Sócios: achados pelo CPF (ou pelo nome, quando não há CPF) dentro da empresa da coluna \"CNPJ da empresa\".",
+      "• Clientes: achados pelo ID (ou pelo CPF/CNPJ, em linha nova). Só as células preenchidas mudam o cadastro (apagar uma célula NÃO apaga o dado).",
+      "• Sócios: achados pelo ID (ou pelo CPF, ou pelo nome) dentro da empresa da coluna \"CNPJ da empresa\".",
     );
   if (abas.includes("Certificados"))
     texto.push(
-      "• Certificados: achados por cliente + tipo + validade. Mudar a validade cria um certificado novo (use Renovar na tela).",
+      "• Certificados: achados pelo ID; com ele, dá para corrigir até a validade. Certificado renovado (novo) entra numa linha nova, ou pelo botão Renovar na tela.",
     );
   if (abas.includes("Chamados")) texto.push("• Chamados: só para consulta e relatório; não voltam na importação.");
   texto.push("• Colunas \"(só leitura)\" são para conferência e são ignoradas na importação.", "• Datas em DD/MM/AAAA.");

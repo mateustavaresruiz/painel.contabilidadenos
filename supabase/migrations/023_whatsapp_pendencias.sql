@@ -1,10 +1,8 @@
 -- 023 — Pendências do módulo WhatsApp (revisão de 20/10/2026)
 --
---  1. QR da conexão fora do alcance da tela: a coluna WhatsappSessao."qrCodeBase64"
---     deixa de ser legível por anon/authenticated (grant por coluna). Quem tinha
---     só whatsapp.ver lia o QR direto da tabela e podia vincular um aparelho à
---     conta do escritório. O QR continua saindo pela rota /qr da function
---     whatsapp, que exige whatsapp.conexoes.
+--  1. (O QR fora do alcance da tela foi para a 024: aplicada DEPOIS do front
+--     novo, senão a tela que ainda está no ar, com select("*") em
+--     WhatsappSessao, quebra.)
 --  2. Presença do contato (online, digitando, gravando, visto por último) numa
 --     tabela própria, WhatsappPresenca. Na WhatsappChat cada "digitando" era uma
 --     escrita na tabela que a lista de conversas assina, e todas as abas abertas
@@ -18,14 +16,6 @@
 -- Não destrutiva: nenhuma linha nem coluna apagada.
 
 -- ---------------------------------------------------------------------------
--- 1. QR só pela function
--- ---------------------------------------------------------------------------
-revoke select on public."WhatsappSessao" from anon, authenticated;
-grant select (id, "tenantId", nome, apelido, numero, status, "pushName", "ultimoErro",
-              "fotoPath", "fotoPersonalizada", "conectadoEm", "criadoEm", "atualizadoEm")
-  on public."WhatsappSessao" to authenticated;
-
--- ---------------------------------------------------------------------------
 -- 2. Presença do contato
 -- ---------------------------------------------------------------------------
 create table if not exists public."WhatsappPresenca" (
@@ -36,6 +26,16 @@ create table if not exists public."WhatsappPresenca" (
   "ultimoVistoEm" timestamptz
 );
 alter table public."WhatsappPresenca" enable row level security;
+
+-- O que já se sabia (visto por último, online) vem da WhatsappChat, para não
+-- sumir de todas as conversas até chegar um evento novo.
+insert into public."WhatsappPresenca" ("conversaId", "tenantId", estado, "estadoEm", "ultimoVistoEm")
+select c.id, c."tenantId",
+       case when c."presenceEstado" in ('online','offline','typing','recording') then c."presenceEstado" else 'offline' end,
+       coalesce(c."presenceEm", now()), c."ultimoVistoEm"
+  from public."WhatsappChat" c
+ where c."presenceEstado" is not null or c."ultimoVistoEm" is not null
+on conflict ("conversaId") do nothing;
 revoke all on public."WhatsappPresenca" from anon, authenticated;
 grant select on public."WhatsappPresenca" to authenticated;
 

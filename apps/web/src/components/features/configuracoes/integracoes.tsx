@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { msgErro } from "@/lib/erro";
-import { formatData, formatDataHora } from "@/lib/format";
+import { formatData, formatDataHora, parsePgTimestamp } from "@/lib/format";
 import { useModulos } from "@/lib/modulos";
 import { RequisitosSerpro } from "@/components/features/serpro/serpro-ui";
 import { useSerproStatus, useTestarLoginSerpro } from "@/lib/queries/denos";
@@ -15,6 +15,7 @@ import {
   agendaEmPortugues,
   CRON_DESCRICAO,
   estadoSerpro,
+  BACKUP_LIMITE_HORAS,
   useBackupStatus,
   usePainelSaude,
   useWhatsappStatus,
@@ -336,22 +337,35 @@ function Codigo({ children }: { children: ReactNode }) {
 function CardGoogleDrive() {
   const q = useBackupStatus();
   const d = q.data?.drive;
-  const ultimo = q.data?.ultimos.drive;
+  // Envio de antes desta conexão (outra conta) não conta.
+  const conectadoEm = parsePgTimestamp(d?.conectadoEm)?.getTime() ?? 0;
+  const bruto = q.data?.ultimos.drive;
+  const ultimo = bruto && (parsePgTimestamp(bruto.inicio)?.getTime() ?? 0) >= conectadoEm ? bruto : undefined;
+  const agora = parsePgTimestamp(q.data?.agora)?.getTime() ?? Date.now();
+  const sucesso = parsePgTimestamp(q.data?.ultimoSucesso.drive)?.getTime() ?? 0;
+  // Conectado há mais de 26 h sem um envio bem-sucedido nesse tempo = atrasado.
+  const atrasado =
+    !!d?.conectado &&
+    agora - conectadoEm > BACKUP_LIMITE_HORAS * 3_600_000 &&
+    agora - sucesso > BACKUP_LIMITE_HORAS * 3_600_000;
+  const falhou = !!ultimo && !ultimo.ok;
   const estado: Estado = q.isLoading
     ? "carregando"
     : q.error
       ? "erro"
       : d?.conectado
-        ? ultimo && !ultimo.ok
+        ? falhou || atrasado
           ? "erro"
           : "ok"
         : "atencao";
   const rotulo = q.isLoading || q.error
     ? undefined
     : d?.conectado
-      ? ultimo && !ultimo.ok
+      ? falhou
         ? "Falhou"
-        : "Conectado"
+        : atrasado
+          ? "Atrasado"
+          : "Conectado"
       : d?.clienteConfigurado
         ? "Falta conectar"
         : "Não configurado";

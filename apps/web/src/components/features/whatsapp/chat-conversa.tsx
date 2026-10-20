@@ -473,7 +473,7 @@ export function ChatConversa({ sessaoId, chatId, sessoes, textoInicial, onVoltar
 
   // Assina a presença do contato individual ao abrir — sem isso a engine
   // GOWS não emite presence.update. Deferido + 1x por chatId. O header
-  // mostra "digitando…/online" via realtime do WhatsappChat.
+  // mostra "digitando…/online" via realtime da WhatsappPresenca.
   const presencaDisparadaRef = useRef<string | null>(null);
   useEffect(() => {
     if (!chatId || !sessaoId || chat?.tipo !== "individual") return;

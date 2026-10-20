@@ -1681,6 +1681,8 @@ export function usePresencaContato(chatRowId: string | undefined, enabled = true
     queryKey: ["whatsapp-presenca", chatRowId ?? ""],
     enabled: ligado,
     staleTime: 5_000,
+    // Presença é enfeite: falha (ex.: tabela ainda não criada) não vira aviso na tela.
+    meta: { silencioso: true },
     queryFn: async () => {
       const { data, error } = await supabase
         .from("WhatsappPresenca")

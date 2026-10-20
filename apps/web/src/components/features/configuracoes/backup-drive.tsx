@@ -78,20 +78,32 @@ export function BackupDriveCard() {
   );
 }
 
-/** A volta do Google cai em ?tab=sistema&drive=ok|erro&msg=...: avisa e limpa a URL. */
+/** Códigos da volta do Google (function google-drive). Só códigos: texto da URL nunca vira aviso. */
+const MSG_VOLTA: Record<string, string> = {
+  negado: "Acesso negado na tela do Google.",
+  incompleto: "A resposta do Google veio incompleta. Tente de novo.",
+  expirou: "O link de conexão expirou. Clique em Conectar de novo.",
+  sem_cliente: "Falta o Client ID/Secret do Google.",
+  codigo_recusado: "O Google recusou a conexão. Confira o Client ID/Secret e o endereço de retorno no Google Cloud.",
+  sem_escopo: "Marque a permissão do Google Drive na tela do Google e tente de novo.",
+  sem_refresh:
+    "O Google não liberou o acesso contínuo. Remova o app em myaccount.google.com/permissions e conecte de novo.",
+  interno: "Erro interno ao concluir a conexão. Veja o Log de erros.",
+};
+
+/** A volta do Google cai em ?tab=sistema&drive=<código>: avisa e limpa a URL. */
 function useRetornoDoGoogle() {
   const [params, setParams] = useSearchParams();
-  const resultado = params.get("drive");
-  const msg = params.get("msg");
+  const codigo = params.get("drive");
   useEffect(() => {
-    if (!resultado) return;
-    if (resultado === "ok") toast.success("Google Drive conectado");
-    else toast.error(msg || "Não foi possível conectar o Google Drive");
+    if (!codigo) return;
+    if (codigo === "ok") toast.success("Google Drive conectado");
+    else toast.error(MSG_VOLTA[codigo] ?? "Não foi possível conectar o Google Drive");
     const p = new URLSearchParams(params);
     p.delete("drive");
     p.delete("msg");
     setParams(p, { replace: true });
-  }, [resultado, msg, params, setParams]);
+  }, [codigo, params, setParams]);
 }
 
 function horasDesde(iso: string | null | undefined, agora: Date): number | null {
@@ -270,13 +282,13 @@ function TrocarCredenciais({ drive }: { drive: BackupDrive }) {
           Client ID atual: <span className="font-mono text-foreground [overflow-wrap:anywhere]">{drive.clientId}</span>.
           Trocar as credenciais desconecta o Drive (é preciso conectar de novo).
         </p>
-        <DriveCredenciais />
+        <DriveCredenciais conectado={drive.conectado} />
       </div>
     </details>
   );
 }
 
-function DriveCredenciais() {
+function DriveCredenciais({ conectado = false }: { conectado?: boolean }) {
   const salvar = useSalvarDriveCliente();
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -300,8 +312,19 @@ function DriveCredenciais() {
       </ol>
       <form
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
+          if (
+            conectado &&
+            !(await confirmar({
+              titulo: "Trocar as credenciais do Google?",
+              descricao:
+                "O Drive conectado será desconectado e será preciso conectar de novo. Os backups que já estão na pasta continuam lá.",
+              confirmLabel: "Trocar e desconectar",
+              destructive: true,
+            }))
+          )
+            return;
           salvar.mutate(
             { clientId: clientId.trim(), clientSecret: clientSecret.trim() },
             {

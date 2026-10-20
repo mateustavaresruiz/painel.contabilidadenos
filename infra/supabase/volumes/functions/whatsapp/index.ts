@@ -1842,6 +1842,9 @@ serve(async (req) => {
       }
       const sessaoMsg = await getSessaoOrFail(sessaoIdBody);
       if (!sessaoMsg) return notFound("Sessão não encontrada");
+      if (!(await podeMexerNaConversa(colaborador, sessaoMsg.id, chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
+      }
       const bloqueio = await bloqueioEnvio(sessaoMsg.id, chatId);
       if (bloqueio) return bloqueio;
       const emAtendimento = await exigirAtendimento(colaborador, sessaoMsg.id, chatId);
@@ -2063,6 +2066,9 @@ serve(async (req) => {
       if (!msgRow.fromMe) return badRequest("Só dá pra apagar mensagens enviadas pelo escritório.");
       if (msgRow.apagadoEm) return json({ ok: true, alreadyDeleted: true });
       if (!msgRow.wamId) return badRequest("Mensagem sem wamId — não dá pra apagar no WhatsApp.");
+      if (!(await podeMexerNaConversa(colaborador, msgRow.sessaoId, msgRow.chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
+      }
       const sessaoMsg = await getSessaoOrFail(msgRow.sessaoId);
       if (!sessaoMsg) return notFound("Sessão da mensagem não encontrada");
       const emAtendimento = await exigirAtendimento(colaborador, msgRow.sessaoId, msgRow.chatId);
@@ -2102,6 +2108,9 @@ serve(async (req) => {
       if (!msgRow.wamId) return badRequest("Mensagem sem wamId — não dá pra editar no WhatsApp.");
       if (Date.now() - Date.parse(msgRow.timestamp) > 15 * 60 * 1000) {
         return badRequest("O WhatsApp só permite editar até 15 minutos depois do envio.");
+      }
+      if (!(await podeMexerNaConversa(colaborador, msgRow.sessaoId, msgRow.chatId))) {
+        return forbidden("Esta conversa está com outra pessoa da equipe.");
       }
       const bloqueio = await bloqueioEnvio(msgRow.sessaoId, msgRow.chatId);
       if (bloqueio) return bloqueio;

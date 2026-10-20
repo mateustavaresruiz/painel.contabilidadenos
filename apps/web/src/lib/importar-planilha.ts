@@ -22,6 +22,19 @@ export type Campo = {
   ajuda?: string;
 };
 
+/**
+ * Coluna que a EXPORTAÇÃO preenche (lib/exportar.ts): na volta, é por ela que o
+ * registro é achado, mesmo que o CPF/CNPJ, o CPF do sócio ou o nome tenham
+ * sido corrigidos na planilha. Linha nova vai com ela em branco.
+ */
+const CAMPO_ID: Campo = {
+  campo: "_id",
+  rotulo: "ID (não altere)",
+  sinonimos: ["id"],
+  exemplo: "",
+  ajuda: "Vem preenchida nas planilhas exportadas pelo painel: é como ele acha o registro na volta. Em linha nova, deixe em branco.",
+};
+
 export const CAMPOS_CLIENTE: Campo[] = [
   { campo: "tipo", rotulo: "Tipo", sinonimos: ["pf pj", "pessoa"], exemplo: "PJ", ajuda: "PF ou PJ. Em branco: pelo documento." },
   { campo: "nome", rotulo: "Nome / Razão social", obrigatorio: true, sinonimos: ["nome", "razao social", "razao", "cliente", "empresa", "nome razao social"], exemplo: "Padaria Pão Bom Ltda" },
@@ -42,6 +55,7 @@ export const CAMPOS_CLIENTE: Campo[] = [
   { campo: "cidade", rotulo: "Cidade", sinonimos: ["municipio"], exemplo: "São Paulo" },
   { campo: "estado", rotulo: "UF", sinonimos: ["estado", "uf"], exemplo: "SP" },
   { campo: "observacoes", rotulo: "Observações", sinonimos: ["obs", "observacao"], exemplo: "" },
+  CAMPO_ID,
 ];
 
 export const CAMPOS_SOCIO: Campo[] = [
@@ -53,6 +67,7 @@ export const CAMPOS_SOCIO: Campo[] = [
   { campo: "email", rotulo: "E-mail", sinonimos: ["email"], exemplo: "" },
   { campo: "participacao", rotulo: "Participação (%)", sinonimos: ["participacao", "percentual", "cotas"], exemplo: "50" },
   { campo: "administrador", rotulo: "Administrador", sinonimos: ["admin", "administra"], exemplo: "Sim" },
+  CAMPO_ID,
 ];
 
 export const CAMPOS_CERTIFICADO: Campo[] = [
@@ -65,6 +80,7 @@ export const CAMPOS_CERTIFICADO: Campo[] = [
   { campo: "emitidoEm", rotulo: "Emitido em", sinonimos: ["emissao", "data de emissao"], exemplo: "30/06/2026" },
   { campo: "telefoneAviso", rotulo: "Telefone para aviso", sinonimos: ["telefone", "whatsapp aviso", "celular", "aviso"], exemplo: "(11) 98765-4321", ajuda: "Em branco: telefone do cliente." },
   { campo: "observacoes", rotulo: "Observações", sinonimos: ["obs"], exemplo: "" },
+  CAMPO_ID,
 ];
 
 // ---------------------------------------------------------------------------
@@ -98,7 +114,9 @@ function celulaParaTexto(v: unknown): string {
     const p = (n: number) => String(n).padStart(2, "0");
     return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
   }
-  return String(v).trim();
+  // A exportação põe um ' antes de texto que começa com = + - @ (proteção
+  // contra fórmula); na volta ele sai, senão o dado ganharia o apóstrofo.
+  return String(v).trim().replace(/^'(?=[=+\-@\t\r])/, "");
 }
 
 /** Hoje em AAAA-MM-DD, no fuso de quem está importando. */
@@ -300,6 +318,11 @@ export type LinhaCliente = {
    * pelo nome (cria, mas avisa). Texto do aviso.
    */
   possivelDuplicado?: string;
+  /**
+   * Casou pelo NOME (sem CPF/CNPJ nem ID): nome e fantasia da planilha não
+   * regravam o cadastro (a planilha pode ter o fantasia onde está a razão social).
+   */
+  manterNome?: boolean;
 };
 
 function resolverTipo(v: string, doc: string): "PF" | "PJ" | "" {
@@ -321,6 +344,7 @@ function resolverRegime(v: string): string {
 
 export function validarClientes(linhas: Array<{ linha: number; c: Record<string, string> }>, existentes: ClienteExistente[]): LinhaCliente[] {
   const porDoc = new Map(existentes.filter((e) => e.cpfCnpj).map((e) => [normalizarDoc(e.cpfCnpj!), e]));
+  const porId = new Map(existentes.map((e) => [e.id, e]));
   // Provisórios (criados pelo WhatsApp, sem CPF/CNPJ) pelo telefone
   // normalizado. Dois provisórios com o mesmo telefone = ambíguo, não casa.
   const provPorTel = new Map<string, ClienteExistente | null>();
@@ -400,6 +424,21 @@ export function validarClientes(linhas: Array<{ linha: number; c: Record<string,
       item.acao = "repetida";
       item.erros.push(doc ? `Documento repetido (linha ${repetidaDe})` : `Mesmo nome e contato da linha ${repetidaDe}`);
     } else for (const k of chaves) vistos.set(k, linha);
+    // Planilha exportada pelo painel: o ID manda (o CPF/CNPJ pode ter sido
+    // completado ou corrigido nela).
+    const idInf = (c._id ?? "").trim();
+    if (!item.acao && idInf && item.dados) {
+      const ex = porId.get(idInf);
+      const dono = doc ? porDoc.get(doc) : undefined;
+      if (!ex) item.erros.push("ID não encontrado (o cliente foi apagado?). Para criar de novo, apague o ID da linha");
+      else if (dono && dono.id !== ex.id) item.erros.push(`Este CPF/CNPJ já é de outro cliente (${dono.nomeFantasia || dono.nome})`);
+      else {
+        item.acao = "atualizar";
+        item.existenteId = ex.id;
+        semDocUsados.add(ex.id);
+        return item;
+      }
+    }
     if (!item.acao && !doc && item.dados) {
       const { forte, ambiguo, soNome } = acharSemDoc(item.nome, telNorm, mail);
       // Provisório sem documento segue o caminho de sempre (completar pelo telefone).
@@ -408,6 +447,7 @@ export function validarClientes(linhas: Array<{ linha: number; c: Record<string,
         const peloTel = !!forte.telefoneNormalizado && variantesTelefone(telNorm).includes(forte.telefoneNormalizado);
         item.acao = "atualizar";
         item.existenteId = forte.id;
+        item.manterNome = true;
         item.possivelDuplicado = `Mesmo nome e ${peloTel ? "telefone" : "e-mail"} de um cadastro: atualiza esse em vez de criar outro`;
         return item;
       }
@@ -441,7 +481,39 @@ export type LinhaSocio = {
   erros: string[];
   /** A célula Administrador veio preenchida (vazia não muda o sócio que já existe). */
   adminInformado?: boolean;
+  /** Coluna ID da planilha exportada. */
+  idInformado?: string;
+  /** Sócio já cadastrado que esta linha atualiza (casarSocios). */
+  existenteId?: string;
 };
+
+export type SocioExistente = { id: string; clienteId: string; nome: string; cpf: string | null };
+
+/**
+ * Acha o sócio já cadastrado de cada linha, dentro da MESMA empresa: pelo ID
+ * (planilha exportada), senão pelo CPF, senão pelo nome (só se for um só).
+ * Completar ou corrigir o CPF no Excel não cria um segundo sócio.
+ */
+export function casarSocios(linhas: LinhaSocio[], ja: SocioExistente[]): void {
+  const porId = new Map(ja.map((s) => [s.id, s]));
+  const usados = new Set<string>();
+  for (const l of linhas) {
+    if (!l.dados || !l.clienteId) continue; // empresa nova nesta importação: sem sócios ainda
+    const daEmpresa = ja.filter((s) => s.clienteId === l.clienteId && !usados.has(s.id));
+    let achado = l.idInformado ? porId.get(l.idInformado) : undefined;
+    if (achado && (achado.clienteId !== l.clienteId || usados.has(achado.id))) achado = undefined;
+    if (!achado && l.dados.cpf) achado = daEmpresa.find((s) => s.cpf === l.dados!.cpf);
+    if (!achado) {
+      const n = normalizar(l.dados.nome);
+      const mesmos = daEmpresa.filter((s) => normalizar(s.nome) === n);
+      if (mesmos.length === 1) achado = mesmos[0];
+    }
+    if (achado) {
+      l.existenteId = achado.id;
+      usados.add(achado.id);
+    }
+  }
+}
 
 type Achador = (busca: string) => { id?: string; docNovo?: string; nome: string } | null;
 
@@ -521,6 +593,7 @@ export function validarSocios(linhas: Array<{ linha: number; c: Record<string, s
         administrador: sim(c.administrador ?? ""),
       };
       item.adminInformado = (c.administrador ?? "").trim() !== "";
+      item.idInformado = (c._id ?? "").trim() || undefined;
     }
     return item;
   });
@@ -546,6 +619,8 @@ export type LinhaCertificado = {
   repetido?: boolean;
   /** Já cadastrado (mesmo cliente, tipo e validade): atualiza só o que veio preenchido. */
   existenteId?: string;
+  /** Achado pela coluna ID: aí tipo e validade também podem ser corrigidos. */
+  porId?: boolean;
 };
 
 function resolverTipoCert(v: string, doc: string): TipoCertificado | null {
@@ -574,6 +649,7 @@ export function validarCertificados(
   // A planilha exportada pelo painel volta com os mesmos certificados: esses
   // atualizam (titular, emissora, telefone...) em vez de ficarem de fora.
   const noBanco = new Map(jaCadastrados.map((j) => [chave(j.clienteId, j.tipo, j.validoAte), j.id]));
+  const porIdCert = new Map(jaCadastrados.map((j) => [j.id, j]));
   const naPlanilha = new Set<string>();
   return linhas.map(({ linha, c }) => {
     const item: LinhaCertificado = { linha, clienteBusca: (c._cliente ?? "").trim(), erros: [] };
@@ -598,8 +674,17 @@ export function validarCertificados(
     if (tel && !isValidTelefone(tel)) item.erros.push("Telefone para aviso inválido");
     if (item.erros.length === 0 && tipo && item.clienteId) {
       const k = chave(item.clienteId, tipo, validoAte);
+      const idInf = (c._id ?? "").trim();
+      const peloId = idInf ? porIdCert.get(idInf) : undefined;
+      if (idInf && (!peloId || peloId.clienteId !== item.clienteId)) {
+        item.erros.push("ID não encontrado para este cliente (o certificado foi apagado?). Para criar de novo, apague o ID da linha");
+        return item;
+      }
       if (naPlanilha.has(k)) item.repetido = true;
-      else item.existenteId = noBanco.get(k);
+      else if (peloId) {
+        item.existenteId = peloId.id;
+        item.porId = true;
+      } else item.existenteId = noBanco.get(k);
       naPlanilha.add(k);
       item.dados = {
         tipo,

@@ -86,7 +86,11 @@ export function useConfigPortal(clienteId: string) {
     onError: (_e, _v, ctx) => {
       if (ctx?.anterior) qc.setQueryData(chave(clienteId), ctx.anterior);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: chave(clienteId) }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: chave(clienteId) });
+      // A opção grava em Cliente (muda o atualizadoEm): a ficha relê.
+      qc.invalidateQueries({ queryKey: ["cliente", clienteId] });
+    },
   });
 }
 

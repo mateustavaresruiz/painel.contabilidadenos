@@ -24,7 +24,7 @@ falhas=0
 # Dump do banco (com hash de senha dos papéis) e credenciais só para o root, e
 # nada fica para trás se uma etapa falhar no meio.
 umask 077
-trap 'rm -rf "$WORK/db" "$WORK/drive" /tmp/drive /tmp/sa.json' EXIT
+trap 'rm -rf "$WORK/db" "$WORK/db.ok" "$WORK/drive" /tmp/drive /tmp/sa.json' EXIT
 
 # Nome (sem segredo) do destino remoto, para o status.
 destino_remoto() { printf '%s:%s (%s)' "$OFFSITE_REMOTE" "$OFFSITE_PATH" "${RCLONE_CONFIG_OFFSITE_TYPE:-?}"; }
@@ -43,7 +43,7 @@ resumo() { grep '"message_type":"summary"' "$1" | tail -1; }
 etapa_db() {
   inicio=$(agora_iso)
   log "banco: pg_dump de $POSTGRES_DB em $POSTGRES_HOST"
-  rm -rf "$WORK/db" && mkdir -p "$WORK/db"
+  rm -rf "$WORK/db" "$WORK/db.ok" && mkdir -p "$WORK/db"
   export PGPASSWORD="$POSTGRES_PASSWORD"
   # -Z 0: sem compressão do pg_dump; o restic comprime (zstd) e deduplica entre dias.
   if ! pg_dump -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
@@ -77,6 +77,8 @@ etapa_db() {
   det=$(jq -cn --arg snap "$snap" --argjson itens "$itens" --argjson add "$add" --argjson c "$contagens" \
         '{snapshot:$snap, itensDump:$itens, bytesNovosNoRepo:$add, contagens:$c}')
   registrar db "$inicio" true "$tam" local "" "$det"
+  # Marca de dump conferido (pg_restore --list ok): a etapa do Drive só manda com ela.
+  : >"$WORK/db.ok"
   log "banco: ok — dump $tam bytes, $itens itens, snapshot $snap"
   # O dump fica até o fim: a etapa do Google Drive manda este mesmo arquivo.
 }
@@ -175,7 +177,7 @@ etapa_db
 etapa_volumes
 etapa_retencao_local
 etapa_drive
-rm -rf "$WORK/db"
+rm -rf "$WORK/db" "$WORK/db.ok"
 case "$OFFSITE_ENABLED" in
   true|1|sim) etapa_offsite ;;
 esac

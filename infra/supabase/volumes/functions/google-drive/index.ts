@@ -119,27 +119,43 @@ function emailDoIdToken(idToken: string | undefined): string | null {
   }
 }
 
-function voltarAoPainel(resultado: "ok" | "erro", mensagem?: string): Response {
-  const q = new URLSearchParams({ tab: "sistema", drive: resultado });
-  if (mensagem) q.set("msg", mensagem.slice(0, 200));
+/**
+ * Volta para Configurações > Sistema com um CÓDIGO fixo (a tela traduz). Texto
+ * livre na URL deixaria qualquer um montar um link que mostra um aviso falso
+ * dentro do painel. O detalhe do Google vai para o console da function.
+ */
+type CodigoVolta =
+  | "ok"
+  | "negado"
+  | "incompleto"
+  | "expirou"
+  | "sem_cliente"
+  | "codigo_recusado"
+  | "sem_escopo"
+  | "sem_refresh"
+  | "interno";
+
+function voltarAoPainel(codigo: CodigoVolta, detalhe?: string): Response {
+  if (detalhe) console.error(`google-drive callback (${codigo}):`, detalhe);
+  const q = new URLSearchParams({ tab: "sistema", drive: codigo });
   return new Response(null, { status: 302, headers: { Location: `${PAINEL_URL}/configuracoes?${q}` } });
 }
 
 async function callback(url: URL): Promise<Response> {
   const negado = url.searchParams.get("error");
-  if (negado) return voltarAoPainel("erro", negado === "access_denied" ? "Acesso negado na tela do Google." : negado);
+  if (negado) return voltarAoPainel(negado === "access_denied" ? "negado" : "codigo_recusado", negado);
   const code = url.searchParams.get("code") ?? "";
   const state = url.searchParams.get("state") ?? "";
-  if (!code || !state) return voltarAoPainel("erro", "Resposta do Google incompleta.");
+  if (!code || !state) return voltarAoPainel("incompleto");
 
   const { data: ator, error: e1 } = await supabaseAdmin.rpc("drive_consumir_estado", {
     p_state_hash: await sha256(state),
   });
   if (e1) throw e1;
-  if (!ator) return voltarAoPainel("erro", "O link de conexão expirou. Clique em Conectar de novo.");
+  if (!ator) return voltarAoPainel("expirou");
 
   const c = await credenciais();
-  if (!c.clientId || !c.clientSecret) return voltarAoPainel("erro", "Falta o Client ID/Secret do Google.");
+  if (!c.clientId || !c.clientSecret) return voltarAoPainel("sem_cliente");
 
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -153,16 +169,16 @@ async function callback(url: URL): Promise<Response> {
     }),
     signal: AbortSignal.timeout(TIMEOUT),
   });
-  if (!r.ok) return voltarAoPainel("erro", `Google recusou o código (${await erroGoogle(r)}).`);
+  if (!r.ok) return voltarAoPainel("codigo_recusado", await erroGoogle(r));
   const t = (await r.json()) as { access_token: string; refresh_token?: string; id_token?: string; scope?: string };
 
   if (!(t.scope ?? "").includes("drive.file")) {
-    return voltarAoPainel("erro", "Marque a permissão do Google Drive na tela do Google e tente de novo.");
+    return voltarAoPainel("sem_escopo");
   }
   // Sem refresh token não há backup de madrugada. O Google só manda na 1ª
   // autorização; o prompt=consent da URL força de novo, mas confere.
   if (!t.refresh_token && !c.refreshToken) {
-    return voltarAoPainel("erro", "O Google não liberou o acesso contínuo. Remova o app em myaccount.google.com/permissions e conecte de novo.");
+    return voltarAoPainel("sem_refresh");
   }
 
   const conta = emailDoIdToken(t.id_token);
@@ -181,6 +197,17 @@ async function callback(url: URL): Promise<Response> {
   });
   if (e2) throw e2;
   return voltarAoPainel("ok");
+}
+
+/** Revoga o refresh token no Google. Melhor esforço: sem resposta, o token some daqui mesmo assim. */
+async function revogar(refreshToken: string | null): Promise<void> {
+  if (!refreshToken) return;
+  await fetch("https://oauth2.googleapis.com/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token: refreshToken }),
+    signal: AbortSignal.timeout(TIMEOUT),
+  }).catch((err) => console.error("google-drive revoke:", err));
 }
 
 type ArquivoDrive = { id: string; name: string; size?: string; createdTime: string };
@@ -239,7 +266,7 @@ serve(async (req) => {
       return await callback(url);
     } catch (err) {
       console.error("google-drive callback:", err);
-      return voltarAoPainel("erro", "Erro interno ao concluir a conexão. Veja o Log de erros.");
+      return voltarAoPainel("interno", err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -256,6 +283,8 @@ serve(async (req) => {
     if (clientSecret.length < 10 || clientSecret.length > 200 || /\s/.test(clientSecret)) {
       return badRequest("Client Secret inválido.");
     }
+    // Trocar o cliente OAuth desconecta: o token antigo é revogado no Google.
+    await revogar((await credenciais()).refreshToken);
     const { error } = await supabaseAdmin.rpc("drive_salvar_cliente", {
       p_client_id: clientId,
       p_client_secret: clientSecret,
@@ -287,16 +316,7 @@ serve(async (req) => {
   if (req.method === "GET" && rota === "arquivos") return await arquivos();
 
   if (req.method === "POST" && rota === "desconectar") {
-    const c = await credenciais();
-    if (c.refreshToken) {
-      // Melhor esforço: se o Google não responder, o token some daqui mesmo assim.
-      await fetch("https://oauth2.googleapis.com/revoke", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: c.refreshToken }),
-        signal: AbortSignal.timeout(TIMEOUT),
-      }).catch((err) => console.error("google-drive revoke:", err));
-    }
+    await revogar((await credenciais()).refreshToken);
     const { error } = await supabaseAdmin.rpc("drive_desconectar", { p_ator: eu.id });
     if (error) throw error;
     return json({ ok: true });
