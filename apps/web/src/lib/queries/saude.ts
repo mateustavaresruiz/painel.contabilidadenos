@@ -3,7 +3,7 @@
 // faixa "Saúde" da Visão geral. Tudo sob demanda (abrir a tela ou clicar em
 // "Verificar"), sem relógio.
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import { useSerproStatus, type SerproStatus } from "@/lib/queries/denos";
@@ -96,7 +96,7 @@ export function useErrosRecentes() {
 // Backup (serviço "backup" do Easypanel grava em BackupExecucao; docs/BACKUP.md)
 // ---------------------------------------------------------------------------
 
-export type BackupTipo = "db" | "volumes" | "retencao" | "offsite" | "restore-test";
+export type BackupTipo = "db" | "volumes" | "retencao" | "offsite" | "restore-test" | "drive";
 
 export type BackupExecucao = {
   id: number;
@@ -115,6 +115,20 @@ export type BackupStatus = {
   ultimos: Partial<Record<BackupTipo, BackupExecucao>>;
   ultimoSucesso: Partial<Record<BackupTipo, string>>;
   historico: BackupExecucao[];
+  /** Conexão com o Google Drive do escritório (migração 020). Sem segredo. */
+  drive?: BackupDrive | null;
+};
+
+export type BackupDrive = {
+  clientId: string | null;
+  clienteConfigurado: boolean;
+  conectado: boolean;
+  conta: string | null;
+  pastaId: string | null;
+  pastaNome: string | null;
+  manter: number;
+  conectadoEm: string | null;
+  conectadoPor: string | null;
 };
 
 /** Acima disso sem um backup bem-sucedido, a tela marca em vermelho (diário às 03:00 + folga). */
@@ -130,6 +144,54 @@ export function useBackupStatus() {
     },
     retry: false,
     staleTime: 60_000,
+  });
+}
+
+// Google Drive do backup (function google-drive). O OAuth acontece no Google:
+// "conectar" devolve a URL e o navegador vai para lá; a volta cai em
+// /configuracoes?tab=sistema&drive=ok|erro.
+
+export type DriveArquivo = { id: string; nome: string; tamanhoBytes: number | null; criadoEm: string };
+export type DriveArquivos = {
+  conectado: boolean;
+  pastaUrl?: string;
+  arquivos: DriveArquivo[];
+  espaco?: { limiteBytes: number | null; usadoBytes: number | null } | null;
+};
+
+export function useDriveArquivos(ligado: boolean) {
+  return useQuery({
+    queryKey: ["painel-backup", "drive-arquivos"],
+    queryFn: () => api<DriveArquivos>("/google-drive/arquivos"),
+    enabled: ligado,
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSalvarDriveCliente() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: { clientId: string; clientSecret: string }) =>
+      api<{ ok: true }>("/google-drive/cliente", { method: "POST", body: b }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["painel-backup"] }),
+  });
+}
+
+export function useConectarDrive() {
+  return useMutation({
+    mutationFn: () => api<{ url: string }>("/google-drive/conectar", { method: "POST" }),
+    onSuccess: ({ url }) => {
+      window.location.assign(url);
+    },
+  });
+}
+
+export function useDesconectarDrive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ ok: true }>("/google-drive/desconectar", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["painel-backup"] }),
   });
 }
 

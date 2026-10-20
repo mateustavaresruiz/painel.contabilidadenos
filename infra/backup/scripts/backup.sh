@@ -3,10 +3,12 @@
 #   1. banco  — pg_dump -Fc (todos os schemas: public, auth, storage, vault...) + papéis
 #   2. volumes — storage do Supabase, sessões do WAHA, gateway Serpro, e-mail, blog
 #   3. retenção local (7 diários, 4 semanais, 6 mensais) + verificação do repositório
-#   4. fora do servidor (rclone), só se OFFSITE_ENABLED=true
+#   4. Google Drive do escritório (arquivo cifrado do dia), se conectado na tela
+#   5. fora do servidor (restic + rclone), só se OFFSITE_ENABLED=true
 # Cada etapa grava uma linha em BackupExecucao; falha também vira ErrorLog.
 set -u
 . /scripts/lib.sh
+. /scripts/drive.sh
 
 exec 9>/backups/.lock
 if ! flock -n 9; then
@@ -19,6 +21,10 @@ exigir_senha || { registrar db "$(agora_iso)" false "" local "BACKUP_PASSPHRASE 
 WORK=/backups/.work
 ERR=/tmp/etapa.err
 falhas=0
+# Dump do banco (com hash de senha dos papéis) e credenciais só para o root, e
+# nada fica para trás se uma etapa falhar no meio.
+umask 077
+trap 'rm -rf "$WORK/db" "$WORK/drive" /tmp/drive /tmp/sa.json' EXIT
 
 # Nome (sem segredo) do destino remoto, para o status.
 destino_remoto() { printf '%s:%s (%s)' "$OFFSITE_REMOTE" "$OFFSITE_PATH" "${RCLONE_CONFIG_OFFSITE_TYPE:-?}"; }
@@ -72,7 +78,7 @@ etapa_db() {
         '{snapshot:$snap, itensDump:$itens, bytesNovosNoRepo:$add, contagens:$c}')
   registrar db "$inicio" true "$tam" local "" "$det"
   log "banco: ok — dump $tam bytes, $itens itens, snapshot $snap"
-  rm -rf "$WORK/db"
+  # O dump fica até o fim: a etapa do Google Drive manda este mesmo arquivo.
 }
 
 etapa_volumes() {
@@ -127,7 +133,7 @@ etapa_offsite() {
   inicio=$(agora_iso)
   dest=$(destino_remoto)
   if [ -n "${OFFSITE_GDRIVE_SA_JSON_B64:-}" ]; then
-    printf '%s' "$OFFSITE_GDRIVE_SA_JSON_B64" | base64 -d >/tmp/sa.json 2>/dev/null && chmod 600 /tmp/sa.json
+    (umask 077; printf '%s' "$OFFSITE_GDRIVE_SA_JSON_B64" | base64 -d >/tmp/sa.json 2>/dev/null)
     RCLONE_CONFIG_OFFSITE_SERVICE_ACCOUNT_FILE=/tmp/sa.json
     export RCLONE_CONFIG_OFFSITE_SERVICE_ACCOUNT_FILE
   fi
@@ -168,6 +174,8 @@ fi
 etapa_db
 etapa_volumes
 etapa_retencao_local
+etapa_drive
+rm -rf "$WORK/db"
 case "$OFFSITE_ENABLED" in
   true|1|sim) etapa_offsite ;;
 esac

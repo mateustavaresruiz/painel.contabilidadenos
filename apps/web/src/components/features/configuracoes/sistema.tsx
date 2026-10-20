@@ -1,5 +1,6 @@
 import { DatabaseBackup, ExternalLink, RefreshCw, ScrollText } from "lucide-react";
 
+import { BackupDriveCard } from "@/components/features/configuracoes/backup-drive";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,8 @@ export function ConfigSistema() {
       </Card>
 
       <BackupCard />
+
+      <BackupDriveCard />
 
       <Card>
         <CardContent className="p-4 sm:p-6 space-y-3">
@@ -167,7 +170,7 @@ const BACKUP_ETAPAS: { tipo: BackupTipo; nome: string; texto: string }[] = [
     nome: "Arquivos",
     texto: "Anexos do WhatsApp, marca, sessões do WAHA, gateway Serpro, e-mail e blog.",
   },
-  { tipo: "offsite", nome: "Cópia fora do servidor", texto: "Google Drive ou R2, depois de cada backup local." },
+  { tipo: "offsite", nome: "Cópia completa fora do servidor", texto: "Repositório restic em R2/B2, se ligado no Easypanel." },
   { tipo: "restore-test", nome: "Teste de restauração", texto: "Último teste restaurando o banco num servidor descartável." },
 ];
 

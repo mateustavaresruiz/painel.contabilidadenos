@@ -35,9 +35,12 @@ que o Supabase recria sozinho.
 - **Retenção:** 7 diários + 4 semanais + 6 mensais (`KEEP_DAILY/WEEKLY/MONTHLY`),
   separados para banco (`tag db`) e arquivos (`tag volumes`). Depois do `forget --prune`
   roda um `restic check`.
-- **Fora do servidor:** depois de cada backup local, `restic copy` para um repositório
-  remoto via rclone, com a mesma retenção. **Desligado** até chegar a credencial.
-- **Status:** cada etapa (`db`, `volumes`, `retencao`, `offsite`, `restore-test`) grava uma
+- **Google Drive do escritório:** depois do backup local, um arquivo cifrado por dia
+  (`painel-backup-AAAA-MM-DD.tar.gpg`) vai para a pasta "Backup Painel NÓS" do Drive
+  conectado na tela. Ficam os **últimos 30**. Ver [Cópia diária no Google Drive](#cópia-diária-no-google-drive).
+- **Fora do servidor (restic completo):** opcional, `restic copy` para R2/B2 via rclone,
+  com a mesma retenção. **Desligado** (`OFFSITE_ENABLED=false`).
+- **Status:** cada etapa (`db`, `volumes`, `retencao`, `drive`, `offsite`, `restore-test`) grava uma
   linha em `BackupExecucao` (migração 014). O script entra como `supabase_admin` e faz
   `SET ROLE backup_monitor`, que só pode INSERIR em `BackupExecucao` e em `ErrorLog`
   (`origem = 'backup'`). Falha vira linha em `ErrorLog` e aparece no "Log de erros".
@@ -60,11 +63,60 @@ que o Supabase recria sozinho.
 
 Para rodar um backup na hora: `RUN_ON_START=true`, Deploy, conferir a tela, voltar para `false`.
 
-## Ligar a cópia no Google Drive (escolha do dono)
+## Cópia diária no Google Drive
 
-Precisa de **conta de serviço** do Google Cloud. O login com Google do painel é OAuth
-de usuário e não serve para isso. Conta de serviço não tem espaço próprio, por isso o
-destino tem que ser um **Drive compartilhado** (Shared Drive).
+Decisão do dono (20/10/2026): o backup vai para o **Drive da própria contadora**, conectado
+por OAuth na tela, sem conta de serviço nem Drive compartilhado.
+
+**Como funciona**
+
+- Configurações > Sistema > **Cópia diária no Google Drive**. Três passos: colar o Client
+  ID/Secret do Google Cloud (uma vez) → **Conectar Google Drive** (tela de consentimento do
+  Google) → pronto. A function `google-drive` cria a pasta **Backup Painel NÓS** no Drive.
+- Escopo `drive.file`: o painel só enxerga o que ele mesmo criou (a pasta e os backups).
+  Não lê nem apaga nada mais do Drive, e o Google **não exige verificação** do app.
+- O refresh token e o Client Secret ficam no **Vault** (`google_drive_refresh_token`,
+  `google_drive_client_secret`); o resto em `BackupGoogleDrive` (migração 020). Nenhuma rota
+  devolve segredo à tela.
+- Às 03:00, depois do backup local, `scripts/drive.sh` (serviço `backup`) lê a conexão
+  (`drive_credenciais()`), monta o tar, cifra com gpg (AES-256, senha `BACKUP_PASSPHRASE`),
+  **confere que abre** com a senha, envia (upload retomável), apaga o repetido do mesmo dia e
+  o que passar dos 30 mais novos. Resultado em `BackupExecucao` (`drive`), que aparece no card.
+- Conteúdo: `banco/postgres.dump` + `banco/roles.sql`, `chave-do-banco/` (volume
+  `supabase-db-config`, abre o Vault), `arquivos-storage/` (anexos do Storage, só se tiverem
+  até `DRIVE_LIMITE_STORAGE_MB`, padrão 300 MB, para 30 cópias caberem no Drive gratuito) e
+  `LEIA-ME.txt`. Sessões do WAHA, e-mail e blog ficam só no backup do servidor.
+- Falhas viram linha vermelha no card e no Log de erros. Token revogado, senha da conta
+  trocada ou pasta apagada → o card pede **Conectar de novo** (mesma conta reaproveita a pasta).
+
+**Criar o acesso OAuth (uma vez, quem mantém o painel)**
+
+1. console.cloud.google.com > projeto do escritório > ativar a **Google Drive API**.
+2. Tela de consentimento OAuth: Externo, nome "Painel NÓS", escopo `.../auth/drive.file`.
+   **Publicar o app** ("Em produção"). Em "Teste" o refresh token expira em 7 dias e o
+   backup para; com só `drive.file` (escopo não sensível) não há verificação.
+3. Credenciais > ID do cliente OAuth > Aplicativo da Web > URI de redirecionamento:
+   `https://painel-supabase.at63vf.easypanel.host/functions/v1/google-drive/callback`
+   (o card mostra o endereço com botão Copiar). Trocou o domínio do Supabase, troque aqui.
+4. Colar Client ID e Secret no card e clicar em Conectar (com a conta Google dela).
+
+**Restaurar a partir do Drive**
+
+1. Baixe o `painel-backup-AAAA-MM-DD.tar.gpg` da pasta.
+2. `gpg --decrypt painel-backup-AAAA-MM-DD.tar.gpg > backup.tar` (Windows: Gpg4win) com a
+   senha do backup, e `tar -xf backup.tar`.
+3. Siga [Banco inteiro (desastre)](#banco-inteiro-desastre) usando `banco/postgres.dump` e
+   `banco/roles.sql`; se o volume do banco se perdeu, devolva antes `chave-do-banco/` ao
+   volume `painel_supabase_db-config`.
+
+**Rodar agora** (testar depois de conectar): `RUN_ON_START=true` no serviço `backup` >
+Deploy > conferir o card > voltar para `false`.
+
+## Cópia completa fora do servidor com conta de serviço (alternativa antiga)
+
+Precisa de **conta de serviço** do Google Cloud. Conta de serviço não tem espaço próprio,
+por isso o destino tem que ser um **Drive compartilhado** (Shared Drive). Hoje o caminho
+usado é o da seção acima; este fica para um repositório restic completo em R2/B2.
 
 1. Google Cloud > IAM > Contas de serviço > criar (ex.: `painel-backup`) > Chaves > JSON.
 2. Ativar a **Google Drive API** no mesmo projeto.
@@ -219,8 +271,8 @@ espere a linha na tela e **destrua o serviço**.
 
 ## Limites conhecidos
 
-- O backup local fica no **mesmo disco** do servidor. Sem a cópia remota ligada, um
-  problema no VPS leva os dois. Ligue o Google Drive assim que a credencial chegar.
+- O backup local fica no **mesmo disco** do servidor. A cópia de fora é a do Google Drive
+  (banco + chave + Storage); sem ela conectada, um problema no VPS leva os dois.
 - Os logs do Easypanel (Loki) estão desligados; o histórico fica em `BackupExecucao` e no
   log do container.
 - O container tem um volume anônimo vazio (`/var/lib/postgresql/data`, declarado pela
