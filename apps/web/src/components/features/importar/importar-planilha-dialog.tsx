@@ -57,7 +57,7 @@ const NAO_USAR = -1;
 async function carregarClientes(): Promise<ClienteExistente[]> {
   const out: ClienteExistente[] = [];
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from("Cliente").select("id, nome, nomeFantasia, cpfCnpj, tipo, provisorio, telefoneNormalizado").order("id").range(de, de + 999);
+    const { data, error } = await supabase.from("Cliente").select("id, nome, nomeFantasia, cpfCnpj, tipo, provisorio, telefoneNormalizado, email").order("id").range(de, de + 999);
     if (error) throw error;
     out.push(...((data ?? []) as ClienteExistente[]));
     if (!data || data.length < 1000) return out;
@@ -92,6 +92,37 @@ async function carregarSocios(clienteIds: string[]): Promise<Array<{ clienteId: 
     }
   }
   return out;
+}
+
+/**
+ * Insere em lotes de 100. Uma linha ruim derruba o lote inteiro no banco: aí o
+ * lote é regravado linha a linha, as boas entram e a culpada sai no resumo com
+ * o número da linha. Devolve as linhas gravadas (`colunas`).
+ */
+async function inserirEmLotes<T extends { linha: number }>(
+  tabela: string,
+  itens: T[],
+  registro: (i: T) => Record<string, unknown>,
+  colunas: string,
+  rotulo: string,
+  falhas: string[],
+  avancar: (n: number) => void,
+): Promise<Array<Record<string, unknown>>> {
+  const gravadas: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < itens.length; i += 100) {
+    const lote = itens.slice(i, i + 100);
+    const { data, error } = await supabase.from(tabela).insert(lote.map(registro)).select(colunas);
+    if (!error) gravadas.push(...((data ?? []) as unknown as Array<Record<string, unknown>>));
+    else {
+      for (const it of lote) {
+        const um = await supabase.from(tabela).insert(registro(it)).select(colunas);
+        if (um.error) falhas.push(`${rotulo} ${it.linha}: ${msgErro(um.error)}`);
+        else gravadas.push(...((um.data ?? []) as unknown as Array<Record<string, unknown>>));
+      }
+    }
+    avancar(lote.length);
+  }
+  return gravadas;
 }
 
 /** Seletor de coluna para um campo. */
@@ -193,11 +224,14 @@ function TabelaPrevia<T extends { linha: number; erros: string[] }>({
   linhas,
   colunas,
   status,
+  aviso,
 }: {
   titulo: string;
   linhas: T[];
   colunas: Array<[string, (l: T) => string]>;
   status: (l: T) => { texto: string; tom: "success" | "warning" | "destructive" | "secondary" };
+  /** Observação que não impede a linha (ex.: possível duplicado). */
+  aviso?: (l: T) => string | undefined;
 }) {
   const [soErros, setSoErros] = useState(false);
   const erros = linhas.filter((l) => l.erros.length).length;
@@ -242,6 +276,7 @@ function TabelaPrevia<T extends { linha: number; erros: string[] }>({
                   <td className="px-2 py-1.5">
                     <Badge variant={st.tom}>{st.texto}</Badge>
                     {l.erros.length > 0 && <p className="mt-0.5 text-2xs text-destructive">{l.erros.join(" · ")}</p>}
+                    {!l.erros.length && aviso?.(l) && <p className="mt-0.5 text-2xs text-muted-foreground">{aviso(l)}</p>}
                   </td>
                 </tr>
               );
@@ -356,18 +391,11 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
         r.pulados += previa.socios.length - sociosValidos.length;
         setProgresso({ feito: 0, total: validos.length + sociosValidos.length });
         const docParaId = new Map<string, string>();
+        const avancar = (n: number) => setProgresso((p) => ({ ...p, feito: p.feito + n }));
         const novos = validos.filter((c) => c.acao === "criar");
-        for (let i = 0; i < novos.length; i += 100) {
-          const lote = novos.slice(i, i + 100);
-          const { data, error } = await supabase.from("Cliente").insert(lote.map((c) => c.dados!)).select("id, cpfCnpj");
-          if (error) {
-            r.falhas.push(`Linhas ${lote[0]!.linha}–${lote[lote.length - 1]!.linha}: ${msgErro(error)}`);
-          } else {
-            r.criados += data?.length ?? 0;
-            for (const d of data ?? []) if (d.cpfCnpj) docParaId.set(d.cpfCnpj as string, d.id as string);
-          }
-          setProgresso((p) => ({ ...p, feito: p.feito + lote.length }));
-        }
+        const criados = await inserirEmLotes("Cliente", novos, (c) => c.dados!, "id, cpfCnpj", "Linha", r.falhas, avancar);
+        r.criados += criados.length;
+        for (const d of criados) if (d.cpfCnpj) docParaId.set(d.cpfCnpj as string, d.id as string);
         for (const c of validos.filter((x) => x.acao === "atualizar")) {
           // Atualiza só o que veio preenchido: célula vazia não apaga o cadastro.
           // Provisório (criado pelo WhatsApp como PF) leva também o tipo da
@@ -402,14 +430,10 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
               continue;
             }
             existe.add(k);
-            inserir.push({ ...s.dados!, clienteId: id });
+            inserir.push({ linha: s.linha, dados: { ...s.dados!, clienteId: id } });
           }
-          for (let i = 0; i < inserir.length; i += 100) {
-            const lote = inserir.slice(i, i + 100);
-            const { error } = await supabase.from("Socio").insert(lote);
-            if (error) r.falhas.push(`Sócios: ${msgErro(error)}`);
-            else r.socios += lote.length;
-          }
+          const gravados = await inserirEmLotes("Socio", inserir, (s) => s.dados, "id", "Sócio na linha", r.falhas, () => {});
+          r.socios += gravados.length;
           setProgresso((p) => ({ ...p, feito: p.total }));
         }
         qc.invalidateQueries({ queryKey: ["clientes"] });
@@ -419,15 +443,16 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
         const validos = previa.certificados.filter((c) => c.dados && !c.repetido);
         r.pulados = previa.certificados.length - validos.length;
         setProgresso({ feito: 0, total: validos.length });
-        for (let i = 0; i < validos.length; i += 100) {
-          const lote = validos.slice(i, i + 100);
-          const { error } = await supabase
-            .from("CertificadoDigital")
-            .insert(lote.map((c) => ({ ...c.dados!, clienteId: c.clienteId!, avisarWhatsapp: true })));
-          if (error) r.falhas.push(`Linhas ${lote[0]!.linha}–${lote[lote.length - 1]!.linha}: ${msgErro(error)}`);
-          else r.certificados += lote.length;
-          setProgresso((p) => ({ ...p, feito: p.feito + lote.length }));
-        }
+        const gravados = await inserirEmLotes(
+          "CertificadoDigital",
+          validos,
+          (c) => ({ ...c.dados!, clienteId: c.clienteId!, avisarWhatsapp: true }),
+          "id",
+          "Linha",
+          r.falhas,
+          (n) => setProgresso((p) => ({ ...p, feito: p.feito + n })),
+        );
+        r.certificados += gravados.length;
         qc.invalidateQueries({ queryKey: ["certificados"] });
       }
     } catch (e) {
@@ -535,9 +560,12 @@ export function ImportarPlanilhaDialog({ alvo, open, onOpenChange }: { alvo: Alv
                   titulo="Clientes"
                   linhas={previa.clientes}
                   colunas={[["Nome", (l) => (l.dados?.nomeFantasia?.trim() && l.dados.nomeFantasia.trim() !== l.nome ? `${l.dados.nomeFantasia.trim()} (${l.nome})` : l.nome)], ["CPF/CNPJ", (l) => (l.doc ? formatDoc(l.doc) : "")]]}
+                  aviso={(l) => l.possivelDuplicado}
                   status={(l) =>
                     l.erros.length
                       ? { texto: "Erro", tom: "destructive" }
+                      : l.possivelDuplicado
+                        ? { texto: l.acao === "atualizar" ? "Possível duplicado: atualizar" : "Possível duplicado: novo", tom: "warning" }
                       : l.completaProvisorio
                         ? { texto: "Completar provisório", tom: "warning" }
                         : l.acao === "atualizar"

@@ -10,7 +10,7 @@
 
 import { TIPOS_CERTIFICADO, type TipoCertificado } from "@/lib/queries/certificados";
 import { clienteSchema, REGIMES, type ClienteInput } from "@/lib/validations/cliente";
-import { CNPJ_RE, CPF_RE, isValidCpf, isValidCpfCnpj, isValidTelefone, normalizarDoc } from "@/lib/masks";
+import { CNPJ_RE, CPF_RE, isValidCpf, isValidCpfCnpj, isValidTelefone, maskTelefone, normalizarDoc } from "@/lib/masks";
 
 export type Campo = {
   campo: string;
@@ -101,18 +101,58 @@ function celulaParaTexto(v: unknown): string {
   return String(v).trim();
 }
 
-/** DD/MM/AAAA (ou "-"/".") → AAAA-MM-DD. ISO passa direto. Outra coisa: "" (inválida). */
-export function normalizarData(v: string): string {
+/** Hoje em AAAA-MM-DD, no fuso de quem está importando. */
+function hojeIso(agora: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${agora.getFullYear()}-${p(agora.getMonth() + 1)}-${p(agora.getDate())}`;
+}
+
+/**
+ * DD/MM/AAAA (ou "-"/".") e AAAA-MM-DD → AAAA-MM-DD. Vazio: "". Data que não
+ * existe no calendário (31/02, ISO "2023-02-30"): "invalida" — o banco recusaria
+ * e derrubaria o lote. Ano com 2 dígitos usa pivô no ano corrente: "15/03/98" é
+ * 1998, "15/03/15" é 2015. Sem `futuro`, data depois de hoje (nascimento,
+ * abertura, emissão) é "futura"; com `futuro` (validade), o ano de 2 dígitos é
+ * sempre 20AA.
+ */
+export function normalizarData(v: string, opts: { futuro?: boolean; hoje?: Date } = {}): string {
   const t = v.trim();
   if (!t) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  const m = t.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
-  if (!m) return "invalida";
-  const [, d, mes, a] = m;
-  const ano = a!.length === 2 ? `20${a}` : a!;
-  const iso = `${ano}-${mes!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
-  const dt = new Date(`${iso}T12:00:00`);
-  return Number.isNaN(dt.getTime()) || dt.getDate() !== Number(d) ? "invalida" : iso;
+  const agora = opts.hoje ?? new Date();
+  const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const br = t.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2}|\d{4})$/);
+  let ano: number, mes: number, dia: number;
+  if (iso) [ano, mes, dia] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  else if (br) {
+    [dia, mes, ano] = [Number(br[1]), Number(br[2]), Number(br[3])];
+    if (br[3]!.length === 2) ano += opts.futuro || ano <= agora.getFullYear() % 100 ? 2000 : 1900;
+  } else return "invalida";
+  if (ano < 1900 || ano > 2199) return "invalida";
+  const dt = new Date(Date.UTC(ano, mes - 1, dia));
+  if (dt.getUTCFullYear() !== ano || dt.getUTCMonth() !== mes - 1 || dt.getUTCDate() !== dia) return "invalida";
+  const out = `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  if (!opts.futuro && out > hojeIso(agora)) return "futura";
+  return out;
+}
+
+/** Mensagem da célula de data que não passou (vazio quando passou). */
+function erroData(rotulo: string, d: string): string {
+  if (d === "invalida") return `${rotulo}: data inválida, use DD/MM/AAAA`;
+  if (d === "futura") return `${rotulo}: data no futuro`;
+  return "";
+}
+
+/**
+ * Telefone como a planilha costuma trazer: "+55 (11) 98765-4321", "0055…" ou
+ * "5511987654321" perdem o DDI 55 (o cadastro guarda DDD + número; o banco põe
+ * o 55 de volta ao normalizar). Sem DDI, volta como veio.
+ */
+export function telefoneSemDdi(v: string): string {
+  const t = v.trim();
+  let d = soDigitos(t);
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) return maskTelefone(d.slice(2));
+  return t;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +173,24 @@ export async function lerArquivo(file: File): Promise<Aba[]> {
     // raw: CSV sem conversão (CNPJ não vira número, data fica DD/MM/AAAA).
     wb = XLSX.read(texto, { type: "string", FS, raw: true });
   } else {
-    wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+    // Sem cellDates: o Date do SheetJS nasce no fuso do navegador (com o
+    // horário de verão e o LMT antigo de São Paulo) e a data podia cair um dia
+    // antes. A célula de data vira AAAA-MM-DD direto do número de série.
+    wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellNF: true });
+    const date1904 = !!wb.Workbook?.WBProps?.date1904;
+    for (const nome of wb.SheetNames) {
+      const ws = wb.Sheets[nome]!;
+      for (const ref of Object.keys(ws)) {
+        if (ref.startsWith("!")) continue;
+        const cel = ws[ref] as { t?: string; v?: unknown; z?: unknown; w?: string };
+        if (cel.t !== "n" || typeof cel.v !== "number" || typeof cel.z !== "string" || !XLSX.SSF.is_date(cel.z)) continue;
+        const p = XLSX.SSF.parse_date_code(cel.v, { date1904 }) as { y: number; m: number; d: number } | null;
+        if (!p) continue;
+        cel.t = "s";
+        cel.v = `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
+        delete cel.w;
+      }
+    }
   }
   return wb.SheetNames.map((nome) => {
     const m = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[nome]!, { header: 1, raw: true, defval: "", blankrows: false });
@@ -208,6 +265,7 @@ export type ClienteExistente = {
   /** Cadastro provisório (criado pelo WhatsApp): a planilha completa em vez de duplicar. */
   provisorio?: boolean;
   telefoneNormalizado?: string | null;
+  email?: string | null;
 };
 
 /** Mesmo critério de public.normalizar_telefone (migration 001): só dígitos; 10/11 dígitos ganham o 55. */
@@ -236,6 +294,12 @@ export type LinhaCliente = {
   existenteId?: string;
   /** O "atualizar" é de um cadastro provisório achado pelo telefone (a planilha completa). */
   completaProvisorio?: boolean;
+  /**
+   * Linha sem CPF/CNPJ parecida com um cadastro: pelo nome e pelo telefone ou
+   * e-mail (atualiza esse em vez de criar outro a cada reimportação), ou só
+   * pelo nome (cria, mas avisa). Texto do aviso.
+   */
+  possivelDuplicado?: string;
 };
 
 function resolverTipo(v: string, doc: string): "PF" | "PJ" | "" {
@@ -278,6 +342,23 @@ export function validarClientes(linhas: Array<{ linha: number; c: Record<string,
     const [e] = [...achados];
     return e && !provUsados.has(e.id) ? e : undefined;
   };
+  // Sem CPF/CNPJ, a chave é o nome normalizado: com o mesmo telefone ou
+  // e-mail é o mesmo cadastro (reimportar não duplica).
+  const porNome = new Map<string, ClienteExistente[]>();
+  for (const e of existentes) {
+    for (const n of new Set([e.nome, e.nomeFantasia].filter((x): x is string => !!x).map(normalizar))) {
+      porNome.set(n, [...(porNome.get(n) ?? []), e]);
+    }
+  }
+  const semDocUsados = new Set<string>();
+  const acharSemDoc = (nome: string, telNorm: string, mail: string) => {
+    const candidatos = (porNome.get(normalizar(nome)) ?? []).filter((e) => !semDocUsados.has(e.id));
+    const tels = new Set(variantesTelefone(telNorm));
+    const casa = (e: ClienteExistente) =>
+      (!!e.telefoneNormalizado && tels.has(e.telefoneNormalizado)) || (!!mail && e.email?.trim().toLowerCase() === mail);
+    const fortes = candidatos.filter(casa);
+    return { forte: fortes.length === 1 ? fortes[0] : undefined, ambiguo: fortes.length > 1, soNome: candidatos[0] };
+  };
   const vistos = new Map<string, number>();
   return linhas.map(({ linha, c }) => {
     const doc = docDigitos(c.cpfCnpj ?? "");
@@ -285,11 +366,13 @@ export function validarClientes(linhas: Array<{ linha: number; c: Record<string,
     const datas: Record<string, string> = {};
     for (const k of ["dataAbertura", "dataNascimento"]) {
       const d = normalizarData(c[k] ?? "");
-      if (d === "invalida") item.erros.push(`${k === "dataAbertura" ? "Data de abertura" : "Data de nascimento"}: use DD/MM/AAAA`);
+      const erro = erroData(k === "dataAbertura" ? "Data de abertura" : "Data de nascimento", d);
+      if (erro) item.erros.push(erro);
       else datas[k] = d;
     }
     const parsed = clienteSchema.safeParse({
       ...c,
+      telefone: telefoneSemDdi(c.telefone ?? ""),
       cpfCnpj: doc,
       // Data inválida já foi apontada acima: não repete o erro pelo zod (usa só a válida).
       dataAbertura: undefined,
@@ -306,10 +389,31 @@ export function validarClientes(linhas: Array<{ linha: number; c: Record<string,
         item.erros.push(`${rot}: ${i.message}`);
       }
     } else item.dados = { ...parsed.data, cpfCnpj: doc || undefined };
-    if (doc && vistos.has(doc)) {
+    // Repetida na própria planilha: pelo documento ou, sem documento, pelo
+    // nome com o mesmo telefone ou e-mail.
+    const telNorm = item.dados?.telefone ? normalizarTelefone(item.dados.telefone) : "";
+    const mail = item.dados?.email?.trim().toLowerCase() ?? "";
+    const nomeN = normalizar(item.nome);
+    const chaves = doc ? [doc] : [telNorm && `n:${nomeN}|t:${telNorm}`, mail && `n:${nomeN}|e:${mail}`].filter(Boolean);
+    const repetidaDe = chaves.map((k) => vistos.get(k)).find((x) => x != null);
+    if (repetidaDe != null) {
       item.acao = "repetida";
-      item.erros.push(`Documento repetido (linha ${vistos.get(doc)})`);
-    } else if (doc) vistos.set(doc, linha);
+      item.erros.push(doc ? `Documento repetido (linha ${repetidaDe})` : `Mesmo nome e contato da linha ${repetidaDe}`);
+    } else for (const k of chaves) vistos.set(k, linha);
+    if (!item.acao && !doc && item.dados) {
+      const { forte, ambiguo, soNome } = acharSemDoc(item.nome, telNorm, mail);
+      // Provisório sem documento segue o caminho de sempre (completar pelo telefone).
+      if (forte && !(forte.provisorio && !forte.cpfCnpj)) {
+        semDocUsados.add(forte.id);
+        const peloTel = !!forte.telefoneNormalizado && variantesTelefone(telNorm).includes(forte.telefoneNormalizado);
+        item.acao = "atualizar";
+        item.existenteId = forte.id;
+        item.possivelDuplicado = `Mesmo nome e ${peloTel ? "telefone" : "e-mail"} de um cadastro: atualiza esse em vez de criar outro`;
+        return item;
+      }
+      if (ambiguo) item.possivelDuplicado = "Mais de um cadastro com este nome e contato: será criado um novo";
+      else if (!forte && soNome) item.possivelDuplicado = `Já existe "${soNome.nomeFantasia || soNome.nome}" sem CPF/CNPJ para confirmar: será criado um novo`;
+    }
     if (!item.acao) {
       const ex = doc ? porDoc.get(doc) : undefined;
       // Documento novo (ou sem documento): o telefone pode ser de um cadastro
@@ -387,8 +491,9 @@ export function validarSocios(linhas: Array<{ linha: number; c: Record<string, s
     const cpf = soDigitos(c.cpf ?? "");
     if (cpf && !isValidCpf(cpf)) item.erros.push("CPF do sócio inválido");
     const nasc = normalizarData(c.dataNascimento ?? "");
-    if (nasc === "invalida") item.erros.push("Nascimento: use DD/MM/AAAA");
-    const tel = (c.telefone ?? "").trim();
+    const erroNasc = erroData("Nascimento", nasc);
+    if (erroNasc) item.erros.push(erroNasc);
+    const tel = telefoneSemDdi(c.telefone ?? "");
     if (tel && !isValidTelefone(tel)) item.erros.push("Telefone inválido");
     const partTxt = (c.participacao ?? "").replace("%", "").replace(",", ".").trim();
     const part = partTxt ? Number(partTxt) : null;
@@ -472,14 +577,15 @@ export function validarCertificados(
         item.clienteNome = a.nome;
       }
     }
-    const validoAte = normalizarData(c.validoAte ?? "");
+    const validoAte = normalizarData(c.validoAte ?? "", { futuro: true });
     if (!validoAte) item.erros.push("Válido até: obrigatório");
-    else if (validoAte === "invalida") item.erros.push("Válido até: use DD/MM/AAAA");
+    else if (validoAte === "invalida") item.erros.push(erroData("Válido até", validoAte));
     const emitidoEm = normalizarData(c.emitidoEm ?? "");
-    if (emitidoEm === "invalida") item.erros.push("Emitido em: use DD/MM/AAAA");
+    const erroEmissao = erroData("Emitido em", emitidoEm);
+    if (erroEmissao) item.erros.push(erroEmissao);
     const tipo = resolverTipoCert(c.tipo ?? "", docDe.get(item.clienteId ?? "") ?? "");
     if (!tipo) item.erros.push(`Tipo: use ${TIPOS_CERTIFICADO.join(", ")}`);
-    const tel = (c.telefoneAviso ?? "").trim();
+    const tel = telefoneSemDdi(c.telefoneAviso ?? "");
     if (tel && !isValidTelefone(tel)) item.erros.push("Telefone para aviso inválido");
     if (item.erros.length === 0 && tipo && item.clienteId) {
       if (existe.has(chave(item.clienteId, tipo, validoAte))) item.repetido = true;

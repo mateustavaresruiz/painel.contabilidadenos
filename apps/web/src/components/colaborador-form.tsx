@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CORES_COLABORADOR, type Colaborador } from "@/lib/colaborador";
+import { CORES_COLABORADOR, useEu, type Colaborador } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { maskTelefone } from "@/lib/masks";
 import {
@@ -38,7 +38,11 @@ export function ColaboradorForm({
 }) {
   const convidar = useConvidar();
   const atualizar = useAtualizarPessoa();
-  const { data: cargos = [] } = useCargos();
+  const { data: todosCargos = [] } = useCargos();
+  // Cargo Administrador só aparece para quem já é administrador (a function
+  // equipe recusa o resto).
+  const euAdmin = !!useEu().cargo?.sistema;
+  const cargos = todosCargos.filter((c) => euAdmin || !c.sistema || c.id === inicial?.cargoId);
   const [nome, setNome] = useState(inicial?.nome ?? "");
   const [email, setEmail] = useState(inicial?.email ?? "");
   const [telefone, setTelefone] = useState(inicial?.telefone ? maskTelefone(inicial.telefone) : "");

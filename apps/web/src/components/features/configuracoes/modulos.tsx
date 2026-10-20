@@ -9,7 +9,7 @@ import {
   MODULOS_PRINCIPAIS,
   SUBFUNCOES,
   useModulos,
-  useSalvarModulos,
+  useSalvarModulo,
   nomeDoModulo,
   type ModuloChave,
 } from "@/lib/modulos";
@@ -23,12 +23,12 @@ import { cn } from "@/lib/utils";
  */
 export function ConfigModulos() {
   const { modulos, carregando } = useModulos();
-  const salvar = useSalvarModulos();
+  const salvar = useSalvarModulo();
   const googleLigado = useLoginConfig().data?.google === true;
 
   function alternar(chave: ModuloChave, valor: boolean) {
     salvar.mutate(
-      { ...modulos, [chave]: valor },
+      { chave, ligado: valor },
       {
         onSuccess: () => toast.success(`${nomeDoModulo(chave)} ${valor ? "ligado" : "desligado"}`),
         onError: (e) => toast.error("Não foi possível salvar: " + msgErro(e)),

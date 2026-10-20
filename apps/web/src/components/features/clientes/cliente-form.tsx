@@ -58,6 +58,10 @@ export function ClienteForm(props: Props) {
   const [cepConfirmado, setCepConfirmado] = useState(props.mode === "edit");
 
   const d = props.defaults;
+  // Versão do cadastro quando o formulário abriu (trava otimista ao salvar).
+  // Presa no primeiro render: uma releitura da página não pode "aceitar" por
+  // baixo dos panos a alteração de um colega.
+  const [versao] = useState(d?.atualizadoEm);
   const form = useForm<ClienteFormValues, unknown, ClienteInput>({
     // @hookform/resolvers v3 tipa a saída igual à entrada; o zod transforma
     // ("" → undefined), então a saída real é ClienteInput.
@@ -96,7 +100,7 @@ export function ClienteForm(props: Props) {
     if (tel && !form.getValues("telefone")) {
       let dg = tel.replace(/\D/g, "");
       if (dg.startsWith("55") && dg.length >= 12) dg = dg.slice(2);
-      form.setValue("telefone", maskTelefone(dg));
+      form.setValue("telefone", maskTelefone(dg), { shouldDirty: true });
     }
   }, [props.mode, searchParams, form]);
 
@@ -119,10 +123,10 @@ export function ClienteForm(props: Props) {
       toast.warning("CEP não encontrado.");
       return;
     }
-    form.setValue("rua", info.logradouro, { shouldValidate: true });
-    form.setValue("bairro", info.bairro);
-    form.setValue("cidade", info.cidade);
-    form.setValue("estado", info.estado);
+    form.setValue("rua", info.logradouro, { shouldDirty: true, shouldValidate: true });
+    form.setValue("bairro", info.bairro, { shouldDirty: true });
+    form.setValue("cidade", info.cidade, { shouldDirty: true });
+    form.setValue("estado", info.estado, { shouldDirty: true });
     setCepConfirmado(true);
   }
 
@@ -142,7 +146,7 @@ export function ClienteForm(props: Props) {
         return;
       }
       const set = <K extends keyof ClienteFormValues>(k: K, v: string | null | undefined) => {
-        if (!form.getValues(k) && v) form.setValue(k, v as never);
+        if (!form.getValues(k) && v) form.setValue(k, v as never, { shouldDirty: true });
       };
       set("nome", info.razaoSocial);
       set("nomeFantasia", info.fantasia);
@@ -229,7 +233,18 @@ export function ClienteForm(props: Props) {
         const created = await create.mutateAsync(payload);
         navigate(`/clientes/${created.id}`);
       } else {
-        await update.mutateAsync(payload);
+        // Só o que a pessoa mexeu: regravar o formulário inteiro apagava o que
+        // um colega salvou nos outros campos enquanto esta tela estava aberta.
+        // Trocar o tipo leva junto os campos que dependem dele.
+        const dirty = dirtyFields as Partial<Record<keyof ClienteInput, unknown>>;
+        const mexidos = new Set(Object.keys(dirty).filter((k) => dirty[k as keyof ClienteInput]));
+        if (mexidos.has("tipo")) {
+          for (const k of ["dataNascimento", "dataAbertura", "regimeTributario", "inscricaoEstadual", "inscricaoMunicipal"]) mexidos.add(k);
+        }
+        const parcial = Object.fromEntries(
+          [...mexidos].map((k) => [k, payload[k as keyof ClienteInput]]),
+        ) as Partial<ClienteInput>;
+        if (mexidos.size) await update.mutateAsync({ input: parcial, atualizadoEm: versao! });
         navigate(`/clientes/${props.clienteId}`);
       }
     } catch (err) {
@@ -238,12 +253,15 @@ export function ClienteForm(props: Props) {
   }
 
   const erros = form.formState.errors;
+  // Lido no render de propósito: o formState do react-hook-form é um proxy e só
+  // acompanha os campos alterados de quem o lê.
+  const { dirtyFields } = form.formState;
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
       <Section title="Identificação" description="Tipo, nome e documento.">
         <Field label="Tipo" htmlFor="tipo" error={erros.tipo?.message} required>
-          <Select value={form.watch("tipo")} onValueChange={(v) => form.setValue("tipo", v as "PF" | "PJ")}>
+          <Select value={form.watch("tipo")} onValueChange={(v) => form.setValue("tipo", v as "PF" | "PJ", { shouldDirty: true })}>
             <SelectTrigger id="tipo">
               <SelectValue />
             </SelectTrigger>
@@ -348,7 +366,7 @@ export function ClienteForm(props: Props) {
           <Select
             value={form.watch("regimeTributario") || "__nenhum__"}
             onValueChange={(v) =>
-              form.setValue("regimeTributario", (v === "__nenhum__" ? "" : v) as ClienteFormValues["regimeTributario"])
+              form.setValue("regimeTributario", (v === "__nenhum__" ? "" : v) as ClienteFormValues["regimeTributario"], { shouldDirty: true })
             }
           >
             <SelectTrigger id="regime">
@@ -440,7 +458,7 @@ export function ClienteForm(props: Props) {
         <Field label="Estado" htmlFor="estado" error={erros.estado?.message}>
           <Select
             value={form.watch("estado") ?? ""}
-            onValueChange={(v) => form.setValue("estado", v)}
+            onValueChange={(v) => form.setValue("estado", v, { shouldDirty: true })}
             disabled={!cepConfirmado}
           >
             <SelectTrigger id="estado">

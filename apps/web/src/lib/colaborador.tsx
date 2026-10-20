@@ -13,6 +13,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -100,17 +101,25 @@ const ColaboradorContext = createContext<Ctx | null>(null);
 export function ColaboradorProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const [sessao, setSessao] = useState<Session | null | undefined>(undefined);
+  // Dono do cache atual (undefined = ainda não leu a sessão guardada).
+  const donoDoCache = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     let vivo = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (vivo) setSessao(data.session);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
+    // Outra pessoa pode entrar no mesmo navegador (sair e entrar, ou abrir um
+    // link de acesso com alguém já logado, que troca o usuário sem SIGNED_OUT):
+    // mudou o usuário, nada do cache anterior fica. Limpa ANTES de a tela ver a
+    // sessão nova, para nenhuma consulta dela nascer e ser apagada junto.
+    const trocar = (s: Session | null) => {
+      const novo = s?.user.id ?? null;
+      if (donoDoCache.current !== undefined && donoDoCache.current !== novo) qc.clear();
+      donoDoCache.current = novo;
       setSessao(s);
-      // Outra pessoa pode entrar no mesmo navegador: nada do cache anterior fica.
-      if (evento === "SIGNED_OUT") qc.clear();
+    };
+    void supabase.auth.getSession().then(({ data }) => {
+      if (vivo) trocar(data.session);
     });
+    const { data: sub } = supabase.auth.onAuthStateChange((_evento, s) => trocar(s));
     return () => {
       vivo = false;
       sub.subscription.unsubscribe();

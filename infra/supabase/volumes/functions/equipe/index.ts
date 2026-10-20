@@ -131,6 +131,21 @@ async function cargoExiste(id: string): Promise<boolean> {
   return !!data;
 }
 
+/** O cargo é de sistema (Administrador: todas as permissões)? */
+async function cargoSistema(id: string | null | undefined): Promise<boolean> {
+  if (!id) return false;
+  const { data } = await supabaseAdmin.from("Cargo").select("sistema").eq("id", id).maybeSingle();
+  return !!data?.sistema;
+}
+
+/**
+ * Administrador só mexe em administrador. Quem tem equipe.gerenciar sem ser de
+ * cargo sistema não põe ninguém (nem a si) no cargo Administrador e não gera
+ * link, não manda acesso, não troca o e-mail, não desativa nem apaga quem já é
+ * administrador: cada uma dessas era um caminho para virar administrador.
+ */
+const SO_ADMIN = "Só um administrador pode fazer isso com o cargo Administrador.";
+
 /** Erro do banco (gatilho com mensagem em português) vira 400 legível. */
 function erroDoBanco(e: { message?: string; code?: string } | null): Response | null {
   if (!e) return null;
@@ -225,6 +240,7 @@ serve(async (req) => {
     if (!nome || nome.length < 2) return badRequest("Informe o nome.");
     if (!email || !EMAIL_RE.test(email)) return badRequest("E-mail inválido.");
     if (!cargoId || !UUID_RE.test(cargoId) || !(await cargoExiste(cargoId))) return badRequest("Escolha o cargo.");
+    if (!eu.admin && (await cargoSistema(cargoId))) return forbidden(SO_ADMIN);
     if (cor && !COR_RE.test(cor)) return badRequest("Cor inválida.");
 
     const { data: jaTem } = await supabaseAdmin
@@ -281,6 +297,7 @@ serve(async (req) => {
   const { data: alvo } = await supabaseAdmin
     .from("Colaborador").select("*").eq("tenantId", TENANT_ID).eq("id", a).maybeSingle();
   if (!alvo) return notFound("Pessoa não encontrada.");
+  if (!eu.admin && (await cargoSistema(alvo.cargoId))) return forbidden(SO_ADMIN);
 
   if (!b && req.method === "PATCH") {
     const body = await req.json().catch(() => ({}));
@@ -299,6 +316,7 @@ serve(async (req) => {
     if ("cargoId" in body) {
       const cargoId = texto(body.cargoId, 40);
       if (!cargoId || !UUID_RE.test(cargoId) || !(await cargoExiste(cargoId))) return badRequest("Cargo inválido.");
+      if (!eu.admin && cargoId !== alvo.cargoId && (await cargoSistema(cargoId))) return forbidden(SO_ADMIN);
       patch.cargoId = cargoId;
     }
     let emailNovo: string | null = null;

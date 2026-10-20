@@ -579,7 +579,9 @@ function ConfigAvisos({ onSalvo }: { onSalvo: () => void }) {
       await salvar.mutateAsync([
         { chave: CONFIG_MARCOS, valor: [...new Set(marcosLista)].sort((a, b) => b - a) },
         { chave: CONFIG_SESSAO, valor: sessaoId === "__nenhuma__" ? null : sessaoId },
-        { chave: CONFIG_MODELO, valor: modelo.trim() || padrao },
+        // Igual ao padrão (ou vazio) grava null: o aviso segue o modelo padrão,
+        // e uma troca futura do padrão chega a ele. Gravar o texto congelava.
+        { chave: CONFIG_MODELO, valor: !modelo.trim() || modelo.trim() === padrao.trim() ? null : modelo },
       ]);
       toast.success("Avisos salvos");
       onSalvo();

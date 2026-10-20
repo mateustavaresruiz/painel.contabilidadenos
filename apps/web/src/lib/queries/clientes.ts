@@ -252,14 +252,29 @@ export function useCreateCliente() {
   });
 }
 
+/** Lançado quando o cadastro mudou no banco depois que o formulário abriu. */
+export const MSG_CLIENTE_ALTERADO =
+  "Outra pessoa alterou este cliente enquanto você editava. Recarregue a página para ver a versão atual.";
+
 export function useUpdateCliente(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: Partial<ClienteInput>) => {
+    /**
+     * `input` leva só os campos que a pessoa mexeu (o resto fica como está no
+     * banco) e `atualizadoEm` é a versão que o formulário abriu: trava
+     * otimista. Se alguém salvou no meio, nenhuma linha casa e nada é gravado.
+     */
+    mutationFn: async ({ input, atualizadoEm }: { input: Partial<ClienteInput>; atualizadoEm: string }) => {
       // nullificarVazios: campo limpo na edição precisa virar null para zerar
       // no banco — senão o supabase-js descarta a chave.
-      const { error } = await supabase.from(TABLE).update(nullificarVazios(input)).eq("id", id);
+      const { data, error } = await supabase
+        .from(TABLE)
+        .update(nullificarVazios(input))
+        .eq("id", id)
+        .eq("atualizadoEm", atualizadoEm)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error(MSG_CLIENTE_ALTERADO);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["clientes"] });

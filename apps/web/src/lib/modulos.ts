@@ -118,22 +118,26 @@ export function useModulos() {
   return { modulos, ativo, carregando: query.isLoading };
 }
 
-export function useSalvarModulos() {
+/**
+ * Liga/desliga UMA chave. A RPC `config_modulo_definir` (migration 022) muda só
+ * essa chave no banco: gravar o objeto inteiro deixava uma aba aberta há tempo
+ * desfazer o que outra pessoa mudou nas outras chaves.
+ */
+export function useSalvarModulo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (modulos: Modulos) => {
-      const { error } = await supabase
-        .from("Config")
-        .upsert({ chave: "modulos", valor: modulos, atualizadoEm: new Date().toISOString() });
+    mutationFn: async ({ chave, ligado }: { chave: ModuloChave; ligado: boolean }) => {
+      const { data, error } = await supabase.rpc("config_modulo_definir", { p_chave: chave, p_ligado: ligado });
       if (error) throw error;
-      return modulos;
+      return { ...MODULOS_PADRAO, ...((data ?? {}) as Partial<Modulos>) } as Modulos;
     },
-    onMutate: async (modulos) => {
+    onMutate: async ({ chave, ligado }) => {
       await qc.cancelQueries({ queryKey: ["config", "modulos"] });
       const anterior = qc.getQueryData<Modulos>(["config", "modulos"]);
-      qc.setQueryData(["config", "modulos"], modulos);
+      qc.setQueryData<Modulos>(["config", "modulos"], (m) => ({ ...(m ?? MODULOS_PADRAO), [chave]: ligado }));
       return { anterior };
     },
+    onSuccess: (modulos) => qc.setQueryData(["config", "modulos"], modulos),
     onError: (_e, _v, ctx) => {
       if (ctx?.anterior) qc.setQueryData(["config", "modulos"], ctx.anterior);
     },

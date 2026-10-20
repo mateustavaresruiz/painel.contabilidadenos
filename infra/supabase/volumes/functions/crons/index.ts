@@ -29,7 +29,7 @@ import { enviarTexto } from "../_shared/whatsapp-envio.ts";
 import { onlyDigits } from "../_shared/phone-utils.ts";
 import { serproAgendado } from "./serpro-agendado.ts";
 import { recordError } from "../_shared/error-log.ts";
-import { avisoBloqueado, STATUS_RETENTAVEIS } from "./avisos-regra.ts";
+import { avisoBloqueado, type HistoricoAviso, STATUS_RETENTAVEIS } from "./avisos-regra.ts";
 import { CHAVE_MODELO, CHAVE_MODELO_PADRAO, modeloEfetivo, montarTextoAviso } from "../_shared/aviso-certificado.ts";
 
 function checkCronSecret(req: Request): boolean {
@@ -260,9 +260,10 @@ serve(async (req) => {
 // mandam duas vezes. E um marco não sai se um marco MENOR (mais perto do
 // vencimento) já foi registrado. As únicas repetições são `sem_conexao` (o
 // WhatsApp do escritório estava fora) e `sem_telefone` (cliente sem telefone
-// ou sem WhatsApp): a mensagem nunca chegou ao WAHA, então tentar no dia
-// seguinte não duplica nada e não consome o marco de quem ainda vai ter o
-// cadastro corrigido. `falhou` NÃO repete: o
+// ou sem WhatsApp): a mensagem nunca chegou ao WAHA, então tentar de novo não
+// duplica nada e não consome o marco de quem ainda vai ter o cadastro
+// corrigido. `sem_telefone` só repete quando o telefone mudou (ver
+// avisos-regra.ts). `falhou` NÃO repete: o
 // WAHA pode ter enviado e só a resposta se perdeu.
 
 type Aviso = {
@@ -374,18 +375,20 @@ async function certificadosAvisos(dryRun: boolean) {
   const { data: jaFeitos } = ids.length
     ? await supabaseAdmin
       .from("CertificadoAviso")
-      .select("certificadoId, validoAte, marco, status")
+      .select("certificadoId, validoAte, marco, status, telefone")
       .in("certificadoId", ids)
     : { data: [] };
   // Histórico por certificado E validade: renovar editando a data começa os
   // marcos do zero (migração 021).
-  const feitos = new Map<string, Array<{ marco: number; status: string }>>();
+  const feitos = new Map<string, HistoricoAviso[]>();
   for (
-    const f of (jaFeitos ?? []) as Array<{ certificadoId: string; validoAte: string | null; marco: number; status: string }>
+    const f of (jaFeitos ?? []) as Array<
+      { certificadoId: string; validoAte: string | null; marco: number; status: string; telefone: string | null }
+    >
   ) {
     const k = `${f.certificadoId}|${f.validoAte ?? ""}`;
     const arr = feitos.get(k) ?? [];
-    arr.push({ marco: f.marco, status: f.status });
+    arr.push({ marco: f.marco, status: f.status, telefone: f.telefone });
     feitos.set(k, arr);
   }
 
@@ -401,9 +404,11 @@ async function certificadosAvisos(dryRun: boolean) {
     const marco = marcos.find((m) => m >= dias);
     if (marco === undefined) continue;
     const historico = feitos.get(`${c.id}|${c.validoAte}`) ?? [];
+    const telefone = telefoneComDdi((c.telefoneAviso as string | null) || cli.telefone);
     // Já registrado este marco ou um MAIS PERTO do vencimento → nada a fazer
-    // (exceto sem_conexao/sem_telefone do próprio marco, que repetem; ver avisos-regra.ts).
-    if (avisoBloqueado(historico, marco)) continue;
+    // (exceto sem_conexao do próprio marco, e sem_telefone com o telefone
+    // mudado, que repetem; ver avisos-regra.ts).
+    if (avisoBloqueado(historico, marco, telefone)) continue;
     const nomeCliente = cli.nomeFantasia?.trim() || cli.nome;
     devidos.push({
       certificadoId: c.id as string,
@@ -413,7 +418,7 @@ async function certificadosAvisos(dryRun: boolean) {
       validoAte: c.validoAte as string,
       dias,
       marco,
-      telefone: telefoneComDdi((c.telefoneAviso as string | null) || cli.telefone),
+      telefone,
       texto: montarTextoAviso(modelo, { cliente: nomeCliente, tipo: c.tipo as string, validoAte: c.validoAte as string, dias }),
     });
   }

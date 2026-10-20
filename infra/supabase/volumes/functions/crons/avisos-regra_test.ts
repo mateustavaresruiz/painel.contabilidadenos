@@ -20,3 +20,16 @@ Deno.test("marco mais perto do vencimento bloqueia qualquer status; marco maior 
   assertEquals(avisoBloqueado([{ marco: 30, status: "enviado" }], 7), false);
   assertEquals(avisoBloqueado([], 7), false);
 });
+
+Deno.test("sem_telefone só repete quando o telefone muda", () => {
+  const semNumero = [{ marco: 7, status: "sem_telefone", telefone: null }];
+  assertEquals(avisoBloqueado(semNumero, 7, null), true);
+  assertEquals(avisoBloqueado(semNumero, 7, "5511987654321"), false);
+  const semWhats = [{ marco: 7, status: "sem_telefone", telefone: "5511987654321" }];
+  assertEquals(avisoBloqueado(semWhats, 7, "5511987654321"), true);
+  assertEquals(avisoBloqueado(semWhats, 7, "5511912345678"), false);
+  // Cadastro mudou (tirou o número): tenta uma vez, grava sem_telefone sem número e para.
+  assertEquals(avisoBloqueado(semWhats, 7, null), false);
+  // sem_conexao repete sempre, com ou sem mudança no cadastro.
+  assertEquals(avisoBloqueado([{ marco: 7, status: "sem_conexao", telefone: "5511987654321" }], 7, "5511987654321"), false);
+});

@@ -126,7 +126,12 @@ function AbaPessoas({
   setConvidando: (v: boolean) => void;
 }) {
   const { data = [], isLoading, error, refetch } = useColaboradores();
-  const { euId, tem } = useEu();
+  const { euId, tem, cargo: meuCargo } = useEu();
+  // Só administrador mexe em quem é do cargo Administrador (a function equipe
+  // recusa o resto): os botões nem aparecem.
+  const { data: cargos = [] } = useCargos();
+  const cargosSistema = new Set(cargos.filter((x) => x.sistema).map((x) => x.id));
+  const mexe = (c: Colaborador) => gerenciar && (!!meuCargo?.sistema || !cargosSistema.has(c.cargoId));
   // Perfil: administrador (auditoria.ver) abre o de todos; os demais, só o próprio.
   const abrePerfil = (c: Colaborador) => tem("auditoria.ver") || c.id === euId;
   const excluir = useExcluirPessoa();
@@ -254,7 +259,7 @@ function AbaPessoas({
                     </p>
                   )}
                 </div>
-                {gerenciar && (
+                {mexe(c) && (
                   <div className="flex items-center gap-0.5 -mr-2 -mt-1.5 shrink-0">
                     <Button size="icon" variant="ghost" onClick={() => setEditando(c)} aria-label="Editar" title="Editar">
                       <Pencil />
@@ -282,13 +287,13 @@ function AbaPessoas({
                       </Link>
                     </Button>
                   )}
-                  {gerenciar && c.ativo && c.email && (
+                  {mexe(c) && c.ativo && c.email && (
                     <Button size="sm" variant="ghost" onClick={() => void linkDeAcesso(c)} disabled={gerarLink.isPending}>
                       <Link2 />
                       Gerar link de acesso
                     </Button>
                   )}
-                  {gerenciar && c.ativo && c.email && email?.configurado && (
+                  {mexe(c) && c.ativo && c.email && email?.configurado && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -305,7 +310,7 @@ function AbaPessoas({
                       Enviar acesso
                     </Button>
                   )}
-                  {gerenciar && c.id !== euId && (
+                  {mexe(c) && c.id !== euId && (
                     <Button
                       size="sm"
                       variant="ghost"

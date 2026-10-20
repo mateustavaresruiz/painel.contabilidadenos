@@ -1,3 +1,5 @@
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase";
 import { toast } from "./toast";
 
@@ -48,14 +50,19 @@ export async function apiHeaders(extras?: HeadersInit): Promise<Headers> {
 let saindo = false;
 
 /**
- * 401 da function: só derruba a sessão se a RENOVAÇÃO também falhar (sessão
- * revogada, desativado). Um 401 com sessão boa (token girou entre abas, regra
- * de acesso da rota) não tira ninguém do painel: devolve false e a chamada
- * tenta de novo uma vez com o token novo.
+ * 401 da function: só derruba a sessão se o Auth RECUSAR a renovação (400/401:
+ * sessão revogada, pessoa desativada). Um 401 com sessão boa (token girou entre
+ * abas, regra de acesso da rota) não tira ninguém do painel: "renovou" e a
+ * chamada tenta de novo uma vez com o token novo. Auth fora do ar, rede caída
+ * ou 5xx (AuthRetryableFetchError) também não: "indisponivel", a pessoa
+ * continua logada e tenta de novo.
  */
-async function sessaoAcabou(): Promise<boolean> {
+async function renovarSessao(): Promise<"renovou" | "acabou" | "indisponivel"> {
   const { data, error } = await supabase.auth.refreshSession();
-  if (!error && data.session) return false;
+  if (!error && data.session) return "renovou";
+  if (error && (isAuthRetryableFetchError(error) || (error.status !== 400 && error.status !== 401))) {
+    return "indisponivel";
+  }
   if (!saindo) {
     saindo = true;
     toast.warning("Sua sessão expirou, entre de novo", { duration: 8000 });
@@ -63,7 +70,7 @@ async function sessaoAcabou(): Promise<boolean> {
     await supabase.auth.signOut({ scope: "local" });
     setTimeout(() => (saindo = false), 5000);
   }
-  return true;
+  return "acabou";
 }
 
 export async function api<T>(path: string, opts: FetchOptions = {}, tentativa = 0): Promise<T> {
@@ -82,8 +89,10 @@ export async function api<T>(path: string, opts: FetchOptions = {}, tentativa = 
     throw new ErroDaApi("Sem conexão com o servidor. Tente de novo.", 0);
   }
 
-  if (res.status === 401 && tentativa === 0 && !(await sessaoAcabou())) {
-    return api<T>(path, opts, 1);
+  if (res.status === 401 && tentativa === 0) {
+    const r = await renovarSessao();
+    if (r === "renovou") return api<T>(path, opts, 1);
+    if (r === "indisponivel") throw new ErroDaApi("O servidor de login não respondeu. Tente de novo em instantes.", 503);
   }
 
   if (!res.ok) {
