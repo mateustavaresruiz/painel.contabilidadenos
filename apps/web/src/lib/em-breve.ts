@@ -2,7 +2,7 @@
 // com o selo "Em breve" e abrem uma página que explica o que vai ter. Nada
 // funciona ainda: é para a dona do escritório ver o caminho e opinar.
 //
-// Quando um módulo sair do papel, ele vira item normal em app-nav.tsx e sai
+// Quando um módulo sair do papel, ele vira item normal em app-nav.ts e sai
 // daqui.
 
 import type { LucideIcon } from "lucide-react";
