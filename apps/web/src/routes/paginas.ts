@@ -52,7 +52,6 @@ export const PendenciasFiscaisPage = pagina(() => import("@/routes/app/pendencia
 export const EquipePage = pagina(() => import("@/routes/app/equipe"), "EquipePage");
 export const PerfilColaboradorPage = pagina(() => import("@/routes/app/equipe-perfil"), "PerfilColaboradorPage");
 export const ConfiguracoesPage = pagina(() => import("@/routes/app/configuracoes"), "ConfiguracoesPage");
-export const EmBrevePage = pagina(() => import("@/routes/app/em-breve"), "EmBrevePage");
 
 /** Caminho do menu → chunk da página (pré-carga no hover/foco do item). */
 const POR_CAMINHO: Record<string, Pagina> = {

@@ -18,7 +18,6 @@ import {
   ClienteDetalhePage,
   ClientesPage,
   ConfiguracoesPage,
-  EmBrevePage,
   EditarClientePage,
   EquipePage,
   InicioPage,
@@ -100,8 +99,6 @@ export function App() {
               auditoria.ver. Quem decide são as RPCs perfil_* (migration 016); a página mostra "Sem acesso". */}
           <Route path="equipe/:id" element={<PerfilColaboradorPage />} />
           <Route path="configuracoes" element={<Pagina permissao={["configuracoes.gerenciar", "whatsapp.conexoes", "auditoria.ver"]}><ConfiguracoesPage /></Pagina>} />
-          {/* Módulos da fase 2 (lib/em-breve.ts): só a apresentação, para quem administra. */}
-          <Route path="em-breve/:modulo" element={<Pagina permissao="configuracoes.gerenciar"><EmBrevePage /></Pagina>} />
 
           <Route path="atendimento" element={<Redireciona para="/whatsapp" />} />
           <Route path="conexoes" element={<Navigate to="/configuracoes?tab=conexoes" replace />} />

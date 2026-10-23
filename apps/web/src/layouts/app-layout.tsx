@@ -339,7 +339,7 @@ function Sidebar({
               <p className="px-1.5 pt-4 pb-1 text-2xs font-semibold uppercase tracking-wide text-sidebar-muted">Em breve</p>
             )}
             {emBreve.map((item) => (
-              <ItemNav key={item.to} item={item} onNavigate={onNavigate} recolhida={recolhida} />
+              <ItemEmBreve key={item.to} item={item} recolhida={recolhida} />
             ))}
           </>
         )}
@@ -353,6 +353,43 @@ function Sidebar({
         {!onNavigate && <EuBotao naSidebar recolhida={recolhida} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * Módulo da fase 2 no menu: só o nome e o selo "Em breve", sem link (decisão do
+ * dono: não abre nada até existir de verdade).
+ */
+function ItemEmBreve({ item, recolhida }: { item: NavItem; recolhida?: boolean }) {
+  const Icon = item.icon;
+  const conteudo = (
+    <div
+      aria-disabled="true"
+      className={cn(
+        "flex h-10 toque:h-11 cursor-default select-none items-center gap-2.5 rounded-lg px-1.5 text-xs text-sidebar-muted",
+        recolhida && "justify-center",
+      )}
+    >
+      <span className="grid size-7 shrink-0 place-items-center rounded-md opacity-70">
+        <Icon className="size-[18px]" />
+      </span>
+      <span className={cn("flex-1 truncate opacity-80", recolhida && "sr-only")}>
+        {item.label}
+        {recolhida && " (em breve)"}
+      </span>
+      {!recolhida && (
+        <span className="ml-auto mr-1 shrink-0 rounded-full border border-sidebar-border px-1.5 py-px text-[10px] font-medium leading-4">
+          Em breve
+        </span>
+      )}
+    </div>
+  );
+  return recolhida ? (
+    <Tooltip label={`${item.label}: em breve`} side="right" delay={150}>
+      {conteudo}
+    </Tooltip>
+  ) : (
+    conteudo
   );
 }
 
@@ -418,20 +455,7 @@ function ItemNav({
               </span>
             ) : null}
           </span>
-          <span
-            className={cn(
-              "flex-1 truncate transition-opacity duration-150",
-              recolhida && "sr-only",
-              item.emBreve && !isActive && "text-sidebar-muted",
-            )}
-          >
-            {item.label}
-          </span>
-          {item.emBreve && !recolhida && (
-            <span className="ml-auto mr-1 shrink-0 rounded-full border border-sidebar-border px-1.5 py-px text-[10px] font-medium leading-4 text-sidebar-muted">
-              Em breve
-            </span>
-          )}
+          <span className={cn("flex-1 truncate transition-opacity duration-150", recolhida && "sr-only")}>{item.label}</span>
           {!recolhida && contador ? (
             <span
               className="ml-auto mr-1 min-w-5 h-5 rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground text-center tabular-nums"

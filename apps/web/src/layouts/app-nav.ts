@@ -25,7 +25,7 @@ export type NavItem = {
   modulo?: ModuloChave;
   /** Aparece para quem tem pelo menos uma destas permissões do cargo. */
   permissao?: string[];
-  /** Módulo da fase 2 ainda não feito: selo "Em breve" e página de apresentação. */
+  /** Módulo da fase 2 ainda não feito: aparece com o selo "Em breve", sem link. */
   emBreve?: boolean;
   /** Sub-páginas do módulo, mostradas quando o módulo está aberto. */
   filhos?: { to: string; label: string; end?: boolean; permissao?: string[] }[];
@@ -67,7 +67,7 @@ export const NAV_APP: NavItem[] = [
 
 /**
  * Fase 2 (reunião de 07/10/2026): seção "Em breve" no fim do menu, só para quem
- * administra (configuracoes.gerenciar). Cada item abre /em-breve/<chave>.
+ * administra (configuracoes.gerenciar). Só o nome e o selo; não abre nada.
  */
 export const NAV_EM_BREVE: NavItem[] = MODULOS_EM_BREVE.map((m) => ({
   to: `/em-breve/${m.chave}`,
