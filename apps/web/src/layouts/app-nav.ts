@@ -71,7 +71,7 @@ export const NAV_APP: NavItem[] = [
  */
 export const NAV_EM_BREVE: NavItem[] = MODULOS_EM_BREVE.map((m) => ({
   to: `/em-breve/${m.chave}`,
-  label: m.titulo,
+  label: m.menu,
   cor: "config",
   icon: m.icone,
   permissao: ["configuracoes.gerenciar"],

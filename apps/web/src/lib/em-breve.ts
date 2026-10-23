@@ -11,6 +11,8 @@ import { FileSignature, ListChecks, Target, Wallet } from "lucide-react";
 export type ModuloEmBreve = {
   chave: string;
   titulo: string;
+  /** Nome curto do menu (o título inteiro cortava na barra lateral). */
+  menu: string;
   icone: LucideIcon;
   /** Uma frase: o problema que o módulo resolve. */
   resumo: string;
@@ -22,6 +24,7 @@ export type ModuloEmBreve = {
 export const MODULOS_EM_BREVE: ModuloEmBreve[] = [
   {
     chave: "comercial",
+    menu: "Comercial",
     titulo: "Comercial (CRM)",
     icone: Target,
     resumo: "Acompanhar quem pediu orçamento até virar cliente, sem perder ninguém no caminho.",
@@ -35,6 +38,7 @@ export const MODULOS_EM_BREVE: ModuloEmBreve[] = [
   },
   {
     chave: "financeiro",
+    menu: "Financeiro",
     titulo: "Financeiro e cobranças",
     icone: Wallet,
     resumo: "Saber quem pagou e cobrar quem atrasou sem conferir boleto por boleto.",
@@ -50,6 +54,7 @@ export const MODULOS_EM_BREVE: ModuloEmBreve[] = [
   },
   {
     chave: "contratos",
+    menu: "Contratos",
     titulo: "Contratos",
     icone: FileSignature,
     resumo: "Gerar o contrato de prestação de serviço e colher a assinatura sem imprimir nada.",
@@ -62,6 +67,7 @@ export const MODULOS_EM_BREVE: ModuloEmBreve[] = [
   },
   {
     chave: "tarefas",
+    menu: "Tarefas",
     titulo: "Tarefas e entregas",
     icone: ListChecks,
     resumo: "As obrigações de cada cliente com prazo e responsável, e as guias entregues pelo portal.",
