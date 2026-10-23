@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import type { CorModulo } from "@/lib/cores-modulo";
+import { MODULOS_EM_BREVE } from "@/lib/em-breve";
 import type { ModuloChave } from "@/lib/modulos";
 
 export type NavItem = {
@@ -24,6 +25,8 @@ export type NavItem = {
   modulo?: ModuloChave;
   /** Aparece para quem tem pelo menos uma destas permissões do cargo. */
   permissao?: string[];
+  /** Módulo da fase 2 ainda não feito: selo "Em breve" e página de apresentação. */
+  emBreve?: boolean;
   /** Sub-páginas do módulo, mostradas quando o módulo está aberto. */
   filhos?: { to: string; label: string; end?: boolean; permissao?: string[] }[];
 };
@@ -61,6 +64,19 @@ export const NAV_APP: NavItem[] = [
   { to: "/pendencias-fiscais", label: "Pendências fiscais", cor: "fiscal", icon: Landmark, modulo: "pendenciasFiscais", permissao: ["serpro.consultar"] },
   { to: "/equipe", label: "Equipe", cor: "equipe", icon: UsersRound, modulo: "equipe", permissao: ["equipe.ver", "equipe.gerenciar"] },
 ];
+
+/**
+ * Fase 2 (reunião de 07/10/2026): seção "Em breve" no fim do menu, só para quem
+ * administra (configuracoes.gerenciar). Cada item abre /em-breve/<chave>.
+ */
+export const NAV_EM_BREVE: NavItem[] = MODULOS_EM_BREVE.map((m) => ({
+  to: `/em-breve/${m.chave}`,
+  label: m.titulo,
+  cor: "config",
+  icon: m.icone,
+  permissao: ["configuracoes.gerenciar"],
+  emBreve: true,
+}));
 
 /** Fica no pé do menu. Quem só gerencia números cai direto em Conexões. */
 export const NAV_CONFIGURACOES: NavItem = {

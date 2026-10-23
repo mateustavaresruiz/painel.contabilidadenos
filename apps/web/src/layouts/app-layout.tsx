@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { OfflineBanner } from "@/components/ui/query-error";
 import { PaginaSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
-import { NAV_APP, NAV_CONFIGURACOES, type NavItem } from "@/layouts/app-nav";
+import { NAV_APP, NAV_CONFIGURACOES, NAV_EM_BREVE, type NavItem } from "@/layouts/app-nav";
 import { useAplicarEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
 import { useContadorCertificados, useContadorChamados, useContadorWhatsapp } from "@/lib/queries/contadores";
@@ -248,6 +248,7 @@ function Sidebar({
   const configuracoes = tem("configuracoes.gerenciar")
     ? NAV_CONFIGURACOES
     : { ...NAV_CONFIGURACOES, to: podeConexoes ? "/configuracoes?tab=conexoes" : "/configuracoes?tab=auditoria" };
+  const emBreve = NAV_EM_BREVE.filter((i) => pode(i.permissao));
   const AlternarIcone = recolhida ? PanelLeftOpen : PanelLeftClose;
   const { data: contWhats } = useContadorWhatsapp(itens.some((i) => i.to === "/whatsapp"));
   const { data: contChamados } = useContadorChamados(itens.some((i) => i.to === "/chamados"));
@@ -330,6 +331,18 @@ function Sidebar({
             }
           />
         ))}
+        {emBreve.length > 0 && (
+          <>
+            {recolhida ? (
+              <div aria-hidden className="mx-2 my-2 border-t border-sidebar-border" />
+            ) : (
+              <p className="px-1.5 pt-4 pb-1 text-2xs font-semibold uppercase tracking-wide text-sidebar-muted">Em breve</p>
+            )}
+            {emBreve.map((item) => (
+              <ItemNav key={item.to} item={item} onNavigate={onNavigate} recolhida={recolhida} />
+            ))}
+          </>
+        )}
       </nav>
       <div className="px-3 pb-3 pt-2 border-t border-sidebar-border space-y-0.5 shrink-0">
         {verConfiguracoes && (
@@ -405,7 +418,20 @@ function ItemNav({
               </span>
             ) : null}
           </span>
-          <span className={cn("flex-1 truncate transition-opacity duration-150", recolhida && "sr-only")}>{item.label}</span>
+          <span
+            className={cn(
+              "flex-1 truncate transition-opacity duration-150",
+              recolhida && "sr-only",
+              item.emBreve && !isActive && "text-sidebar-muted",
+            )}
+          >
+            {item.label}
+          </span>
+          {item.emBreve && !recolhida && (
+            <span className="ml-auto mr-1 shrink-0 rounded-full border border-sidebar-border px-1.5 py-px text-[10px] font-medium leading-4 text-sidebar-muted">
+              Em breve
+            </span>
+          )}
           {!recolhida && contador ? (
             <span
               className="ml-auto mr-1 min-w-5 h-5 rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground text-center tabular-nums"
