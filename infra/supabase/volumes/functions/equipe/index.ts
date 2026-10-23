@@ -131,7 +131,7 @@ async function cargoExiste(id: string): Promise<boolean> {
   return !!data;
 }
 
-/** O cargo é de sistema (Administrador: todas as permissões)? */
+/** O cargo é de sistema (Desenvolvedor: todas as permissões, inclusive a área técnica)? */
 async function cargoSistema(id: string | null | undefined): Promise<boolean> {
   if (!id) return false;
   const { data } = await supabaseAdmin.from("Cargo").select("sistema").eq("id", id).maybeSingle();
@@ -139,12 +139,13 @@ async function cargoSistema(id: string | null | undefined): Promise<boolean> {
 }
 
 /**
- * Administrador só mexe em administrador. Quem tem equipe.gerenciar sem ser de
- * cargo sistema não põe ninguém (nem a si) no cargo Administrador e não gera
- * link, não manda acesso, não troca o e-mail, não desativa nem apaga quem já é
- * administrador: cada uma dessas era um caminho para virar administrador.
+ * Só o Desenvolvedor (cargo de sistema) mexe em quem é Desenvolvedor. Quem tem
+ * equipe.gerenciar sem ser do cargo de sistema (ex.: o cargo Administrador da
+ * dona do escritório) não põe ninguém (nem a si) no cargo Desenvolvedor e não
+ * gera link, não manda acesso, não troca o e-mail, não desativa nem apaga quem
+ * é Desenvolvedor: cada uma dessas era um caminho para tomar essa conta.
  */
-const SO_ADMIN = "Só um administrador pode fazer isso com o cargo Administrador.";
+const SO_ADMIN = "Só o Desenvolvedor pode fazer isso com quem é do cargo Desenvolvedor.";
 
 /** Erro do banco (gatilho com mensagem em português) vira 400 legível. */
 function erroDoBanco(e: { message?: string; code?: string } | null): Response | null {

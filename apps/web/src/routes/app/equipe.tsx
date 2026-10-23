@@ -127,7 +127,7 @@ function AbaPessoas({
 }) {
   const { data = [], isLoading, error, refetch } = useColaboradores();
   const { euId, tem, cargo: meuCargo } = useEu();
-  // Só administrador mexe em quem é do cargo Administrador (a function equipe
+  // Só o Desenvolvedor (cargo de sistema) mexe em quem é desse cargo (a function equipe
   // recusa o resto): os botões nem aparecem.
   const { data: cargos = [] } = useCargos();
   const cargosSistema = new Set(cargos.filter((x) => x.sistema).map((x) => x.id));
@@ -468,7 +468,7 @@ function AbaCargos({ gerenciar, novo, setNovo }: { gerenciar: boolean; novo: boo
                     {qtd} {qtd === 1 ? "pessoa" : "pessoas"}
                   </span>
                   <span>·</span>
-                  <span>{c.sistema ? "todas as permissões" : `${total} de ${TODAS_PERMISSOES.length} permissões`}</span>
+                  <span>{c.sistema ? "todas as permissões, inclusive a área técnica" : `${total} de ${TODAS_PERMISSOES.length} permissões`}</span>
                 </div>
                 {!c.sistema && (
                   <Button size="sm" variant="secondary" onClick={() => setEditando(c)}>

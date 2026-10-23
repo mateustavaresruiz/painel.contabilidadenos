@@ -92,9 +92,15 @@ SMTP), **Desativar/Reativar**, editar e excluir.
 
 Equipe > **Cargos**: criar, editar e apagar cargos marcando permissões por módulo
 ("marcar tudo do módulo" no cabeçalho de cada grupo). Cargo com pessoas não se apaga
-(mova as pessoas antes). O cargo **Administrador** é de sistema: tem todas as
-permissões, não se edita nem se apaga, e sempre precisa haver pelo menos uma pessoa
-ativa nele.
+(mova as pessoas antes). O cargo **Desenvolvedor** é o de sistema (migration 026, decisão do dono em 23/10/2026): tem todas
+as permissões, inclusive a **área técnica** (`sistema.tecnico`: Configurações > Integrações e
+Sistema, backup e Google Drive, log de erros e a chave "Entrar só com o e-mail"). Não se edita nem
+se apaga, sempre precisa haver pelo menos uma pessoa ativa nele, e só quem é dele mexe em quem é dele
+(link de acesso, e-mail, desativar, excluir: function `equipe`).
+
+O cargo **Administrador** (da dona do escritório) é comum: todas as permissões menos a área
+técnica. Gerencia equipe, cargos e configurações do dia a dia. O banco recusa pôr a área técnica em
+qualquer cargo pela tela (`cargo_guard`), e o editor de cargos nem a mostra.
 
 O catálogo está em `apps/web/src/lib/permissoes.ts` e na tabela `Permissao` (a do banco
 é a que vale para validar os cargos). Permissão nova = migration nova + o front.

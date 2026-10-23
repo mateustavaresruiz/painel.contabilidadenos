@@ -70,12 +70,20 @@ export const CATALOGO_PERMISSOES: GrupoPermissoes[] = [
   {
     modulo: "Configurações",
     permissoes: [
-      { chave: "configuracoes.gerenciar", rotulo: "Configurações do painel", descricao: "Módulos, integrações, marca e sistema." },
+      { chave: "configuracoes.gerenciar", rotulo: "Configurações do painel", descricao: "Geral, módulos, marca, importar e exportar." },
       { chave: "auditoria.ver", rotulo: "Ver a auditoria", descricao: "Vê o histórico completo do painel: quem fez o quê e quando, em todos os módulos." },
     ],
   },
 ];
 
 export const TODAS_PERMISSOES: string[] = CATALOGO_PERMISSOES.flatMap((g) => g.permissoes.map((p) => p.chave));
+
+/**
+ * Área técnica (Integrações, Sistema, backup, log de erros, entrada só com o
+ * e-mail): só o cargo Desenvolvedor, que é o de sistema e tem todas
+ * implícitas. Não aparece no editor de cargos e o banco recusa em outro cargo
+ * (cargo_guard, migration 026). Fica fora do catálogo de propósito.
+ */
+export const PERMISSAO_TECNICA = "sistema.tecnico";
 
 // Hooks: usePermissao / useAlgumaPermissao em lib/colaborador.tsx.

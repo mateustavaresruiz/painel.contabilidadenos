@@ -9,7 +9,8 @@
 // backups). Não lê nem apaga mais nada do Drive, e o Google não exige
 // verificação do app para esse escopo.
 //
-// Rotas (todas com o JWT do usuário e configuracoes.gerenciar, menos o callback):
+// Rotas (todas com o JWT do usuário e sistema.tecnico — área técnica, cargo
+// Desenvolvedor —, menos o callback):
 //   POST /google-drive/cliente { clientId, clientSecret } → salva o OAuth do Google Cloud
 //   POST /google-drive/conectar        → { url } da tela de consentimento do Google
 //   GET  /google-drive/callback?code&state → volta do Google (navegador): troca o
@@ -270,7 +271,7 @@ serve(async (req) => {
     }
   }
 
-  const eu = await exigirColaborador(req, { permissao: "configuracoes.gerenciar" });
+  const eu = await exigirColaborador(req, { permissao: "sistema.tecnico" });
   if (eu instanceof Response) return eu;
 
   if (req.method === "POST" && rota === "cliente") {

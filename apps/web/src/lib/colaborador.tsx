@@ -18,7 +18,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { TODAS_PERMISSOES } from "@/lib/permissoes";
+import { PERMISSAO_TECNICA, TODAS_PERMISSOES } from "@/lib/permissoes";
 import { useRealtimeInvalidate } from "@/lib/realtime";
 import { supabase } from "@/lib/supabase";
 
@@ -42,7 +42,7 @@ export type Cargo = {
   nome: string;
   descricao: string | null;
   permissoes: string[];
-  /** Administrador: todas as permissões, não se edita nem se apaga. */
+  /** Desenvolvedor (cargo de sistema): todas as permissões, inclusive a área técnica; não se edita nem se apaga. */
   sistema: boolean;
 };
 
@@ -151,7 +151,7 @@ export function ColaboradorProvider({ children }: { children: ReactNode }) {
 
   const cargo = euQuery.data?.cargo ?? null;
   const permissoes = useMemo<ReadonlySet<string>>(
-    () => new Set(cargo?.sistema ? TODAS_PERMISSOES : (cargo?.permissoes ?? [])),
+    () => new Set(cargo?.sistema ? [...TODAS_PERMISSOES, PERMISSAO_TECNICA] : (cargo?.permissoes ?? [])),
     [cargo],
   );
   const tem = useCallback((p: string) => permissoes.has(p), [permissoes]);
@@ -183,7 +183,7 @@ export function useEu(): Ctx {
 }
 
 /**
- * O colaborador logado tem a permissão? (Administrador tem todas.) Esconde
+ * O colaborador logado tem a permissão? (Desenvolvedor tem todas.) Esconde
  * menu, botão e ação; a regra de verdade está na RLS e nas functions.
  */
 export function usePermissao(p: string): boolean {

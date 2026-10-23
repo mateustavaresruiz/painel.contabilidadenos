@@ -3,7 +3,9 @@ import { ShieldAlert } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
+import { PERMISSAO_TECNICA } from "@/lib/permissoes";
 import { useLoginConfig } from "@/lib/login-google";
 import {
   MODULOS_PRINCIPAIS,
@@ -22,6 +24,8 @@ import { cn } from "@/lib/utils";
  * são respeitados pelo servidor (crons/certificados-avisos).
  */
 export function ConfigModulos() {
+  // "Entrar só com o e-mail" é segurança do login: só a área técnica vê e muda (026).
+  const tecnico = usePermissao(PERMISSAO_TECNICA);
   const { modulos, carregando } = useModulos();
   const salvar = useSalvarModulo();
   const googleLigado = useLoginConfig().data?.google === true;
@@ -79,7 +83,7 @@ export function ConfigModulos() {
             Partes de um módulo. Com o módulo desligado, a função fica desligada junto.
           </p>
           <ul className="mt-4 divide-y divide-divider">
-            {SUBFUNCOES.map((s) => {
+            {SUBFUNCOES.filter((s) => tecnico || s.chave !== "loginSemVerificacao").map((s) => {
               const pai = MODULOS_PRINCIPAIS.find((m) => m.chave === s.pai);
               const paiLigado = modulos[s.pai];
               const recomendarDesligar =

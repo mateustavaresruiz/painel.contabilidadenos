@@ -421,7 +421,7 @@ function WhatsappCard({
     const ok = await confirmar({
       titulo: "Excluir instância?",
       descricao:
-        "Remove a instância, todas as conversas e mensagens dela. A sessão é apagada também no servidor WAHA. Não pode ser desfeito.",
+        "Remove o número do painel, com todas as conversas e mensagens dele. A conexão é apagada também no servidor do WhatsApp. Não pode ser desfeito.",
       destructive: true,
       confirmLabel: "Excluir instância",
     });
@@ -430,7 +430,7 @@ function WhatsappCard({
       const res = await deletar.mutateAsync(sessao.id);
       if (res.wahaError) {
         toast.warning("Instância apagada localmente.", {
-          description: `WAHA não respondeu: ${res.wahaError}. Limpe a sessão "${sessao.nome}" manualmente no painel WAHA.`,
+          description: `O servidor do WhatsApp não respondeu (${res.wahaError}). Avise quem mantém o painel para limpar a conexão "${sessao.nome}" por lá.`,
           duration: 10_000,
         });
       } else {

@@ -108,7 +108,8 @@ function situacaoRequisito(
  */
 export function SerproStatusCard() {
   const { data, isLoading, error, refetch, isFetching } = useSerproStatus();
-  const admin = usePermissao("configuracoes.gerenciar");
+  // O link vai para Integrações, que é da área técnica.
+  const admin = usePermissao("sistema.tecnico");
   if (isLoading || (data?.configurado && !error)) return null;
   const foraDoAr = !!error;
 
