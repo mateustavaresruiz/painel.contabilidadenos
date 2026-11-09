@@ -279,7 +279,7 @@ function TelaSenha({ erroInicial, onEntrar }: { erroInicial?: string; onEntrar: 
         </div>
         <h1 className="text-center text-xl font-bold tracking-[-0.015em] sm:text-2xl">Portal do cliente</h1>
         <p className="mx-auto mt-2 max-w-xs text-center text-sm leading-relaxed text-muted-foreground [text-wrap:pretty]">
-          Digite a senha que a equipe da NÓS Contabilidade enviou para você. Ela chega em uma mensagem separada do link.
+          Digite a senha de acesso que a equipe da NÓS Contabilidade enviou para você.
         </p>
 
         <label htmlFor="senha-portal" className="mt-6 block text-sm font-medium">

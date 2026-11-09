@@ -94,14 +94,20 @@ export function useConfigPortal(clienteId: string) {
   });
 }
 
-/** Mensagem do WhatsApp com o link. A senha NÃO vai junto: segue separada. */
-export function mensagemLinkPortal(nome: string, link: string): string {
+/** Mensagem do WhatsApp com o link + a senha (ou só a senha nova quando regenerada). */
+export function mensagemLinkPortal(nome: string, link: string | null, senha: string): string {
   const primeiro = nome.trim().split(/\s+/)[0] ?? nome;
+  if (!link) {
+    return [
+      `Olá, ${primeiro}! Aqui está a sua nova senha de acesso ao Portal do Cliente da NÓS Contabilidade:`,
+      "",
+      `Senha: ${senha}`,
+    ].join("\n");
+  }
   return [
-    `Olá, ${primeiro}! Este é o link do seu Portal do Cliente da NÓS Contabilidade, onde você acompanha seus chamados e certificados e pode pedir qualquer coisa à nossa equipe:`,
+    `Olá, ${primeiro}! Este é o seu acesso ao Portal do Cliente da NÓS Contabilidade, onde você acompanha seus chamados e certificados e pode pedir qualquer coisa à nossa equipe:`,
     "",
-    link,
-    "",
-    "Por segurança, a senha de acesso vai separada. Se ainda não recebeu, é só pedir por aqui.",
+    `Link: ${link}`,
+    `Senha: ${senha}`,
   ].join("\n");
 }

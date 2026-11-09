@@ -145,8 +145,8 @@ export function PortalClienteAba({ clienteId, nome, telefone }: { clienteId: str
   return (
     <div className="max-w-3xl space-y-4">
       <p className="text-sm text-muted-foreground">
-        O portal é um endereço privado, com senha, onde o cliente vê os chamados, os certificados digitais e pede coisas à equipe. Você envia o link e a senha por
-        mensagens separadas.
+        O portal é um endereço privado, com senha, onde o cliente vê os chamados, os certificados digitais e pede coisas à equipe. Você envia o link e a senha pelo
+        WhatsApp.
       </p>
 
       <section className="rounded-card border bg-card p-4 shadow-card sm:p-5">
@@ -306,7 +306,7 @@ function CredencialDialog({
               ) : cred.novoLink ? (
                 <p className="text-xs text-muted-foreground">O link não tem data para expirar.</p>
               ) : null}
-              {cred.link && <EnviarWhatsApp clienteId={clienteId} nome={nome} telefone={telefone} link={cred.link} />}
+              <EnviarWhatsApp clienteId={clienteId} nome={nome} telefone={telefone} link={cred.link} senha={cred.senha} />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>
@@ -365,19 +365,31 @@ function Campo({ rotulo, valor, mono, oculto, abrir, extra }: { rotulo: string; 
 }
 
 /**
- * Abre a conversa do cliente no Atendimento com a mensagem (link + aviso de que a
- * senha vai separada) JÁ ESCRITA NO CAMPO. Não envia nada: a equipe revisa e aperta enviar.
+ * Abre a conversa do cliente no Atendimento com a mensagem (link + senha, ou só
+ * a senha nova) JÁ ESCRITA NO CAMPO. Não envia nada: a equipe revisa e aperta enviar.
  *
  * Abre em OUTRA ABA: esta janela (com a senha, que só aparece uma vez) continua
  * aberta aqui. Sem telefone no cadastro, diz por quê e leva ao cadastro (também
  * em outra aba, pelo mesmo motivo).
  */
-function EnviarWhatsApp({ clienteId, nome, telefone, link }: { clienteId: string; nome: string; telefone: string | null; link: string }) {
+function EnviarWhatsApp({
+  clienteId,
+  nome,
+  telefone,
+  link,
+  senha,
+}: {
+  clienteId: string;
+  nome: string;
+  telefone: string | null;
+  link: string | null;
+  senha: string;
+}) {
   const { ativo } = useModulos();
   const { data: sessoes = [] } = useWhatsappSessoes();
   const [abrindo, setAbrindo] = useState(false);
   if (!ativo("whatsapp")) return null;
-  const texto = mensagemLinkPortal(nome, link);
+  const texto = mensagemLinkPortal(nome, link, senha);
 
   async function abrir() {
     setAbrindo(true);
@@ -401,7 +413,7 @@ function EnviarWhatsApp({ clienteId, nome, telefone, link }: { clienteId: string
       } else {
         window.open(destino, "_blank", "noopener,noreferrer");
       }
-      toast.info("Conversa aberta em outra aba. A senha continua aqui até você concluir.");
+      toast.info("Conversa aberta em outra aba com o link e a senha no campo.");
     } catch (e) {
       aba?.close();
       toast.error(msgErro(e));
@@ -416,18 +428,17 @@ function EnviarWhatsApp({ clienteId, nome, telefone, link }: { clienteId: string
         <>
           <Button onClick={abrir} disabled={abrindo} className="w-full sm:w-auto">
             {abrindo ? <Loader2 className="animate-spin" /> : <MessageCircle />}
-            Enviar o link pelo WhatsApp
+            {link ? "Enviar link e senha pelo WhatsApp" : "Enviar senha pelo WhatsApp"}
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">
-            Abre a conversa em outra aba com a mensagem pronta no campo, sem enviar. Revise e aperte enviar. A senha não vai na
-            mensagem: copie aqui e mande separado.
+            Abre a conversa em outra aba com {link ? "o link e a senha prontos" : "a senha pronta"} no campo, sem enviar. Revise e aperte enviar.
           </p>
         </>
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             <strong className="text-foreground">Este cliente não tem telefone no cadastro</strong>, então não dá para abrir a
-            conversa do WhatsApp. Copie o link acima e envie por outro meio, ou cadastre o telefone.
+            conversa do WhatsApp. Copie acima e envie por outro meio, ou cadastre o telefone.
           </p>
           <Button asChild size="sm" variant="outline">
             <a href={`/clientes/${clienteId}/editar`} target="_blank" rel="noopener noreferrer">
