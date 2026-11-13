@@ -3,6 +3,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { type EmpresaAlerta, type SituacaoFiscal, situacaoFiscal } from "@/lib/alertas-fiscais";
 import { supabase } from "@/lib/supabase";
 
 export const SERVICOS_SERPRO = [
@@ -39,7 +40,7 @@ export type ClienteFiscal = {
   regimeTributario: string | null;
 };
 
-export type SituacaoResumo = "regular" | "com_pendencia" | "parcelado" | "erro" | "nunca";
+export type SituacaoResumo = SituacaoFiscal;
 
 export type LinhaResumo = {
   cliente: ClienteFiscal;
@@ -59,13 +60,7 @@ export type LinhaResumo = {
  * parcelamento ativo) > com pendência (SITFIS) > regular > nunca consultado.
  */
 export function situacaoDe(sitfis?: UltimaConsulta, parcel?: UltimaConsulta): SituacaoResumo {
-  const ativos = Number((parcel?.resultado as { ativos?: number } | null)?.ativos ?? 0);
-  if (!sitfis && !parcel) return "nunca";
-  if (sitfis?.status === "erro") return "erro";
-  if (ativos > 0) return "parcelado";
-  if (sitfis?.status === "com_pendencia") return "com_pendencia";
-  if (sitfis?.status === "ok") return "regular";
-  return parcel?.status === "erro" ? "erro" : "nunca";
+  return situacaoFiscal(sitfis, parcel);
 }
 
 export function useResumoFiscal() {
@@ -102,6 +97,70 @@ export function useResumoFiscal() {
           procuracaoStatus: !proc ? "nunca" : procStatus === "ativa" ? "ativa" : procStatus === "sem_procuracao" ? "sem_procuracao" : "erro",
         };
       });
+    },
+    staleTime: 30_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Central de alertas
+// ---------------------------------------------------------------------------
+
+/**
+ * Dados da Central de alertas: clientes ativos, a última consulta de cada
+ * serviço, consultas esperando PIN e a validade do certificado digital.
+ * Só lê o banco; nenhuma chamada ao Serpro. Os certificados são opcionais:
+ * quem não pode ver certificados recebe o resto normalmente.
+ */
+export function useAlertasFiscais(enabled = true) {
+  return useQuery({
+    queryKey: ["serpro-resumo", "alertas"],
+    enabled,
+    queryFn: async () => {
+      const desde = new Date(Date.now() - 86_400_000).toISOString();
+      const [cli, ult, pend, cert] = await Promise.all([
+        supabase.from("Cliente").select("id, nome, nomeFantasia, cpfCnpj, telefone").eq("ativo", true).order("nome").limit(5000),
+        supabase.from("ConsultaFiscalUltima").select("clienteId, servico, status, resumo, resultado, criadoEm").limit(20000),
+        supabase.from("ConsultaFiscal").select("clienteId, resultado").eq("status", "pendente").gte("criadoEm", desde).limit(2000),
+        supabase.from("CertificadoDigital").select("clienteId, validoAte").is("renovadoPorId", null).limit(10000),
+      ]);
+      if (cli.error) throw cli.error;
+      if (ult.error) throw ult.error;
+
+      const ultimas = new Map<string, EmpresaAlerta["ultimas"]>();
+      for (const u of (ult.data ?? []) as Array<UltimaConsulta>) {
+        const m = ultimas.get(u.clienteId) ?? {};
+        m[u.servico] = u;
+        ultimas.set(u.clienteId, m);
+      }
+      // PIN: a confirmação vive na memória do gateway e expira; só conta a que ainda vale.
+      const agora = Date.now();
+      const pin = new Map<string, number>();
+      for (const p of (pend.error ? [] : (pend.data ?? [])) as Array<{ clienteId: string; resultado: { confirmacao?: { expiraEm?: string } } | null }>) {
+        const exp = p.resultado?.confirmacao?.expiraEm;
+        if (!p.resultado?.confirmacao || (exp && new Date(exp).getTime() < agora)) continue;
+        pin.set(p.clienteId, (pin.get(p.clienteId) ?? 0) + 1);
+      }
+      const validade = new Map<string, string>();
+      for (const c of (cert.error ? [] : (cert.data ?? [])) as Array<{ clienteId: string; validoAte: string }>) {
+        const atual = validade.get(c.clienteId);
+        if (!atual || c.validoAte > atual) validade.set(c.clienteId, c.validoAte);
+      }
+
+      const empresas = ((cli.data ?? []) as Array<ClienteFiscal & { telefone: string | null }>).map(
+        (c): EmpresaAlerta => ({
+          id: c.id,
+          nome: c.nome,
+          nomeFantasia: c.nomeFantasia,
+          cpfCnpj: c.cpfCnpj,
+          telefone: c.telefone,
+          ultimas: ultimas.get(c.id) ?? {},
+          pendentesPin: pin.get(c.id) ?? 0,
+          certificadoValidoAte: validade.get(c.id) ?? null,
+        }),
+      );
+      const datas = (ult.data ?? []).map((u) => (u as UltimaConsulta).criadoEm).sort();
+      return { empresas, ultimaConsulta: datas[datas.length - 1] ?? null, temCertificados: !cert.error };
     },
     staleTime: 30_000,
   });

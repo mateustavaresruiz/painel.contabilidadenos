@@ -16,7 +16,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { AvatarIniciais } from "@/components/avatar-iniciais";
@@ -30,7 +30,9 @@ import { useEstilo, type Estilo } from "@/lib/aparencia";
 import { useEu } from "@/lib/colaborador";
 import { corModulo, type CorModulo } from "@/lib/cores-modulo";
 import { useModulos, type ModuloChave } from "@/lib/modulos";
+import { montarAlertas, resumirAlertas } from "@/lib/alertas-fiscais";
 import { useDashboard, type Dashboard } from "@/lib/queries/dashboard";
+import { useAlertasFiscais } from "@/lib/queries/serpro";
 import { plural as pluralTexto } from "@/lib/texto";
 import { cn } from "@/lib/utils";
 
@@ -109,6 +111,11 @@ function useInicio() {
   const certVencendo = d?.certificados.vencem30 ?? 0;
   const esperando = d?.atendimento.semResponsavel ?? 0;
   const atrasados = d?.chamados.atrasados ?? 0;
+  // Fiscal: empresas com alerta grave ou de atenção (só lê o banco, não o Serpro).
+  const veFiscal = verNumeros && ativo("pendenciasFiscais") && tem("serpro.consultar");
+  const fq = useAlertasFiscais(veFiscal);
+  const fiscal = useMemo(() => (fq.data ? resumirAlertas(montarAlertas(fq.data.empresas)) : null), [fq.data]);
+  const fiscalN = fiscal?.empresasComProblema ?? 0;
   const todosAtencao: (Atencao & { modulo: ModuloChave })[] = [
     {
       chave: "conversas",
@@ -148,6 +155,19 @@ function useInicio() {
       acao: "Ver certificados",
     },
     {
+      chave: "fiscal",
+      modulo: "pendenciasFiscais",
+      cor: "fiscal",
+      icon: Landmark,
+      valor: fiscalN,
+      titulo: plural(fiscalN, "empresa com alerta fiscal", "empresas com alerta fiscal"),
+      frase: pluralTexto(fiscalN, "empresa com alerta fiscal", "empresas com alerta fiscal"),
+      vazio: "Nenhum alerta fiscal",
+      extra: fiscal && fiscal.empresasGraves > 0 ? pluralTexto(fiscal.empresasGraves, "grave", "graves") : undefined,
+      to: "/pendencias-fiscais",
+      acao: "Ver alertas",
+    },
+    {
       chave: "aniversarios",
       modulo: "clientes",
       cor: "clientes",
@@ -161,7 +181,13 @@ function useInicio() {
       acao: "Dar parabéns",
     },
   ];
-  const atencao = todosAtencao.filter((a) => ativo(a.modulo) && (a.chave !== "aniversarios" || tem("aniversarios.ver") || tem("clientes.ver")));
+  const atencao = todosAtencao.filter(
+    (a) =>
+      ativo(a.modulo) &&
+      (a.chave !== "aniversarios" || tem("aniversarios.ver") || tem("clientes.ver")) &&
+      // Sem nenhuma consulta ainda, o cartão fiscal não diz nada: fica de fora.
+      (a.chave !== "fiscal" || (veFiscal && !!fq.data?.ultimaConsulta)),
+  );
 
   const atalhos: Atalho[] = [
     ativo("whatsapp") && tem("whatsapp.ver") && { chave: "wa", cor: "whatsapp", icon: MessageSquare, rotulo: "Abrir WhatsApp", to: "/whatsapp" },
@@ -477,7 +503,7 @@ function ValorAtencao({ a, carregando, classeNumero }: { a: Atencao; carregando:
 
 function GradeAtencao({ n, children }: { n: number; children: ReactNode }) {
   return (
-    <div className={cn("grid gap-3 sm:gap-4 grid-cols-2", n >= 4 && "xl:grid-cols-4", n === 3 && "xl:grid-cols-3")}>
+    <div className={cn("grid gap-3 sm:gap-4 grid-cols-2", n === 4 && "xl:grid-cols-4", n >= 5 && "lg:grid-cols-3 2xl:grid-cols-5", n === 3 && "xl:grid-cols-3")}>
       {children}
     </div>
   );
