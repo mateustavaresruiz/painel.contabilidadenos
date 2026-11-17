@@ -7,6 +7,7 @@ import { CarregandoMarca } from "@/components/marca-hexagono";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useEu } from "@/lib/colaborador";
+import { senhaDefinidaAgora, sessaoPorLink } from "@/lib/senha";
 
 function Carregando() {
   return (
@@ -17,8 +18,13 @@ function Carregando() {
 /**
  * Porteiro do painel: sem sessão vai para /login (guardando para onde ia);
  * com sessão mas sem Colaborador ativo amarrado, mostra "acesso não liberado".
+ *
+ * Quem ainda não criou a senha (Colaborador.senhaDefinidaEm nulo, migration
+ * 027) e entrou por link/código/"só com o e-mail" vai para "Crie sua senha"
+ * antes do painel. Sessão do Google não é mandada (o Auth pediria a senha
+ * atual, que a pessoa não tem); banco sem a coluna (undefined) também não.
  */
-export function AuthGate({ children }: { children: ReactNode }) {
+export function AuthGate({ children, exigirSenha = true }: { children: ReactNode; exigirSenha?: boolean }) {
   const { sessao, eu, carregando, erroSessao } = useEu();
   const { pathname, search } = useLocation();
   if (carregando) return <Carregando />;
@@ -28,6 +34,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
   if (erroSessao) return <FalhaAoAbrir />;
   if (!eu) return <AcessoNaoLiberado email={sessao.user.email ?? null} />;
+  if (exigirSenha && eu.senhaDefinidaEm === null && sessaoPorLink(sessao) && !senhaDefinidaAgora(sessao.user.id)) {
+    const next = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
+    return <Navigate to={`/auth/definir-senha${next}`} replace />;
+  }
   return <>{children}</>;
 }
 

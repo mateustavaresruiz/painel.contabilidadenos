@@ -62,6 +62,8 @@ export const ACAO_LABEL: Record<string, string> = {
   criado: "Criado",
   link_gerado: "Gerou o link do portal",
   link_revogado: "Revogou o link do portal",
+  link_senha_gerado: "Gerou link para redefinir a senha",
+  senha: "Criou ou trocou a senha",
   senha_regenerada: "Gerou senha nova do portal",
   cliente_acessou: "Cliente acessou o portal",
   chamado_aberto: "Chamado aberto pelo portal",

@@ -75,7 +75,9 @@ function trocarCodigo(codigo: string, viaGoogle: boolean): Promise<Falha | null>
  *  - link do e-mail e link de acesso gerado em Equipe:
  *    /auth/callback?token_hash=...&type=magiclink. O token vira sessão AQUI (e
  *    não num GET do Auth), assim um antivírus que "abre" o link do e-mail não
- *    gasta o token antes da pessoa;
+ *    gasta o token antes da pessoa. Com type=recovery ("Redefinir senha" em
+ *    Equipe) a pessoa entra e vai direto para "Crie uma senha nova"; no link
+ *    comum, quem ainda não tem senha é levado para criá-la pelo AuthGate;
  *  - "Entrar com Google": /auth/callback?via=google&code=... (PKCE), ou com
  *    error/error_code/error_description quando o Auth recusou;
  *  - link antigo do próprio Auth: #access_token=...&refresh_token=...
@@ -84,6 +86,10 @@ export function AuthCallbackPage() {
   usePageTitle("Entrando");
   const { sessao } = useEu();
   const [falha, setFalha] = useState<Falha | null>(null);
+  // Lido da URL já na primeira renderização: a sessão nova chega antes do .then().
+  const [destino] = useState(() =>
+    new URLSearchParams(window.location.search).get("type") === "recovery" ? "/auth/definir-senha?motivo=redefinir" : "/",
+  );
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -129,7 +135,7 @@ export function AuthCallbackPage() {
     setFalha(linkVencido("Link incompleto."));
   }, []);
 
-  if (sessao) return <Navigate to="/" replace />;
+  if (sessao) return <Navigate to={destino} replace />;
 
   return (
     <div className="min-h-dvh grid place-items-center bg-background p-4">

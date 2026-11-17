@@ -33,6 +33,11 @@ export type Colaborador = {
   cargo: string | null;
   ativo: boolean;
   userId: string | null;
+  /**
+   * Quando a pessoa criou/trocou a senha (migration 027). null = ainda sem
+   * senha própria; undefined = banco sem a coluna (027 não aplicada).
+   */
+  senhaDefinidaEm?: string | null;
   criadoEm: string;
   atualizadoEm: string;
 };

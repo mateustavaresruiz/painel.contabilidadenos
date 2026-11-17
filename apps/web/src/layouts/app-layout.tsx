@@ -1,4 +1,4 @@
-import { Check, LogOut, Menu, UserRound, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
+import { Check, KeyRound, LogOut, Menu, UserRound, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
 import { Suspense, useCallback, useEffect, useState, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import { BuscaGlobal, useAtalhoBusca } from "@/components/busca-global";
 import { ColaboradorAvatar } from "@/components/colaborador-avatar";
 import { Logo, LogoMark } from "@/components/logo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TrocarSenhaDialog } from "@/components/trocar-senha-dialog";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { OfflineBanner } from "@/components/ui/query-error";
 import { PaginaSkeleton } from "@/components/ui/skeleton";
@@ -505,95 +506,112 @@ function ItemNav({
   );
 }
 
-/** Quem está logado: nome, cargo, e-mail, tema e "Sair". */
+/** Quem está logado: nome, cargo, e-mail, tema, senha e "Sair". */
 function EuBotao({ compacto, recolhida, naSidebar, comNome }: { compacto?: boolean; recolhida?: boolean; naSidebar?: boolean; comNome?: boolean }) {
   const { eu, sessao, sair } = useEu();
   const { theme, setTheme } = useTheme();
   const [aberto, setAberto] = useState(false);
+  const [senhaAberta, setSenhaAberta] = useState(false);
   const soAvatar = compacto || recolhida;
   return (
-    <Popover open={aberto} onOpenChange={setAberto}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex items-center gap-3 rounded-md text-left transition-[background-color,transform] duration-150 active:scale-[.98]",
-            naSidebar ? "hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover" : "hover:bg-accent/70 data-[state=open]:bg-accent/70",
-            compacto && comNome ? "py-1 pl-1 pr-3 rounded-full gap-2.5" : compacto ? "p-1 -mr-1 rounded-full max-lg:size-11 max-lg:justify-center max-lg:p-0 max-lg:mr-0" : recolhida ? "w-full justify-center py-1.5" : "w-full px-2 py-1.5",
-          )}
-          aria-label="Sua conta"
-        >
-          {eu ? (
-            <ColaboradorAvatar nome={eu.nome} cor={eu.cor} size={compacto && !comNome ? "xs" : "sm"} />
-          ) : (
-            <LogoMark className="size-7" />
-          )}
-          {comNome && (
-            <span className="hidden lg:block text-xs font-semibold max-w-[160px] truncate">{eu?.nome?.split(" ")[0]}</span>
-          )}
-          {!soAvatar && (
-            <span className="flex-1 min-w-0">
-              <span className="block text-xs font-semibold truncate">{eu?.nome}</span>
-              <span className="block text-2xs text-sidebar-muted truncate">{eu?.cargo ?? ""}</span>
-            </span>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align={compacto ? "end" : "start"}
-        side={compacto ? "bottom" : recolhida ? "right" : "top"}
-        className="w-64 p-1.5"
-      >
-        <div className="px-2.5 pt-2 pb-2.5">
-          <p className="text-sm font-semibold truncate">{eu?.nome}</p>
-          <p className="text-2xs text-muted-foreground truncate">{eu?.email ?? sessao?.user.email}</p>
-          {eu?.cargo && <p className="text-2xs text-muted-foreground">{eu.cargo}</p>}
-        </div>
-        <div className="border-t border-divider pt-1.5 pb-1">
-          <p className="px-2.5 pb-1 text-2xs text-muted-foreground">Aparência</p>
-          {(
-            [
-              { valor: "light", rotulo: "Claro", Icone: Sun },
-              { valor: "dark", rotulo: "Escuro", Icone: Moon },
-            ] as const
-          ).map(({ valor, rotulo, Icone }) => (
-            <button
-              key={valor}
-              type="button"
-              onClick={() => setTheme(valor)}
-              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
-              aria-pressed={theme === valor}
-            >
-              <Icone className="size-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{rotulo}</span>
-              {theme === valor && <Check className="size-4 text-primary" />}
-            </button>
-          ))}
-        </div>
-        <div className="border-t border-divider pt-1">
-          {eu && (
-            <Link
-              to={`/equipe/${eu.id}`}
-              onClick={() => setAberto(false)}
-              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
-            >
-              <UserRound className="size-4 text-muted-foreground" />
-              Meu perfil
-            </Link>
-          )}
+    <>
+      <Popover open={aberto} onOpenChange={setAberto}>
+        <PopoverTrigger asChild>
           <button
             type="button"
-            onClick={() => {
-              setAberto(false);
-              void sair();
-            }}
-            className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
+            className={cn(
+              "flex items-center gap-3 rounded-md text-left transition-[background-color,transform] duration-150 active:scale-[.98]",
+              naSidebar ? "hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover" : "hover:bg-accent/70 data-[state=open]:bg-accent/70",
+              compacto && comNome ? "py-1 pl-1 pr-3 rounded-full gap-2.5" : compacto ? "p-1 -mr-1 rounded-full max-lg:size-11 max-lg:justify-center max-lg:p-0 max-lg:mr-0" : recolhida ? "w-full justify-center py-1.5" : "w-full px-2 py-1.5",
+            )}
+            aria-label="Sua conta"
           >
-            <LogOut className="size-4 text-muted-foreground" />
-            Sair
+            {eu ? (
+              <ColaboradorAvatar nome={eu.nome} cor={eu.cor} size={compacto && !comNome ? "xs" : "sm"} />
+            ) : (
+              <LogoMark className="size-7" />
+            )}
+            {comNome && (
+              <span className="hidden lg:block text-xs font-semibold max-w-[160px] truncate">{eu?.nome?.split(" ")[0]}</span>
+            )}
+            {!soAvatar && (
+              <span className="flex-1 min-w-0">
+                <span className="block text-xs font-semibold truncate">{eu?.nome}</span>
+                <span className="block text-2xs text-sidebar-muted truncate">{eu?.cargo ?? ""}</span>
+              </span>
+            )}
           </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverTrigger>
+        <PopoverContent
+          align={compacto ? "end" : "start"}
+          side={compacto ? "bottom" : recolhida ? "right" : "top"}
+          className="w-64 p-1.5"
+        >
+          <div className="px-2.5 pt-2 pb-2.5">
+            <p className="text-sm font-semibold truncate">{eu?.nome}</p>
+            <p className="text-2xs text-muted-foreground truncate">{eu?.email ?? sessao?.user.email}</p>
+            {eu?.cargo && <p className="text-2xs text-muted-foreground">{eu.cargo}</p>}
+          </div>
+          <div className="border-t border-divider pt-1.5 pb-1">
+            <p className="px-2.5 pb-1 text-2xs text-muted-foreground">Aparência</p>
+            {(
+              [
+                { valor: "light", rotulo: "Claro", Icone: Sun },
+                { valor: "dark", rotulo: "Escuro", Icone: Moon },
+              ] as const
+            ).map(({ valor, rotulo, Icone }) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setTheme(valor)}
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
+                aria-pressed={theme === valor}
+              >
+                <Icone className="size-4 text-muted-foreground" />
+                <span className="flex-1 text-left">{rotulo}</span>
+                {theme === valor && <Check className="size-4 text-primary" />}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-divider pt-1">
+            {eu && (
+              <Link
+                to={`/equipe/${eu.id}`}
+                onClick={() => setAberto(false)}
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
+              >
+                <UserRound className="size-4 text-muted-foreground" />
+                Meu perfil
+              </Link>
+            )}
+            {eu && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAberto(false);
+                  setSenhaAberta(true);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
+              >
+                <KeyRound className="size-4 text-muted-foreground" />
+                {eu.senhaDefinidaEm === null ? "Criar senha" : "Trocar senha"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setAberto(false);
+                void sair();
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 h-9 toque:h-11 text-xs transition-colors hover:bg-accent"
+            >
+              <LogOut className="size-4 text-muted-foreground" />
+              Sair
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
+      <TrocarSenhaDialog aberto={senhaAberta} onFechar={() => setSenhaAberta(false)} />
+    </>
   );
 }
