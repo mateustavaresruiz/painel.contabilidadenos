@@ -3,7 +3,7 @@ import { ShieldAlert } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { usePermissao } from "@/lib/colaborador";
+import { useColaboradores, usePermissao } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
 import { PERMISSAO_TECNICA } from "@/lib/permissoes";
 import { useLoginConfig } from "@/lib/login-google";
@@ -29,6 +29,12 @@ export function ConfigModulos() {
   const { modulos, carregando } = useModulos();
   const salvar = useSalvarModulo();
   const googleLigado = useLoginConfig().data?.google === true;
+  // Quem da equipe ativa ainda não criou senha (migration 027; sem a coluna, não se sabe).
+  const { data: equipe } = useColaboradores();
+  const ativos = (equipe ?? []).filter((c) => c.ativo && c.userId);
+  const semSenha = ativos.some((c) => c.senhaDefinidaEm === undefined)
+    ? null
+    : ativos.filter((c) => c.senhaDefinidaEm === null);
 
   function alternar(chave: ModuloChave, valor: boolean) {
     salvar.mutate(
@@ -86,15 +92,19 @@ export function ConfigModulos() {
             {SUBFUNCOES.filter((s) => tecnico || s.chave !== "loginSemVerificacao").map((s) => {
               const pai = MODULOS_PRINCIPAIS.find((m) => m.chave === s.pai);
               const paiLigado = modulos[s.pai];
-              const recomendarDesligar =
-                s.chave === "loginSemVerificacao" && googleLigado && modulos[s.chave] && paiLigado;
+              const soEmailLigado = s.chave === "loginSemVerificacao" && modulos[s.chave] && paiLigado;
+              const aviso = !soEmailLigado
+                ? undefined
+                : semSenha && semSenha.length === 0 && ativos.length > 0
+                  ? "Toda a equipe já criou senha: recomendamos desligar a entrada só com o e-mail. Quem souber o e-mail de alguém da equipe consegue entrar como ele; com a senha, cada pessoa entra com a sua."
+                  : semSenha && semSenha.length > 0
+                    ? `Ainda sem senha: ${semSenha.map((c) => c.nome.split(" ")[0]).join(", ")}. Quem entra só com o e-mail é levado a criar a senha; para os outros, gere um link de acesso em Equipe. Desligue esta entrada quando todos tiverem senha.`
+                    : googleLigado
+                      ? "O login com Google já está configurado: recomendamos desligar a entrada só com o e-mail. Quem souber o e-mail de alguém da equipe consegue entrar como ele; com o Google, cada pessoa entra com a própria conta."
+                      : undefined;
               return (
                 <Linha
-                  aviso={
-                    recomendarDesligar
-                      ? "O login com Google já está configurado: recomendamos desligar a entrada só com o e-mail. Quem souber o e-mail de alguém da equipe consegue entrar como ele; com o Google, cada pessoa entra com a própria conta."
-                      : undefined
-                  }
+                  aviso={aviso}
                   key={s.chave}
                   id={`sub-${s.chave}`}
                   nome={s.nome}

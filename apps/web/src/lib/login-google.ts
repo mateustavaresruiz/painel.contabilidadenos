@@ -16,9 +16,14 @@ export type LoginConfig = {
   google: boolean;
   /** "Entrar só com o e-mail (provisório)" ligado em Configurações > Módulos. */
   soEmail: boolean;
+  /** O Auth manda e-mail (SMTP configurado): "receber link e código por e-mail" funciona. */
+  email: boolean;
 };
 
-/** Pública (sem login): a tela de entrada decide se mostra o botão do Google. */
+/**
+ * Pública (sem login): a tela de entrada decide o que mostrar além de e-mail e
+ * senha (botão do Google, "só com o e-mail", link por e-mail).
+ */
 export function useLoginConfig() {
   return useQuery({
     queryKey: ["login", "config"],
@@ -26,7 +31,7 @@ export function useLoginConfig() {
       const r = await fetch(`${SUPABASE_URL}/functions/v1/entrar/config`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = (await r.json()) as Partial<LoginConfig>;
-      return { google: j.google === true, soEmail: j.soEmail === true };
+      return { google: j.google === true, soEmail: j.soEmail === true, email: j.email === true };
     },
     staleTime: 60_000,
     retry: 1,

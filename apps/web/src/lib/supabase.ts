@@ -9,7 +9,7 @@ if (!url || !anonKey) {
   );
 }
 
-// Login por e-mail sem senha (docs/LOGIN.md). A sessão fica guardada no
+// Login com e-mail e senha ou por link (docs/LOGIN.md). A sessão fica guardada no
 // navegador e é renovada sozinha; com ela o supabase-js manda o JWT do
 // usuário em toda consulta, no Storage e no Realtime, e a RLS decide o resto.
 // A chave anon sozinha não lê nada.

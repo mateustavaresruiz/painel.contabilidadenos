@@ -4,14 +4,18 @@
 // 🔴 ENTRADA SÓ COM O E-MAIL, SEM CONFERIR A CAIXA DE ENTRADA (decisão do dono,
 // 15/10/2026, enquanto o servidor de e-mail não está configurado). Quem souber
 // o e-mail de alguém da equipe entra como essa pessoa. Liga e desliga em
-// Configurações > Módulos (Config 'modulos'.loginSemVerificacao). Quando o
-// SMTP estiver funcionando, DESLIGUE: o login volta a ser só por link/código.
+// Configurações > Módulos (Config 'modulos'.loginSemVerificacao). Quando toda
+// a equipe tiver senha (Equipe mostra quem falta), DESLIGUE: o login passa a
+// ser e-mail e senha (e link/código por e-mail quando houver SMTP).
 //
 //   GET  /entrar → desafio ALTCHA (prova de trabalho; o navegador resolve)
-//   GET  /entrar/config → { google, soEmail }: o que a tela de entrada mostra.
-//        google = o Auth está com o provedor Google ligado (lido do próprio
-//        GoTrue em /auth/v1/settings); soEmail = esta entrada está ligada.
-//        Público e sem nada além desses dois booleanos.
+//   GET  /entrar/config → { senha, google, soEmail, email }: o que a tela de
+//        entrada mostra. senha = login com e-mail e senha (sempre ligado; a tela
+//        o usa como caminho principal); google = o Auth está com o provedor
+//        Google ligado (lido do próprio GoTrue em /auth/v1/settings); soEmail =
+//        esta entrada está ligada; email = o Auth manda e-mail (SMTP_HOST
+//        preenchido), então "receber link e código por e-mail" funciona.
+//        Público e sem nada além desses booleanos.
 //   POST /entrar { email, altcha } → { token_hash } que a tela troca por sessão com
 //        verifyOtp({ token_hash, type: 'magiclink' }), o mesmo caminho do link.
 //
@@ -30,6 +34,8 @@ import { createChallenge, verifySolution } from "npm:altcha-lib@2.6.0/v1";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ALTCHA_KEY = Deno.env.get("ALTCHA_HMAC_KEY") ?? "";
+/** O Auth manda e-mail? (o mesmo SMTP_HOST do serviço; a senha do SMTP não vem). */
+const SMTP_LIGADO = (Deno.env.get("SMTP_HOST") ?? "").trim().length > 0;
 
 /** A chave vale enquanto não for desligada explicitamente. */
 async function liberado(): Promise<boolean> {
@@ -65,7 +71,7 @@ serve(async (req) => {
   if (sub === "config") {
     if (req.method !== "GET") return notFound();
     const [google, soEmail] = await Promise.all([googleLigado(), liberado().catch(() => false)]);
-    return json({ google, soEmail }, { headers: { "Cache-Control": "no-store" } });
+    return json({ senha: true, google, soEmail, email: SMTP_LIGADO }, { headers: { "Cache-Control": "no-store" } });
   }
   if (sub) return notFound();
   if (!ALTCHA_KEY) {

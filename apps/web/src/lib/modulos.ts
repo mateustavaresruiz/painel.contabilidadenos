@@ -83,7 +83,7 @@ export const SUBFUNCOES: { chave: ModuloChave; pai: ModuloChave; nome: string; d
     chave: "loginSemVerificacao",
     pai: "equipe",
     nome: "Entrar só com o e-mail (provisório)",
-    descricao: "Entra sem conferir a caixa de entrada. Quem souber o e-mail de alguém da equipe entra como ele. Desligue quando o e-mail do painel estiver funcionando.",
+    descricao: "Entra sem senha e sem conferir a caixa de entrada. Quem souber o e-mail de alguém da equipe entra como ele. Desligue quando toda a equipe tiver criado a senha.",
   },
 ];
 

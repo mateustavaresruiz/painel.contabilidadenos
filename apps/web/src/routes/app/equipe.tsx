@@ -42,7 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useColaboradores, useEu, usePermissao, type Cargo, type Colaborador } from "@/lib/colaborador";
 import { msgErro } from "@/lib/erro";
-import { formatTelefone } from "@/lib/format";
+import { formatData, formatTelefone } from "@/lib/format";
 import { CATALOGO_PERMISSOES, TODAS_PERMISSOES } from "@/lib/permissoes";
 import {
   useAtualizarPessoa,
@@ -140,7 +140,7 @@ function AbaPessoas({
   const enviarAcesso = useEnviarAcesso();
   const { data: email } = useEmailStatus(gerenciar);
   const [editando, setEditando] = useState<Colaborador | null>(null);
-  const [link, setLink] = useState<{ nome: string; link: string; aviso?: string } | null>(null);
+  const [link, setLink] = useState<DadosLink | null>(null);
 
   async function remover(c: Colaborador) {
     const ok = await confirmar({
@@ -174,17 +174,44 @@ function AbaPessoas({
   }
 
   async function linkDeAcesso(c: Colaborador) {
+    const semSenha = c.senhaDefinidaEm === null;
     const ok = await confirmar({
       titulo: `Gerar link de acesso para ${c.nome}?`,
-      descricao:
-        "O link entra no painel sem senha, funciona uma vez e expira em 15 minutos. Gerar um link novo invalida o último link ou código enviado por e-mail.",
+      descricao: semSenha
+        ? "Pelo link a pessoa entra no painel e já cria a senha dela. Funciona uma vez e expira em 15 minutos. Gerar um link novo invalida o último link ou código enviado por e-mail."
+        : "O link entra no painel sem senha, funciona uma vez e expira em 15 minutos. Gerar um link novo invalida o último link ou código enviado por e-mail.",
       confirmLabel: "Gerar link",
     });
     if (!ok) return;
-    gerarLink.mutate(c.id, {
-      onSuccess: (r) => setLink({ nome: c.nome, link: r.link }),
-      onError: (e) => toast.error(msgErro(e)),
+    gerarLink.mutate(
+      { id: c.id },
+      {
+        onSuccess: (r) =>
+          setLink({
+            nome: c.nome,
+            link: r.link,
+            aviso: semSenha ? "Ao entrar pelo link, a pessoa cria a senha dela antes de usar o painel." : undefined,
+          }),
+        onError: (e) => toast.error(msgErro(e)),
+      },
+    );
+  }
+
+  async function redefinirSenha(c: Colaborador) {
+    const ok = await confirmar({
+      titulo: `Redefinir a senha de ${c.nome}?`,
+      descricao:
+        "Gera um link de uso único (15 minutos). A pessoa abre o link, entra e cria uma senha nova; a senha atual continua valendo até ela trocar. Nada é enviado: copie o link e mande só para a própria pessoa.",
+      confirmLabel: "Gerar link",
     });
+    if (!ok) return;
+    gerarLink.mutate(
+      { id: c.id, senha: true },
+      {
+        onSuccess: (r) => setLink({ nome: c.nome, link: r.link, senha: true }),
+        onError: (e) => toast.error(msgErro(e)),
+      },
+    );
   }
 
   function aposConvite(r: ResultadoConvite) {
@@ -196,8 +223,8 @@ function AbaPessoas({
         nome: r.colaborador.nome,
         link: r.link,
         aviso: r.erroEmail
-          ? `O e-mail não foi enviado (${r.erroEmail}). Mande este link por outro meio.`
-          : "O e-mail do painel ainda não está configurado. Mande este link por outro meio (WhatsApp, por exemplo).",
+          ? `O e-mail não foi enviado (${r.erroEmail}). Mande este link por outro meio. Ao entrar, a pessoa cria a senha dela.`
+          : "O e-mail do painel ainda não está configurado. Mande este link por outro meio (WhatsApp, por exemplo). Ao entrar, a pessoa cria a senha dela.",
       });
     }
   }
@@ -258,6 +285,7 @@ function AbaPessoas({
                       {formatTelefone(c.telefone)}
                     </p>
                   )}
+                  {gerenciar && c.userId && c.senhaDefinidaEm !== undefined && <SituacaoSenha quando={c.senhaDefinidaEm} />}
                 </div>
                 {mexe(c) && (
                   <div className="flex items-center gap-0.5 -mr-2 -mt-1.5 shrink-0">
@@ -291,6 +319,12 @@ function AbaPessoas({
                     <Button size="sm" variant="ghost" onClick={() => void linkDeAcesso(c)} disabled={gerarLink.isPending}>
                       <Link2 />
                       Gerar link de acesso
+                    </Button>
+                  )}
+                  {mexe(c) && c.ativo && c.email && c.senhaDefinidaEm && (
+                    <Button size="sm" variant="ghost" onClick={() => void redefinirSenha(c)} disabled={gerarLink.isPending}>
+                      <KeyRound />
+                      Redefinir senha
                     </Button>
                   )}
                   {mexe(c) && c.ativo && c.email && email?.configurado && (
@@ -336,7 +370,7 @@ function AbaPessoas({
             <DialogDescription>
               {editando
                 ? "Trocar o e-mail muda também o login. O cargo define o que a pessoa pode fazer."
-                : "A pessoa entra com este e-mail, sem senha. Não há cadastro público: só entra quem for convidado aqui."}
+                : "A pessoa recebe um link de acesso (sem e-mail configurado, você copia e manda) e, ao entrar, cria a senha dela. Não há cadastro público: só entra quem for convidado aqui."}
             </DialogDescription>
           </DialogHeader>
           {(convidando || editando) && (
@@ -359,11 +393,28 @@ function AbaPessoas({
   );
 }
 
+type DadosLink = { nome: string; link: string; aviso?: string; /** Link de "Redefinir senha". */ senha?: boolean };
+
+/** "Senha criada em ..." ou "Ainda sem senha" (Colaborador.senhaDefinidaEm, migration 027). */
+function SituacaoSenha({ quando }: { quando: string | null }) {
+  return quando ? (
+    <p className="text-2xs text-muted-foreground flex items-center gap-1.5" title="Quando a pessoa criou ou trocou a senha">
+      <KeyRound className="size-3 shrink-0" />
+      Senha criada · {formatData(quando)}
+    </p>
+  ) : (
+    <p className="text-2xs text-warning flex items-center gap-1.5" title="Gere um link de acesso: ao entrar, a pessoa cria a senha">
+      <KeyRound className="size-3 shrink-0" />
+      Ainda sem senha
+    </p>
+  );
+}
+
 function LinkAcessoDialog({
   dados,
   onClose,
 }: {
-  dados: { nome: string; link: string; aviso?: string } | null;
+  dados: DadosLink | null;
   onClose: () => void;
 }) {
   async function copiar() {
@@ -379,10 +430,10 @@ function LinkAcessoDialog({
     <Dialog open={!!dados} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Link de acesso de {dados?.nome}</DialogTitle>
+          <DialogTitle>{dados?.senha ? `Link para ${dados.nome} redefinir a senha` : `Link de acesso de ${dados?.nome}`}</DialogTitle>
           <DialogDescription>
-            Funciona uma vez e expira em 15 minutos. Quem abrir o link entra como {dados?.nome}: mande só para a
-            própria pessoa.
+            Funciona uma vez e expira em 15 minutos. Quem abrir o link entra como {dados?.nome}
+            {dados?.senha ? " e cria a senha nova" : ""}: mande só para a própria pessoa.
           </DialogDescription>
         </DialogHeader>
         {dados?.aviso && <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{dados.aviso}</p>}

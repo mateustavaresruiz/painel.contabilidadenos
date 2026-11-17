@@ -17,10 +17,20 @@
 //      e entra, sem auditoria duplicada;
 //   7. sair com scope=local derruba só aquela sessão;
 //   8. pessoa desativada não entra (link, código, só e-mail, sessão antiga);
-//   9. e-mail desconhecido é recusado.
+//   9. e-mail desconhecido é recusado;
+//  10. senha (migration 027 e GOTRUE_PASSWORD_* / ..._REQUIRE_CURRENT_PASSWORD):
+//      pessoa convidada começa sem senha; pela sessão do link cria a senha sem
+//      pedir a atual; a data e a auditoria aparecem; entra com e-mail e senha;
+//      senha errada dá a mesma resposta que e-mail inexistente; senha curta é
+//      recusada; trocar logado com senha exige a atual e derruba as outras
+//      sessões; o link "Redefinir senha" (equipe /:id/link {senha:true}) deixa
+//      criar outra sem a atual e a antiga para de valer; desativada não entra.
 // Imprime PASSOU/FALHOU por item, sem token, senha nem link. Nunca desloga
 // ninguém além das pessoas de teste. Código de saída 1 se algo falhar.
 import { createHash, randomBytes } from 'node:crypto';
+
+/** Senha aleatória forte (nunca impressa; não aparece em vazamento nenhum). */
+const senhaQa = () => `qa ${randomBytes(12).toString('base64url')} Aa1!`;
 
 const URL_ = (process.env.SUPABASE_URL ?? '').replace(/\/+$/, '');
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -72,6 +82,26 @@ async function gerarToken(email) {
 const verificarHash = (hash, type = 'magiclink') => http('/auth/v1/verify', { method: 'POST', body: { type, token_hash: hash } });
 const verificarCodigo = (email, token) => http('/auth/v1/verify', { method: 'POST', body: { type: 'email', email, token } });
 const renovar = (refresh) => http('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: refresh } });
+const entrarComSenha = (email, password) => http('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password } });
+/** PUT /auth/v1/user com a sessão da pessoa (o mesmo que supabase.auth.updateUser). */
+const trocarSenha = (token, body) => http('/auth/v1/user', { method: 'PUT', token, body });
+async function colaborador(id) {
+  const r = await admin(`/rest/v1/Colaborador?select=*&id=eq.${id}`);
+  return Array.isArray(r.json) ? r.json[0] ?? null : null;
+}
+async function eventosSenha(colabId) {
+  const q = new URLSearchParams({ select: 'resumo,criadoEm', modulo: 'eq.acesso', acao: 'eq.senha', atorId: `eq.${colabId}`, order: 'id.desc' });
+  const r = await admin(`/rest/v1/AuditoriaEvento?${q}`);
+  return Array.isArray(r.json) ? r.json : [];
+}
+/** Métodos de entrada da sessão (claim amr do JWT). */
+const metodos = (jwt) => {
+  try {
+    return (JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString()).amr ?? []).map((a) => a.method);
+  } catch {
+    return [];
+  }
+};
 
 async function eventosLogin(colabId) {
   const q = new URLSearchParams({
@@ -133,7 +163,7 @@ async function main() {
 
   // ---------------- 1. Convites pela function equipe ----------------
   const pessoas = {};
-  for (const [chave, nome] of [['link', 'TESTE QA Link'], ['codigo', 'TESTE QA Código'], ['soemail', 'TESTE QA Só e-mail']]) {
+  for (const [chave, nome] of [['link', 'TESTE QA Link'], ['codigo', 'TESTE QA Código'], ['soemail', 'TESTE QA Só e-mail'], ['senha', 'TESTE QA Senha']]) {
     const r = await equipe('/convidar', jwtAdm, { method: 'POST', body: { nome, email: emailQa(chave), cargoId: cargoComum } });
     if (r.json?.colaborador?.id) {
       criados.colabIds.add(r.json.colaborador.id);
@@ -227,7 +257,66 @@ async function main() {
   const vazou = (lista.json?.users ?? []).some((x) => x.email === desconhecido);
   registrar('desconhecido: nenhum usuário criado', !vazou);
 
-  // ---------------- 8. Limpeza das pessoas convidadas (pela function) ----------------
+  // ---------------- 8. Senha ----------------
+  // Pessoa própria: trocar a senha derruba as OUTRAS sessões dela, então não mexe nas de cima.
+  const S = pessoas.senha;
+  const antes = await colaborador(S.id);
+  const temColuna = !!antes && 'senhaDefinidaEm' in antes;
+  registrar('senha: convidado começa sem senha própria (027)', temColuna && antes.senhaDefinidaEm === null,
+    temColuna ? `senhaDefinidaEm ${antes.senhaDefinidaEm === null ? 'nula' : 'preenchida'}` : 'coluna senhaDefinidaEm ausente: aplicar a 027');
+  const sS = await verificarHash((await gerarToken(S.email)).hash);
+  const curta = await trocarSenha(sS.json?.access_token, { password: 'Qa1!curta' });
+  registrar('senha: menos de 10 caracteres é recusada', curta.status === 422 && curta.json?.error_code === 'weak_password',
+    `${msg(curta)} (GOTRUE_PASSWORD_MIN_LENGTH)`);
+  const senha1 = senhaQa();
+  const criou = await trocarSenha(sS.json?.access_token, { password: senha1 });
+  registrar('senha: sessão do link cria a senha sem pedir a atual', criou.ok, criou.ok ? '' : msg(criou));
+  await esperar(300);
+  const depois = await colaborador(S.id);
+  registrar('senha: data gravada em Equipe (gatilho da 027)', !!depois?.senhaDefinidaEm, depois?.senhaDefinidaEm ? '' : 'senhaDefinidaEm continua nula');
+  const evSenha = await eventosSenha(S.id);
+  registrar('senha: auditoria "criou a senha de acesso"', evSenha.some((e) => e.resumo === 'criou a senha de acesso'), `${evSenha.length} evento(s)`);
+
+  const pS = await entrarComSenha(S.email, senha1);
+  registrar('senha: entra com e-mail e senha', !!pS.json?.access_token && metodos(pS.json.access_token).includes('password'),
+    pS.json?.access_token ? '' : msg(pS));
+  const errada = await entrarComSenha(S.email, senhaQa());
+  const ninguem = await entrarComSenha(`qa-login-ninguem-${sufixo}@teste.invalid`, senhaQa());
+  registrar('senha: errada é recusada igual a e-mail inexistente',
+    errada.status === 400 && errada.json?.error_code === 'invalid_credentials' &&
+      ninguem.status === 400 && ninguem.json?.error_code === 'invalid_credentials',
+    `errada ${msg(errada)}; inexistente ${msg(ninguem)}`);
+
+  const semAtual = await trocarSenha(pS.json?.access_token, { password: senhaQa() });
+  registrar('senha: trocar logado com senha exige a atual', semAtual.status === 400 && semAtual.json?.error_code === 'current_password_required',
+    `${msg(semAtual)} (GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD)`);
+  const atualErrada = await trocarSenha(pS.json?.access_token, { password: senhaQa(), current_password: senhaQa() });
+  registrar('senha: senha atual errada é recusada', atualErrada.status === 400 && atualErrada.json?.error_code === 'current_password_mismatch', msg(atualErrada));
+  const senha2 = senhaQa();
+  const trocou = await trocarSenha(pS.json?.access_token, { password: senha2, current_password: senha1 });
+  registrar('senha: troca com a senha atual', trocou.ok, trocou.ok ? '' : msg(trocou));
+  const rS = await renovar(sS.json?.refresh_token);
+  registrar('senha: trocar encerra as outras sessões', !rS.json?.access_token, `renovar a sessão do link: HTTP ${rS.status}`);
+
+  const linkSenha = await equipe(`/${S.id}/link`, jwtAdm, { method: 'POST', body: { senha: true } });
+  const urlSenha = linkSenha.json?.link ? new URL(linkSenha.json.link) : null;
+  registrar('senha: "Redefinir senha" gera link type=recovery', linkSenha.ok && urlSenha?.searchParams.get('type') === 'recovery',
+    linkSenha.ok ? '' : msg(linkSenha));
+  const sR = urlSenha ? await verificarHash(urlSenha.searchParams.get('token_hash'), 'recovery') : null;
+  const senha3 = senhaQa();
+  const redefiniu = sR?.json?.access_token ? await trocarSenha(sR.json.access_token, { password: senha3 }) : null;
+  registrar('senha: pelo link de redefinir cria outra sem a atual', !!redefiniu?.ok,
+    redefiniu ? (redefiniu.ok ? '' : msg(redefiniu)) : msg(sR ?? linkSenha));
+  const velha = await entrarComSenha(S.email, senha2);
+  const nova = await entrarComSenha(S.email, senha3);
+  registrar('senha: a antiga para de valer, a nova entra', !velha.json?.access_token && !!nova.json?.access_token,
+    `antiga HTTP ${velha.status}, nova HTTP ${nova.status}`);
+
+  const offS = await equipe(`/${S.id}`, jwtAdm, { method: 'PATCH', body: { ativo: false } });
+  const banida = await entrarComSenha(S.email, senha3);
+  registrar('senha: desativada não entra com senha', offS.ok && !banida.json?.access_token && banida.json?.error_code === 'user_banned', msg(banida));
+
+  // ---------------- 9. Limpeza das pessoas convidadas (pela function) ----------------
   for (const p of Object.values(pessoas)) {
     if (!p.id) continue;
     const d = await equipe(`/${p.id}`, jwtAdm, { method: 'DELETE' });

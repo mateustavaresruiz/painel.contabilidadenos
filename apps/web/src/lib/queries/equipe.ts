@@ -123,10 +123,14 @@ export function useExcluirPessoa() {
   });
 }
 
-/** Link de acesso de uso único (invalida o último enviado por e-mail). */
+/**
+ * Link de acesso de uso único (invalida o último enviado por e-mail).
+ * `senha: true` = "Redefinir senha": a pessoa entra e cai em "Crie uma senha nova".
+ */
 export function useGerarLinkAcesso() {
   return useMutation({
-    mutationFn: (id: string) => api<{ link: string }>(`/equipe/${id}/link`, { method: "POST" }),
+    mutationFn: (args: { id: string; senha?: boolean }) =>
+      api<{ link: string }>(`/equipe/${args.id}/link`, { method: "POST", body: { senha: args.senha === true } }),
   });
 }
 

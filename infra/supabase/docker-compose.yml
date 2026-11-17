@@ -207,6 +207,24 @@ services:
       GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
       GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
 
+      # Painel Denos: login com senha (docs/LOGIN.md > Senha). Nomes conferidos no
+      # código do GoTrue v2.196.0 (internal/conf/configuration.go, api/user.go).
+      # - Mínimo de 10 caracteres (o máximo do bcrypt é 72 bytes); sem exigir
+      #   símbolo/maiúscula: frase longa vale mais que "Senha@1".
+      # - HIBP: recusa senha que aparece em vazamentos conhecidos (consulta por
+      #   k-anonimato em api.pwnedpasswords.com: só 5 letras do hash saem da VPS).
+      #   Se o site não responder, a senha passa (FAIL_CLOSED=false).
+      # - Trocar a senha logado exige a senha atual (current_password), a não ser
+      #   que a sessão tenha vindo de link/código do e-mail ou do link de acesso
+      #   (o GoTrue isenta: é o caminho de quem esqueceu ou nunca teve senha).
+      #   Trocar a senha encerra as OUTRAS sessões da pessoa.
+      # O login com senha passa pelo freio de /token (RATE_LIMIT_TOKEN_REFRESH
+      # acima, contado para o painel inteiro pelo gateway).
+      GOTRUE_PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-10}
+      GOTRUE_PASSWORD_HIBP_ENABLED: ${PASSWORD_HIBP_ENABLED:-true}
+      GOTRUE_PASSWORD_HIBP_FAIL_CLOSED: "false"
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD: "true"
+
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
 

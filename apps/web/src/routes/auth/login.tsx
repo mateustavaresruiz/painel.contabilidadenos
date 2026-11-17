@@ -1,8 +1,9 @@
 import "altcha";
-import { ArrowLeft, ArrowRight, Loader2, Lock, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, KeyRound, Loader2, Lock, Mail, MailCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 
+import { CampoSenha } from "@/components/senha-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import googleG from "@/assets/google-g.svg?raw";
 import { useEu } from "@/lib/colaborador";
 import { entrarComGoogle, useLoginConfig } from "@/lib/login-google";
 import { registrarLogin } from "@/lib/queries/auditoria";
+import { erroDoLogin } from "@/lib/senha";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -18,9 +20,9 @@ import { cn } from "@/lib/utils";
 const ESPERA_REENVIO_S = 60;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Só caminho interno (evita redirecionar para outro site pelo ?next=). */
+/** Só caminho interno do painel (evita outro site pelo ?next= e voltar para /auth/...). */
 function destinoSeguro(next: string | null): string {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/auth/") ? next : "/";
 }
 
 /** Erro de limite do Auth (429) tem mensagem própria; o resto é genérico. */
@@ -34,9 +36,9 @@ type Resposta =
   | { tipo: "erro"; mensagem: string };
 
 /**
- * Entrada só com o e-mail (Edge Function `entrar`), enquanto o e-mail do
- * painel não funciona. Desligada em Configurações > Módulos, a função responde
- * 403 "desligada" e a tela cai no fluxo normal de link + código por e-mail.
+ * Entrada só com o e-mail (Edge Function `entrar`), provisória. Desligada em
+ * Configurações > Módulos, a função responde 403 "desligada" e a tela cai no
+ * fluxo de link + código por e-mail.
  */
 async function entrarDireto(email: string, altcha: string): Promise<Resposta> {
   const r = await fetch(`${SUPABASE_URL}/functions/v1/entrar`, {
@@ -158,6 +160,15 @@ const ESTILO = `
 }
 `;
 
+/** Campo grande da tela de entrada (pílula de 48px, anel de foco suave). */
+const CAMPO = cn(
+  "h-12 rounded-full pl-11 pr-4 text-[15px] toque:text-base transition-shadow",
+  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:border-primary",
+);
+const CAMPO_ERRO = "border-destructive focus-visible:ring-destructive/15 focus-visible:border-destructive";
+const ICONE_CAMPO =
+  "pointer-events-none absolute left-4 top-1/2 z-10 size-[18px] -translate-y-1/2 text-muted-foreground";
+
 function useMensagem(): number {
   const [i, setI] = useState(0);
   useEffect(() => {
@@ -203,23 +214,54 @@ function PainelFoto() {
   );
 }
 
+/** "Esqueci a senha / primeiro acesso": sem e-mail, o caminho é o link do administrador. */
+function AjudaSenha({ id }: { id: string }) {
+  return (
+    <div id={id} className="login-sobe rounded-[18px] border bg-muted/40 p-4 text-sm">
+      <p className="flex items-center gap-2 font-semibold">
+        <KeyRound className="size-4 text-primary" strokeWidth={1.5} aria-hidden />
+        Primeiro acesso ou esqueceu a senha?
+      </p>
+      <p className="mt-1.5 text-muted-foreground">
+        Peça a um administrador do escritório um <strong className="text-foreground">link de acesso</strong> (em
+        Equipe). Pelo link você entra e cria a sua senha. Ele funciona uma vez e vale 15 minutos.
+      </p>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        O painel não manda e-mail de recuperação de senha, e ninguém do escritório vai pedir a sua senha.
+      </p>
+    </div>
+  );
+}
+
+type Etapa = "senha" | "semSenha" | "codigo";
+
 export function LoginPage() {
   usePageTitle("Entrar");
   const { sessao } = useEu();
   const [params] = useSearchParams();
   const destino = destinoSeguro(params.get("next"));
   const [email, setEmail] = useState("");
-  const [etapa, setEtapa] = useState<"email" | "codigo">("email");
+  const [senha, setSenha] = useState("");
+  const [etapa, setEtapa] = useState<Etapa>("senha");
+  const [ajuda, setAjuda] = useState(false);
   const [codigo, setCodigo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [verificando, setVerificando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  /** Qual campo o erro aponta (aria-invalid e borda vermelha). */
+  const [erroEm, setErroEm] = useState<"email" | "senha" | "ambos" | null>(null);
   const [espera, setEspera] = useState(0);
   const codigoRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const senhaRef = useRef<HTMLInputElement>(null);
   const altchaRef = useRef<WidgetAltcha>(null);
   const [altcha, setAltcha] = useState("");
-  // Sem resposta (ou Google desligado no Auth), o botão simplesmente não aparece.
-  const google = useLoginConfig().data?.google === true;
+  // Sem resposta, só e-mail e senha aparecem (o caminho principal não depende dela).
+  const config = useLoginConfig().data;
+  const google = config?.google === true;
+  const soEmail = config?.soEmail === true;
+  const porEmail = config?.email === true;
+  const semSenhaDisponivel = soEmail || porEmail;
 
   // O widget avisa quando resolveu o desafio (prova de trabalho no navegador).
   useEffect(() => {
@@ -254,6 +296,53 @@ export function LoginPage() {
 
   if (sessao) return <Navigate to={destino} replace />;
 
+  function limparErro() {
+    if (erro) {
+      setErro(null);
+      setErroEm(null);
+    }
+  }
+
+  function trocarEtapa(nova: Etapa) {
+    setEtapa(nova);
+    setErro(null);
+    setErroEm(null);
+    setAltcha("");
+  }
+
+  /** Caminho principal: e-mail e senha direto no Auth. */
+  async function entrarComSenha(e: React.FormEvent) {
+    e.preventDefault();
+    const alvo = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(alvo)) {
+      setErro("Digite um e-mail válido.");
+      setErroEm("email");
+      emailRef.current?.focus();
+      return;
+    }
+    if (!senha) {
+      setErro("Digite a sua senha.");
+      setErroEm("senha");
+      senhaRef.current?.focus();
+      return;
+    }
+    setErro(null);
+    setErroEm(null);
+    setEmail(alvo);
+    setEnviando(true);
+    const { error } = await supabase.auth.signInWithPassword({ email: alvo, password: senha });
+    setEnviando(false);
+    // Com sucesso, a sessão nova dispara o Navigate acima (a auditoria grava "Senha" no servidor).
+    if (!error) return;
+    const msg = erroDoLogin(error);
+    setErro(msg);
+    if (error.code === "invalid_credentials" || msg === "E-mail ou senha incorretos.") {
+      setErroEm("ambos");
+      setSenha("");
+      senhaRef.current?.focus();
+    }
+  }
+
   /** Fluxo por e-mail: o Auth manda link + código. */
   async function pedirPorEmail(alvo: string) {
     const { error } = await supabase.auth.signInWithOtp({
@@ -271,11 +360,13 @@ export function LoginPage() {
     setEspera(ESPERA_REENVIO_S);
   }
 
-  async function entrar(e?: React.FormEvent) {
+  /** Sem senha: "só com o e-mail" (provisório) ou, desligado, link + código por e-mail. */
+  async function entrarSemSenha(e?: React.FormEvent) {
     e?.preventDefault();
     const alvo = email.trim().toLowerCase();
     if (!EMAIL_RE.test(alvo)) {
       setErro("Digite um e-mail válido.");
+      setErroEm("email");
       return;
     }
     if (!altcha) {
@@ -283,6 +374,7 @@ export function LoginPage() {
       return;
     }
     setErro(null);
+    setErroEm(null);
     setEnviando(true);
     setEmail(alvo);
     try {
@@ -324,6 +416,41 @@ export function LoginPage() {
     }
   }
 
+  const campoEmail = (autoFocus: boolean) => (
+    <div className="space-y-2">
+      <Label htmlFor="login-email">E-mail</Label>
+      <div className="relative">
+        <Mail className={ICONE_CAMPO} strokeWidth={1.5} aria-hidden />
+        <Input
+          id="login-email"
+          ref={emailRef}
+          type="email"
+          name="username"
+          inputMode="email"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          autoFocus={autoFocus}
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            limparErro();
+          }}
+          placeholder="voce@contabilidadenos.com.br"
+          className={cn(CAMPO, (erroEm === "email" || erroEm === "ambos") && CAMPO_ERRO)}
+          aria-invalid={erroEm === "email" || erroEm === "ambos"}
+          aria-describedby={erro ? "login-erro" : undefined}
+        />
+      </div>
+    </div>
+  );
+
+  const mensagemErro = erro && (
+    <p id="login-erro" role="alert" className="login-sobe pl-4 text-sm text-destructive">
+      {erro}
+    </p>
+  );
+
   return (
     <div className="min-h-dvh grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] bg-background">
       <style>{ESTILO}</style>
@@ -339,8 +466,8 @@ export function LoginPage() {
               <img src="/logo-branco.png" alt="NÓS Contabilidade" className="login-sobe absolute bottom-6 left-6 h-12 w-auto" style={cascata(0)} />
             </div>
 
-            {etapa === "email" ? (
-              <form onSubmit={entrar} className="space-y-7" noValidate>
+            {etapa === "senha" && (
+              <form onSubmit={entrarComSenha} className="space-y-6" noValidate>
                 <div className="space-y-2">
                   <p className="login-sobe text-[15px] text-muted-foreground" style={cascata(0)}>
                     {saudacao()}
@@ -350,40 +477,102 @@ export function LoginPage() {
                   </h1>
                 </div>
 
-                <div className="login-sobe space-y-2" style={cascata(2)}>
-                  <Label htmlFor="login-email">E-mail</Label>
-                  <div className="relative">
-                    <Mail
-                      className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground"
-                      strokeWidth={1.5}
-                      aria-hidden
-                    />
-                    <Input
-                      id="login-email"
-                      type="email"
-                      inputMode="email"
-                      autoComplete="email"
-                      autoFocus
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (erro) setErro(null);
-                      }}
-                      placeholder="voce@contabilidadenos.com.br"
-                      className={cn(
-                        "h-12 rounded-full pl-11 pr-4 text-[15px] toque:text-base transition-shadow",
-                        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:border-primary",
-                        erro && "border-destructive focus-visible:ring-destructive/15 focus-visible:border-destructive",
-                      )}
-                      aria-invalid={!!erro}
-                      aria-describedby={erro ? "login-erro" : undefined}
-                    />
+                <div className="login-sobe space-y-5" style={cascata(2)}>
+                  {campoEmail(true)}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="login-senha">Senha</Label>
+                      <button
+                        type="button"
+                        onClick={() => setAjuda((v) => !v)}
+                        aria-expanded={ajuda}
+                        aria-controls="login-ajuda"
+                        className="-my-2 rounded-md px-1 py-2 text-xs text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      >
+                        Esqueci a senha / primeiro acesso
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className={ICONE_CAMPO} strokeWidth={1.5} aria-hidden />
+                      <CampoSenha
+                        id="login-senha"
+                        ref={senhaRef}
+                        name="password"
+                        autoComplete="current-password"
+                        value={senha}
+                        onChange={(e) => {
+                          setSenha(e.target.value);
+                          limparErro();
+                        }}
+                        className={cn(CAMPO, "pr-12", (erroEm === "senha" || erroEm === "ambos") && CAMPO_ERRO)}
+                        aria-invalid={erroEm === "senha" || erroEm === "ambos"}
+                        aria-describedby={erro ? "login-erro" : undefined}
+                      />
+                    </div>
+                    {mensagemErro}
                   </div>
-                  {erro && (
-                    <p id="login-erro" role="alert" className="login-sobe pl-4 text-sm text-destructive">
-                      {erro}
-                    </p>
-                  )}
+                  {ajuda && <AjudaSenha id="login-ajuda" />}
+                </div>
+
+                <div className="login-sobe" style={cascata(3)}>
+                  <Button
+                    type="submit"
+                    className="login-botao h-12 w-full rounded-full text-[15px] transition-transform"
+                    disabled={enviando}
+                  >
+                    {enviando ? <Loader2 className="animate-spin" /> : null}
+                    {enviando ? "Entrando" : "Entrar"}
+                    {!enviando && <ArrowRight className="login-seta" />}
+                  </Button>
+                </div>
+
+                {(google || semSenhaDisponivel) && (
+                  <div className="login-sobe space-y-3" style={cascata(4)}>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
+                      <span className="h-px flex-1 bg-border" />
+                      ou
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
+                    {google && (
+                      <BotaoGoogle
+                        onErro={(m) => {
+                          setErro(m);
+                          setErroEm(null);
+                        }}
+                      />
+                    )}
+                    {semSenhaDisponivel && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-11 w-full rounded-full text-sm text-muted-foreground hover:text-foreground"
+                        onClick={() => trocarEtapa("semSenha")}
+                      >
+                        <MailCheck />
+                        {soEmail ? "Entrar só com o e-mail (provisório)" : "Receber link e código por e-mail"}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </form>
+            )}
+
+            {etapa === "semSenha" && (
+              <form onSubmit={entrarSemSenha} className="space-y-7" noValidate>
+                <div className="space-y-2">
+                  <h1 className="login-sobe text-title-xl" style={cascata(0)}>
+                    Entrar sem senha
+                  </h1>
+                  <p className="login-sobe text-[15px] text-muted-foreground" style={cascata(1)}>
+                    {soEmail
+                      ? "Entrada provisória, enquanto a equipe cria as senhas. Depois de entrar, o painel pede para você criar a sua."
+                      : "Enviamos um link e um código de 6 números para o seu e-mail."}
+                  </p>
+                </div>
+
+                <div className="login-sobe space-y-2" style={cascata(2)}>
+                  {campoEmail(!email)}
+                  {mensagemErro}
                 </div>
 
                 <div className="login-sobe login-altcha" style={cascata(3)}>
@@ -397,30 +586,25 @@ export function LoginPage() {
                   />
                 </div>
 
-                <div className="login-sobe" style={cascata(4)}>
+                <div className="login-sobe space-y-3" style={cascata(4)}>
                   <Button
                     type="submit"
                     className="login-botao h-12 w-full rounded-full text-[15px] transition-transform"
                     disabled={enviando || espera > 0 || !altcha}
                   >
                     {enviando ? <Loader2 className="animate-spin" /> : null}
-                    {espera > 0 ? `Aguarde ${espera} s` : enviando ? "Entrando" : "Entrar"}
+                    {espera > 0 ? `Aguarde ${espera} s` : enviando ? "Entrando" : soEmail ? "Entrar" : "Enviar link e código"}
                     {!enviando && espera === 0 && <ArrowRight className="login-seta" />}
                   </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => trocarEtapa("senha")}>
+                    <ArrowLeft />
+                    Entrar com senha
+                  </Button>
                 </div>
-
-                {google && (
-                  <div className="login-sobe space-y-4" style={cascata(5)}>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
-                      <span className="h-px flex-1 bg-border" />
-                      ou
-                      <span className="h-px flex-1 bg-border" />
-                    </div>
-                    <BotaoGoogle onErro={setErro} />
-                  </div>
-                )}
               </form>
-            ) : (
+            )}
+
+            {etapa === "codigo" && (
               <form onSubmit={verificar} className="space-y-7" noValidate>
                 <div className="space-y-2">
                   <h1 className="login-sobe text-title-xl" style={cascata(0)}>
@@ -460,17 +644,9 @@ export function LoginPage() {
                     Entrar
                   </Button>
                   <div className="flex items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEtapa("email");
-                        setErro(null);
-                      }}
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={() => trocarEtapa("senha")}>
                       <ArrowLeft />
-                      Outro e-mail
+                      Entrar com senha
                     </Button>
                     <Button
                       type="button"

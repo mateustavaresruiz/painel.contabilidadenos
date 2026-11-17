@@ -14,7 +14,10 @@
 //          → e-mail novo vale no Auth também; desativar bane o usuário e
 //            derruba as sessões; reativar tira o banimento.
 //   DELETE /equipe/:id                → apaga o Colaborador e o usuário do Auth
-//   POST   /equipe/:id/link           → link de acesso de uso único (expira)
+//   POST   /equipe/:id/link           → link de acesso de uso único (expira).
+//          { senha: true } → "Redefinir senha": o mesmo link, mas a tela, depois
+//          de entrar, leva a pessoa direto para criar a senha nova
+//          (/auth/callback?type=recovery → /auth/definir-senha).
 //   POST   /equipe/:id/enviar-acesso  → manda o e-mail de acesso (precisa SMTP)
 //   GET    /equipe/email              → SMTP configurado? servidor responde, oferece
 //                                        STARTTLS? avisos de configuração (sem segredo)
@@ -67,22 +70,29 @@ function texto(v: unknown, max = 120): string | null {
   return t ? t.slice(0, max) : null;
 }
 
-function linkDeAcesso(hashedToken: string): string {
-  const q = new URLSearchParams({ token_hash: hashedToken, type: "magiclink" });
+type TipoLink = "magiclink" | "recovery";
+
+function linkDeAcesso(hashedToken: string, tipo: TipoLink): string {
+  const q = new URLSearchParams({ token_hash: hashedToken, type: tipo });
   return `${PAINEL_URL}/auth/callback?${q}`;
 }
 
-/** Link de uso único (mesma validade do código do e-mail). */
-async function gerarLink(email: string): Promise<string> {
+/**
+ * Link de uso único (mesma validade do código do e-mail). "recovery" é o de
+ * redefinir a senha: no Auth é o MESMO token de entrada (recovery_token, sessão
+ * "otp"); muda só o destino na tela, que abre "Crie uma senha nova". Nenhum
+ * e-mail é enviado (generate_link nunca envia).
+ */
+async function gerarLink(email: string, tipo: TipoLink = "magiclink"): Promise<string> {
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-    type: "magiclink",
+    type: tipo,
     email,
     options: { redirectTo: `${PAINEL_URL}/auth/callback` },
   });
   if (error || !data?.properties?.hashed_token) {
     throw new Error(`Não foi possível gerar o link: ${error?.message ?? "sem token"}`);
   }
-  return linkDeAcesso(data.properties.hashed_token);
+  return linkDeAcesso(data.properties.hashed_token, tipo);
 }
 
 /** Manda o e-mail de acesso (link + código) pelo próprio Auth. */
@@ -391,15 +401,20 @@ serve(async (req) => {
   if (b === "link" && req.method === "POST") {
     if (!alvo.ativo) return badRequest("Pessoa desativada: reative antes de gerar o acesso.");
     if (!alvo.email || !alvo.userId) return badRequest("Esta pessoa não tem e-mail de acesso.");
-    const link = await gerarLink(alvo.email.toLowerCase());
-    // Quem tem o link entra como a pessoa: fica registrado quem gerou (o login
-    // depois aparece como da própria pessoa).
+    const body = await req.json().catch(() => ({}));
+    const redefinirSenha = body?.senha === true;
+    const link = await gerarLink(alvo.email.toLowerCase(), redefinirSenha ? "recovery" : "magiclink");
+    // Quem tem o link entra como a pessoa (e, no de redefinir, troca a senha dela):
+    // fica registrado quem gerou (o login depois aparece como da própria pessoa).
+    const nome = alvo.nome ?? "uma pessoa da equipe";
     await supabaseAdmin.rpc("auditoria_evento", {
       p_modulo: "equipe",
       p_entidade: "colaborador",
       p_entidade_id: alvo.id,
-      p_acao: "link_gerado",
-      p_resumo: `gerou um link de acesso para ${alvo.nome ?? "uma pessoa da equipe"}`,
+      p_acao: redefinirSenha ? "link_senha_gerado" : "link_gerado",
+      p_resumo: redefinirSenha
+        ? `gerou um link para ${nome} redefinir a senha`
+        : `gerou um link de acesso para ${nome}`,
       p_ator: eu.id,
     });
     return json({ link });

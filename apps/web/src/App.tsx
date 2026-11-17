@@ -7,6 +7,7 @@ import { ModuloGate } from "@/components/modulo-gate";
 import { AppLayout } from "@/layouts/app-layout";
 import type { ModuloChave } from "@/lib/modulos";
 import { AuthCallbackPage } from "@/routes/auth/callback";
+import { DefinirSenhaPage } from "@/routes/auth/definir-senha";
 import { LoginPage } from "@/routes/auth/login";
 // Cada página em chunk próprio (o WhatsApp, o maior, não pesa no Início), com
 // pré-carga no hover do menu: ver routes/paginas.ts.
@@ -66,6 +67,15 @@ export function App() {
     <Routes>
       <Route path="login" element={<LoginPage />} />
       <Route path="auth/callback" element={<AuthCallbackPage />} />
+      {/* Criar/trocar a senha: precisa de sessão, mas fica fora do menu do painel. */}
+      <Route
+        path="auth/definir-senha"
+        element={
+          <AuthGate exigirSenha={false}>
+            <DefinirSenhaPage />
+          </AuthGate>
+        }
+      />
       {/* Público: link + senha enviados ao cliente. Fora do AuthGate e do menu. */}
       <Route
         path="portal/:token"
