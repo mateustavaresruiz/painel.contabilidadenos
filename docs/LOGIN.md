@@ -356,8 +356,9 @@ Google recusa com `redirect_uri_mismatch`.
   queryParams: { prompt: 'select_account' } })`. O cliente do supabase-js está em **PKCE**: a
   volta é `/auth/callback?via=google&code=...` e a página troca o código pela sessão
   (`exchangeCodeForSession`), que só funciona no mesmo navegador que começou o login.
-- `SITE_URL` é o painel e `ADDITIONAL_REDIRECT_URLS` já tem
-  `https://painel-web.at63vf.easypanel.host/**,http://localhost:5173/**` (dev).
+- `SITE_URL` é o painel (`https://painel.contabilidadenos.com.br`, desde 17/11/2026) e
+  `ADDITIONAL_REDIRECT_URLS` tem `https://painel.contabilidadenos.com.br/**`,
+  `https://painel-web.at63vf.easypanel.host/**` e `http://localhost:5173/**` (dev).
 - Auditoria: depois da troca, a página chama a RPC `registrar_login_google()` (migration 015),
   que só grava "entrou no painel (Google)" se o JWT diz que a sessão veio de OAuth
   (`amr.method = 'oauth'`) e o usuário tem identidade `google` no Auth.
