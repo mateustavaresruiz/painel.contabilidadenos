@@ -17,10 +17,12 @@
 
 import { currentRequest } from "./request-context.ts";
 
-const DEFAULT_ORIGIN = "https://painel-web.at63vf.easypanel.host";
+const DEFAULT_ORIGIN = "https://painel.contabilidadenos.com.br";
 
 const ALLOWED_ORIGINS = new Set<string>([
   DEFAULT_ORIGIN,
+  // Endereço antigo do painel: fica enquanto existir (links já enviados).
+  "https://painel-web.at63vf.easypanel.host",
   // Dev local. O CORS não é a fronteira de segurança (o JWT do usuário é
   // exigido em `exigirColaborador`), então liberar o Vite não abre nada.
   "http://localhost:5173",

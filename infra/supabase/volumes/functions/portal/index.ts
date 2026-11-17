@@ -8,7 +8,8 @@ import { criarHandler } from "./handler.ts";
 import { repoReal } from "./repo.ts";
 
 /** Endereço do site do painel, onde mora a página /portal/<token>. */
-const WEB_URL = (Deno.env.get("PORTAL_WEB_URL") ?? "https://painel-web.at63vf.easypanel.host").replace(/\/+$/, "");
+// `||` (não `??`): variável vazia não pode gerar link relativo.
+const WEB_URL = (Deno.env.get("PORTAL_WEB_URL") || Deno.env.get("SITE_URL") || "https://painel.contabilidadenos.com.br").replace(/\/+$/, "");
 
 serve(
   criarHandler({

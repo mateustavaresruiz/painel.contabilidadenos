@@ -14,7 +14,7 @@
 
 const url = (process.env.SUPABASE_URL ?? "").replace(/\/+$/, "");
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const painel = (process.env.PAINEL_URL ?? "https://painel-web.at63vf.easypanel.host").replace(/\/+$/, "");
+const painel = (process.env.PAINEL_URL ?? "https://painel.contabilidadenos.com.br").replace(/\/+$/, "");
 const email = (process.argv[2] ?? "").trim().toLowerCase();
 
 if (!url || !key) {

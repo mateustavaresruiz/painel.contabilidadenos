@@ -27,7 +27,7 @@ import { supabaseAdmin } from "../_shared/supabase.ts";
 import { exigirColaborador } from "../_shared/acesso.ts";
 import { PUBLIC_BASE_URL } from "../_shared/env.ts";
 
-const PAINEL_URL = (Deno.env.get("SITE_URL") || "https://painel-web.at63vf.easypanel.host").replace(/\/+$/, "");
+const PAINEL_URL = (Deno.env.get("SITE_URL") || "https://painel.contabilidadenos.com.br").replace(/\/+$/, "");
 const REDIRECT_URI = `${PUBLIC_BASE_URL}/functions/v1/google-drive/callback`;
 const ESCOPOS = "openid email https://www.googleapis.com/auth/drive.file";
 const PASTA_NOME = "Backup Painel NÓS";
