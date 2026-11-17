@@ -42,5 +42,6 @@ Deno.test("mensagens do Auth em português, sem dizer se o e-mail existe", () =>
   assert(/Muitas tentativas/.test(erroDoLogin({ status: 429, code: "over_request_rate_limit" })));
   assert(/vazamentos/.test(erroDaSenhaNova({ status: 422, code: "weak_password", reasons: ["pwned"] })));
   assertEquals(erroDaSenhaNova({ status: 400, code: "current_password_mismatch" }), "A senha atual não confere.");
+  assertEquals(erroDaSenhaNova({ status: 400, code: "current_password_invalid" }), "A senha atual não confere.");
   assert(/diferente/.test(erroDaSenhaNova({ status: 422, code: "same_password" })));
 });

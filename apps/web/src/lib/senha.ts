@@ -175,7 +175,8 @@ export function erroDoLogin(e: NonNullable<ErroAuth>): string {
 export function erroDaSenhaNova(e: NonNullable<ErroAuth>): string {
   if (ehLimite(e)) return "Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.";
   if (semConexao(e)) return "Sem conexão com o servidor. Confira a internet e tente de novo.";
-  if (e.code === "current_password_mismatch") return "A senha atual não confere.";
+  // GoTrue v2.196 responde "current_password_invalid"; versões novas usam "_mismatch".
+  if (e.code === "current_password_invalid" || e.code === "current_password_mismatch") return "A senha atual não confere.";
   if (e.code === "current_password_required") return "Digite a sua senha atual.";
   if (e.code === "same_password") return "A senha nova precisa ser diferente da atual.";
   if (e.code === "weak_password") {

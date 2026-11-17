@@ -291,7 +291,7 @@ async function main() {
   registrar('senha: trocar logado com senha exige a atual', semAtual.status === 400 && semAtual.json?.error_code === 'current_password_required',
     `${msg(semAtual)} (GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD)`);
   const atualErrada = await trocarSenha(pS.json?.access_token, { password: senhaQa(), current_password: senhaQa() });
-  registrar('senha: senha atual errada é recusada', atualErrada.status === 400 && atualErrada.json?.error_code === 'current_password_mismatch', msg(atualErrada));
+  registrar('senha: senha atual errada é recusada', atualErrada.status === 400 && ['current_password_invalid', 'current_password_mismatch'].includes(atualErrada.json?.error_code), msg(atualErrada));
   const senha2 = senhaQa();
   const trocou = await trocarSenha(pS.json?.access_token, { password: senha2, current_password: senha1 });
   registrar('senha: troca com a senha atual', trocou.ok, trocou.ok ? '' : msg(trocou));
