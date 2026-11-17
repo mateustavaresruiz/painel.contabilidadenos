@@ -1,18 +1,73 @@
 # Login e permissões do painel
 
 **Fonte única** sobre como se entra no painel, quem entra, quanto tempo a sessão dura,
-o que ligar e desligar e o que fazer quando der errado. Não há senha nem cadastro
-público: só entra quem um administrador cadastrou em **Equipe**, e cada pessoa tem um
-**cargo** que diz o que ela pode fazer (migration `005_login.sql`).
+o que ligar e desligar e o que fazer quando der errado. O caminho principal é **e-mail e
+senha**; não há cadastro público: só entra quem um administrador cadastrou em **Equipe**,
+e cada pessoa tem um **cargo** que diz o que ela pode fazer (migration `005_login.sql`).
+A senha é criada pela própria pessoa no primeiro acesso, por um link que o administrador
+gera em Equipe (o painel não manda e-mail: `SMTP_HOST` vazio).
 
 ## Formas de entrar
 
-| Forma | Estado hoje (18/10/2026) | Quem decide se entra |
+| Forma | Estado hoje (17/11/2026) | Quem decide se entra |
 |---|---|---|
+| **E-mail e senha** (principal) | Pronta (migration 027 + env do Auth). Ver [E-mail e senha](#e-mail-e-senha). | O Auth: e-mail de alguém da Equipe + a senha que a própria pessoa criou. |
 | **Entrar com Google** | Pronta, mas **desligada por decisão do dono** (20/10/2026: o Google é só para o backup no Drive; `GOOGLE_ENABLED=false`, as credenciais ficam no env). Ver [Login com Google](#login-com-google). | O Auth: conta Google com o mesmo e-mail (verificado) de alguém da Equipe. |
 | **Link ou código por e-mail** | Pronta, **sem e-mail saindo** até configurar o SMTP do Google Workspace (`SMTP_HOST` vazio). Ver [E-mail pelo Google Workspace](#e-mail-pelo-google-workspace-smtp). | O Auth: o e-mail tem de existir; o link/código prova que a pessoa abriu a caixa. |
-| **Link de acesso** gerado em Equipe | Funciona hoje. O administrador gera e manda por WhatsApp. | Quem tem o link (uso único, 15 min). |
-| **Entrar só com o e-mail** (provisório) | **Ligada** (Configurações > Módulos). | Ninguém confere a caixa: quem souber o e-mail de alguém da equipe entra como ele. 🔴 Desligar assim que o Google ou o SMTP funcionar ([O que desligar e quando](#o-que-desligar-e-quando)). |
+| **Link de acesso** gerado em Equipe | Funciona hoje. O administrador gera e manda por WhatsApp. É também o **primeiro acesso** e o **"Redefinir senha"**: quem entra por ele cria a senha. | Quem tem o link (uso único, 15 min). |
+| **Entrar só com o e-mail** (provisório) | **Ligada** (Configurações > Módulos). Quem entra assim e ainda não tem senha é levado a criá-la. | Ninguém confere a caixa: quem souber o e-mail de alguém da equipe entra como ele. 🔴 Desligar assim que **toda a equipe tiver senha** ([O que desligar e quando](#o-que-desligar-e-quando)). |
+
+### E-mail e senha
+
+Tela **Entrar no painel**: e-mail, senha (com mostrar/esconder) e **Entrar**
+(`supabase.auth.signInWithPassword`, direto no Auth). Abaixo, como opções secundárias que a
+tela pergunta a `GET /functions/v1/entrar/config` (`{ senha, google, soEmail, email }`):
+"Entrar com Google" (se ligado), "Entrar só com o e-mail (provisório)" (se ligado) ou, com
+SMTP, "Receber link e código por e-mail". O link **Esqueci a senha / primeiro acesso** abre a
+explicação: peça a um administrador o link de acesso (não há e-mail de recuperação).
+
+Mensagens: senha errada e e-mail que não existe dão a **mesma** resposta ("E-mail ou senha
+incorretos"); limite do Auth (429) → "Muitas tentativas seguidas"; pessoa desativada (banida
+no Auth) → "Seu acesso ao painel está desativado" (o GoTrue confere o banimento antes da
+senha, então essa resposta diz que o e-mail é de alguém desativado; aceito). O ALTCHA fica só
+na entrada sem senha: o login com senha vai direto ao Auth, que não confere ALTCHA, e a
+proteção dele é o freio de `/token` ([Freios](#freios-contra-abuso)).
+
+**Quem tem senha.** O Auth cria o usuário convidado com uma senha **aleatória** de 64
+caracteres (GoTrue v2.196, `admin.go`), então "ter senha no Auth" não diz nada. A migration
+`027_login_com_senha.sql` põe em `Colaborador."senhaDefinidaEm"` a data em que a pessoa criou
+ou trocou a senha (gatilho `senha_definida` em `auth.users`, quando `encrypted_password` muda)
+e grava na auditoria "criou a senha de acesso" / "trocou a senha de acesso". Nula = ainda
+sem senha. Equipe mostra "Senha criada · data" ou "Ainda sem senha" para quem gerencia.
+
+**Primeiro acesso.** Convidar (ou **Gerar link de acesso**) devolve o link de uso único;
+o administrador copia e manda (WhatsApp). A pessoa abre, entra (`/auth/callback`) e, como
+`senhaDefinidaEm` é nula e a sessão veio de link, o `AuthGate` a leva a
+**`/auth/definir-senha`** ("Crie sua senha") antes do painel: senha de pelo menos 10
+caracteres, repetida, com medidor de força e dica (frase de 3 ou 4 palavras). Sem "agora
+não" (só "Sair"). O mesmo acontece com quem entra pelo "só com o e-mail" sem senha. Sessão
+do Google não é mandada (o Auth pediria a senha atual, que a pessoa não conhece).
+
+**Esqueceu a senha (redefinir).** Equipe > pessoa > **Redefinir senha** gera o mesmo link
+de uso único, mas com `type=recovery` (`POST /equipe/:id/link { senha: true }`, auditado como
+"gerou um link para X redefinir a senha"). Ao entrar por ele, `/auth/callback` leva direto a
+"Crie uma senha nova". A senha antiga vale até a nova ser salva. Nada é enviado: o
+administrador copia o link. Para quem ainda não tem senha, "Gerar link de acesso" já basta.
+
+**Trocar a senha logado.** Menu da conta (rodapé do menu lateral; no celular, o avatar) >
+**Trocar senha** (ou **Criar senha**, se ainda não tem): diálogo com senha atual, nova e
+repetição (`updateUser({ password, current_password })`). O Auth exige a senha atual
+(`GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD=true`), **a não ser** que a sessão
+tenha vindo de link/código/"só com o e-mail" (amr `otp`): é o próprio GoTrue que isenta esse
+caso, que é o de quem esqueceu ou nunca teve senha; a tela esconde o campo nessa situação.
+**Trocar a senha encerra as outras sessões da pessoa** (celular, outro computador).
+
+**Regras no servidor** (env do serviço `auth` no compose, nomes conferidos no GoTrue
+v2.196.0): `GOTRUE_PASSWORD_MIN_LENGTH=10` (máximo 72 bytes, limite do bcrypt), sem exigir
+símbolo/maiúscula; `GOTRUE_PASSWORD_HIBP_ENABLED=true` (recusa senha que aparece em vazamentos,
+consulta por k-anonimato em api.pwnedpasswords.com; se o site não responder, passa);
+`GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD=true`. A tela repete as regras
+(`lib/senha.ts`) e recusa antes senha com o nome ou o e-mail da pessoa.
 
 ### Link ou código por e-mail
 
@@ -32,12 +87,19 @@ com `verifyOtp` (o código digitado usa `verifyOtp({ email, token, type: 'email'
 ### Entrar só com o e-mail (provisório)
 
 Decisão do dono (15/10/2026) enquanto não havia e-mail: com a chave **Entrar só com o
-e-mail (provisório)** ligada em Configurações > Módulos, a tela de entrada pede só o
-e-mail e entra direto. Peça: function `entrar` (`POST /entrar { email, altcha }` devolve
+e-mail (provisório)** ligada em Configurações > Módulos, a tela de entrada oferece, abaixo
+de e-mail e senha, "Entrar só com o e-mail (provisório)", que pede só o e-mail e entra
+direto (e, se a pessoa ainda não tem senha, a leva a criá-la). Peça: function `entrar` (`POST /entrar { email, altcha }` devolve
 um `token_hash` que a tela troca por sessão, o mesmo caminho do link). Só aceita e-mail
 de Colaborador **ativo** e amarrado ao Auth; ALTCHA de uso único; freio de 10 tentativas
-por IP e 60 no total a cada 5 minutos. Com a chave desligada, a mesma tela cai sozinha no
-fluxo de link/código por e-mail.
+por IP e 60 no total a cada 5 minutos. Com a chave desligada, o botão some (ou, com SMTP,
+vira "Receber link e código por e-mail").
+
+🔴 Enquanto esta entrada estiver ligada, quem souber o e-mail de alguém **que ainda não
+criou senha** pode entrar como a pessoa e criar uma senha por ela (e continuar entrando
+depois que a chave for desligada). Por isso: desligue assim que todos tiverem senha, e se
+alguém disser que "nunca criou senha" mas Equipe mostra "Senha criada", **Redefinir senha**
+e veja Configurações > Auditoria (filtro "acesso", ação "Criou ou trocou a senha").
 
 ### Sessão (quanto tempo fica logado)
 
@@ -57,12 +119,18 @@ fluxo de link/código por e-mail.
 ### Peças
 
 - Front: `apps/web/src/routes/auth/login.tsx`, `routes/auth/callback.tsx`,
-  `components/auth-gate.tsx`, `lib/colaborador.tsx` (sessão + colaborador + permissões),
+  `routes/auth/definir-senha.tsx`, `components/auth-gate.tsx` (manda quem não tem senha
+  para criar), `components/senha-form.tsx` (campo com mostrar/esconder, medidor, formulário
+  de senha nova), `components/trocar-senha-dialog.tsx` (menu da conta), `lib/senha.ts`
+  (regras, força, `amr` da sessão, mensagens; testes em `apps/web/tests/senha.test.ts`,
+  `deno test apps/web/tests`), `lib/colaborador.tsx` (sessão + colaborador + permissões),
   `lib/login-google.ts`.
 - O link do e-mail e o link de acesso caem em `/auth/callback?token_hash=...&type=...`, e
   é a página que troca o token pela sessão (um antivírus que "abre" o link não gasta o token).
-- Functions: `equipe` (pessoas, links, diagnóstico do e-mail), `entrar` (só com o e-mail e
-  `/entrar/config`).
+- Functions: `equipe` (pessoas, links de acesso e de redefinir senha, diagnóstico do
+  e-mail), `entrar` (só com o e-mail e `/entrar/config`).
+- Banco: migration `027_login_com_senha.sql` (`Colaborador."senhaDefinidaEm"` + gatilho em
+  `auth.users`).
 - Modelos de e-mail: `apps/web/public/email/*.html` (ver [Modelos de e-mail](#modelos-de-e-mail)).
 
 ## Pessoas: liberar, mudar, tirar
@@ -73,12 +141,14 @@ Colaborador ligado a ele.
 
 - **Com SMTP configurado**: a pessoa recebe o e-mail de acesso.
 - **Sem SMTP** (situação de hoje): o painel mostra um **link de acesso** de uso único
-  para copiar e mandar por outro meio (WhatsApp, por exemplo).
+  para copiar e mandar por outro meio (WhatsApp, por exemplo). Ao entrar por ele, a pessoa
+  cria a senha dela.
 - Com o Google ligado, a pessoa também pode clicar em "Entrar com Google" com a conta do
   mesmo e-mail.
 
-Em cada pessoa: **Gerar link de acesso** (uso único, 15 min), **Enviar acesso** (só com
-SMTP), **Desativar/Reativar**, editar e excluir.
+Em cada pessoa: "Senha criada · data" ou "Ainda sem senha", **Gerar link de acesso** (uso
+único, 15 min; para quem não tem senha, é o primeiro acesso), **Redefinir senha** (só para quem
+já tem senha), **Enviar acesso** (só com SMTP), **Desativar/Reativar**, editar e excluir.
 
 - **Tirar o acesso**: prefira **Desativar** (bloqueia o login no Auth, derruba as sessões
   abertas, a RLS nega tudo na hora e o histórico continua com o nome). **Excluir** apaga o
@@ -174,9 +244,13 @@ com "Como" e o IP:
 | Link de acesso / Código por e-mail | **O servidor** (migration `017_auditoria_login_servidor.sql`): gatilho `auditoria_login_sessao` em `auth.mfa_amr_claims`, a linha que o Auth cria para toda sessão nova. Grava "Link ou código por e-mail" com o IP da sessão; o GoTrue registra os dois como `otp` e não guarda qual foi. Logo depois a tela chama `registrar_login('link'/'codigo')`, que só **troca o "Como"** desse evento (e só se o JWT da sessão é de token do e-mail). Se a tela falhar, a entrada fica registrada assim mesmo. |
 | Só com o e-mail (sem verificação) | A function `entrar`, antes de devolver o token. O gatilho vê o evento recente e não duplica. |
 | Conta Google | A RPC `registrar_login_google()` (migration 015), chamada pelo `/auth/callback`; o gatilho ignora sessões `oauth`. |
-| Senha | O gatilho (o painel não usa senha; só aparece se alguém usar a API do Auth com senha). |
+| Senha | O gatilho (login com e-mail e senha; amr `password`). |
 
 O gatilho nunca impede a entrada: qualquer erro vira só um aviso no log do banco.
+
+Senha: "criou a senha de acesso" / "trocou a senha de acesso" (módulo `acesso`, ação `senha`,
+gatilho `senha_definida` da migration 027) e, de quem gerou, "gerou um link para X redefinir
+a senha" (módulo `equipe`, ação `link_senha_gerado`).
 
 ## Link de emergência (sem e-mail, sem ninguém logado)
 
@@ -408,6 +482,12 @@ mensagem de sem acesso; (3) pessoa desativada recebe "Acesso não liberado"; (4)
   (não por IP sem descritores dinâmicos) e um erro de configuração derruba o painel
   inteiro; o freio do GoTrue cobre o mesmo caso.
 - **Function equipe**: 60 ações por minuto por pessoa.
+- **Senha**: o login com senha (`/token?grant_type=password`) usa o mesmo freio de `/token`
+  (`GOTRUE_RATE_LIMIT_TOKEN_REFRESH=150` por 5 minutos, contado pelo gateway, ou seja, para o
+  escritório todo). O GoTrue não bloqueia a conta depois de N senhas erradas; a defesa é esse
+  freio + mínimo de 10 caracteres + HIBP. Efeito colateral: alguém chutando senhas em massa
+  pode travar por minutos a renovação de sessão de todos (o mesmo resíduo dos limites acima).
+  Trocar a senha (`PUT /user`) exige a atual quando a sessão é de senha.
 - Resíduo conhecido: chamando a API do Auth direto (fora da tela), a resposta para um
   e-mail sem acesso é diferente da de um com acesso. Os limites acima tornam a
   varredura lenta; a tela não mostra a diferença.
@@ -416,7 +496,8 @@ mensagem de sem acesso; (3) pessoa desativada recebe "Acesso não liberado"; (4)
 
 | Quando | O que fazer |
 |---|---|
-| O **SMTP** funcionou ("Enviar e-mail de teste" chegou) **ou** o **Google** está ligado e todos já entraram por ele | Configurações > Módulos: desligar **Entrar só com o e-mail (provisório)**. A tela volta a pedir link/código (ou Google). Não espere os dois: basta um deles funcionando. |
+| **Toda a equipe ativa tem senha** (Equipe sem nenhum "Ainda sem senha"; Configurações > Módulos avisa ao lado da chave) | Configurações > Módulos: desligar **Entrar só com o e-mail (provisório)**. A tela fica só com e-mail e senha (e Google/link por e-mail, se ligados). Quem não lembrar a senha pede **Redefinir senha** a um administrador. |
+| O **SMTP** funcionou ("Enviar e-mail de teste" chegou) **ou** o **Google** está ligado e todos já entraram por ele | Se o "só com o e-mail" ainda estiver ligado, desligue. Com SMTP, a tela ganha "Receber link e código por e-mail" como alternativa à senha. |
 | O SMTP funcionou | Parar de mandar link de acesso por WhatsApp: use **Enviar acesso** em Equipe. O app `email` (Stalwart) pode ser removido do Easypanel. |
 | O Google está ligado | Nada mais a desligar: link/código por e-mail continua como reserva (conta Google com problema, pessoa sem Google). |
 | Alguém saiu da equipe | **Desativar** em Equipe (derruba as sessões na hora). |
@@ -432,17 +513,24 @@ SUPABASE_SERVICE_ROLE_KEY=<service role> SUPABASE_ANON_KEY=<anon> \
 node scripts/testar-login.mjs
 ```
 
-Cria um administrador de teste e três pessoas "TESTE QA ..." (`qa-login-*@teste.invalid`,
+Cria um administrador de teste e quatro pessoas "TESTE QA ..." (`qa-login-*@teste.invalid`,
 convidadas pela function `equipe`) e confere: convite, link de uso único (e que não vale de
 novo), código de 6 números (e código errado recusado), auditoria do servidor com o refino da
 tela, entrada só com o e-mail resolvendo o ALTCHA como o navegador (se ligada), sair com
 `scope=local` sem derrubar a outra sessão, pessoa desativada bloqueada (sessão, link, token,
-só e-mail) e e-mail desconhecido recusado. No fim apaga as pessoas de teste (Equipe e Auth) e
+só e-mail) e e-mail desconhecido recusado. Senha (pessoa própria, porque trocar a senha
+derruba as outras sessões): convidado começa sem senha (027), senha curta recusada, a sessão
+do link cria a senha sem a atual, data e auditoria gravadas, entra com e-mail e senha,
+senha errada e e-mail inexistente com a mesma resposta, trocar logado exige a atual (e a
+errada é recusada), trocar derruba a outra sessão, "Redefinir senha" gera link
+`type=recovery` que deixa criar outra sem a atual, a antiga para de valer, desativada não
+entra com senha. Os itens de senha que dependem do env do Auth (mínimo 10, senha atual
+exigida) falham com o nome da variável se o serviço `supabase` não foi reimplantado. No fim apaga as pessoas de teste (Equipe e Auth) e
 confere que não sobrou nada. Imprime só PASSOU/FALHOU, nunca token ou link. Não manda e-mail
 (usa o token direto do Auth) e não toca em ninguém da equipe de verdade. Os eventos "entrou no
 painel" das pessoas de teste ficam na auditoria (ela não apaga nada), com o nome "TESTE QA".
 
-Rodado em produção em 18/10/2026, antes e depois de publicar: 23 de 23 passaram (inclui o diagnóstico do e-mail em `GET /equipe/email`).
+Rodado em produção em 18/10/2026, antes e depois de publicar: 23 de 23 passaram (inclui o diagnóstico do e-mail em `GET /equipe/email`). Os itens de senha (17/11/2026) ainda não rodaram em produção: rodar depois de aplicar a 027 e reimplantar o serviço `supabase`.
 
 ## Problemas comuns
 
@@ -455,4 +543,8 @@ Rodado em produção em 18/10/2026, antes e depois de publicar: 23 de 23 passara
 | "O link expirou ou já foi usado" | Passou de 15 min, já usado, ou pediu outro depois (só o último vale) | Pedir um novo; o código do e-mail mais recente vale. |
 | "Acesso não liberado" | Colaborador inativo ou o e-mail do Auth não bate com o de Equipe | Reativar / corrigir o e-mail em Equipe. |
 | Ninguém consegue entrar | E-mail fora e nenhum administrador logado | [Link de emergência](#link-de-emergência-sem-e-mail-sem-ninguém-logado). |
+| "E-mail ou senha incorretos" e a pessoa jura que está certa | Senha digitada errada, ou ela nunca criou senha (Equipe: "Ainda sem senha") | Equipe: **Gerar link de acesso** (sem senha) ou **Redefinir senha** (com senha). |
+| "Essa senha aparece em vazamentos conhecidos" | HIBP do Auth | Escolher outra senha (uma frase longa). |
+| Pessoa cria a senha e volta para "Crie sua senha" | Migration 027 sem o gatilho (`senhaDefinidaEm` não é preenchida) | `select tgname from pg_trigger where tgname = 'senha_definida'`; reaplicar a 027. (No mesmo navegador a tela não repete: guarda que já criou.) |
+| "Trocar senha" pede a senha atual e a pessoa não sabe | Entrou com senha e esqueceu, ou entrou pelo Google | **Redefinir senha** em Equipe. |
 | Entrada não aparece na auditoria | Gatilho `auditoria_login_sessao` ausente | `select tgname from pg_trigger where tgname = 'auditoria_login_sessao'`; reaplicar a 017. |
